@@ -39,7 +39,7 @@ ai-config/
 ### Clone
 
 ```bash
-git clone git@github.com:peregrinus879/ai-config.git ~/projects/ai-config
+git clone git@github.com:peregrinus879/ai-config.git ~/path/to/ai-config
 ```
 
 ### Stow
@@ -47,14 +47,14 @@ git clone git@github.com:peregrinus879/ai-config.git ~/projects/ai-config
 Create symlinks for all packages:
 
 ```bash
-cd ~/projects/ai-config
+cd ~/path/to/ai-config
 stow -v -t ~ claude-code opencode
 ```
 
 ### Unstow
 
 ```bash
-cd ~/projects/ai-config
+cd ~/path/to/ai-config
 stow -D -v -t ~ claude-code opencode
 ```
 
@@ -63,7 +63,7 @@ stow -D -v -t ~ claude-code opencode
 Preview what stow would do without making changes:
 
 ```bash
-cd ~/projects/ai-config
+cd ~/path/to/ai-config
 stow -v -n -t ~ claude-code opencode
 ```
 
