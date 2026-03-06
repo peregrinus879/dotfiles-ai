@@ -12,7 +12,7 @@ Two stow packages mirror their respective `$HOME` targets:
 Stow commands:
 
 ```bash
-cd ~/projects/ai-config
+cd ~/path/to/ai-config
 stow -v -t ~ claude-code opencode     # install
 stow -D -v -t ~ claude-code opencode  # uninstall
 stow -v -n -t ~ claude-code opencode  # dry run
