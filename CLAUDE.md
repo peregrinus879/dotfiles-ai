@@ -28,8 +28,9 @@ Official docs: https://code.claude.com/docs/en/overview
 |------|---------|
 | `CLAUDE.md` | User-level persistent instructions (loaded every session) |
 | `settings.json` | User-level settings (permissions, env, features) |
-| `rules/` | User-level organized instruction files (loaded before project rules) |
 | `agents/` | User-level custom agents |
+| `rules/` | User-level organized instruction files (loaded before project rules) |
+| `skills/` | User-level custom skills (SKILL.md files, on-demand workflows) |
 
 Best practices:
 - Keep `CLAUDE.md` under 200 lines for context window efficiency

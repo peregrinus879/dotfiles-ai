@@ -15,7 +15,8 @@ ai-config/
 │   └── .claude/
 │       ├── CLAUDE.md                     # global instructions
 │       ├── agents/                       # custom agents
-│       └── rules/                        # organized instruction files
+│       ├── rules/                        # organized instruction files
+│       └── skills/                       # custom skills (SKILL.md files)
 └── opencode/                             # stow package -> ~/.config/opencode/
     └── .config/
         └── opencode/
