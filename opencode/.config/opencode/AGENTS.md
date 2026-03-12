@@ -48,7 +48,7 @@ Address user as H. Domain: capital projects (civil eng, MBA); PMO, Project Contr
 - OS: Omarchy (Arch Linux + Hyprland) or WSL (Arch Linux)
 - Terminal: Ghostty (Omarchy) or Windows Terminal (WSL)
 - Dev: Tmux, Neovim (LazyVim), OpenCode, Bash
-- Commits: Conventional Commits, one logical change per commit, separate by type
-- Commit messages: Concise subject, brief body, verbose only when necessary
+- Commits: Conventional Commits, atomic commits (one complete, self-contained change per commit), separate by type
+- Commit messages: Imperative mood, concise subject (50 chars), body when change needs context
 - Co-Author: Append `Co-Authored-By: <model name> <noreply@provider.com>` to commit messages
 - Push: User handles manually (SSH passphrase required). Do not push.
