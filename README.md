@@ -30,6 +30,8 @@ ai-config/
             └── tools/                    # custom tool definitions
 ```
 
+Machine-local paths (`projects/`, `agent-memory/`) and auto-generated config files (`settings.json`, `keybindings.json`) are intentionally excluded.
+
 ## Setup
 
 ### Prerequisites
@@ -37,6 +39,12 @@ ai-config/
 - [GNU Stow](https://www.gnu.org/software/stow/) (`pacman -S stow`)
 
 ### Clone
+
+```bash
+git clone https://github.com/peregrinus879/ai-config.git ~/path/to/ai-config
+```
+
+Or with SSH:
 
 ```bash
 git clone git@github.com:peregrinus879/ai-config.git ~/path/to/ai-config
