@@ -43,7 +43,7 @@ Machine-local paths (`projects/`, `agent-memory/`) and auto-generated config fil
 - [GNU Stow](https://www.gnu.org/software/stow/)
 
 ```bash
-pacman -S --needed stow
+sudo pacman -S --needed stow
 ```
 
 ### Clone
