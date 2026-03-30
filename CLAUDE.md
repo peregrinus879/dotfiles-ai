@@ -31,6 +31,7 @@ Official docs: https://code.claude.com/docs/en/overview
 | `agents/` | User-level custom agents |
 | `rules/` | User-level organized instruction files (loaded before project rules) |
 | `skills/` | User-level custom skills (SKILL.md files, on-demand workflows) |
+| `statusline.sh` | Terminal status line script ([docs](https://code.claude.com/docs/en/statusline)) |
 
 Best practices:
 - Keep `CLAUDE.md` under 200 lines for context window efficiency

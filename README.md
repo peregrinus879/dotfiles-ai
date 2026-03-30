@@ -16,9 +16,10 @@ dotfiles-ai/
 │       ├── CLAUDE.md                     # global instructions
 │       ├── agents/                       # custom agents
 │       ├── rules/                        # organized instruction files
-│       └── skills/                       # custom skills (SKILL.md files)
-│           ├── commit/                   # commit conventions
-│           └── update/                   # post-change doc updates
+│       ├── skills/                       # custom skills (SKILL.md files)
+│       │   ├── commit/                   # commit conventions
+│       │   └── update/                   # post-change doc updates
+│       └── statusline.sh                 # terminal status line script
 └── opencode/                             # stow package -> ~/.config/opencode/
     └── .config/
         └── opencode/
