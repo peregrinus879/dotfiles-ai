@@ -30,8 +30,8 @@ reset='\033[0m'
 # Color by percentage threshold
 pct_color() {
   local pct=${1:-0}
-  if [ "$pct" -ge 80 ] 2>/dev/null; then echo "$red"
-  elif [ "$pct" -ge 50 ] 2>/dev/null; then echo "$yellow"
+  if [ "$pct" -ge 90 ] 2>/dev/null; then echo "$red"
+  elif [ "$pct" -ge 70 ] 2>/dev/null; then echo "$yellow"
   else echo "$green"
   fi
 }
