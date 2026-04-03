@@ -48,7 +48,7 @@ current state before proceeding with staging and commits.
 - Body: when the change needs context (explain why, not what)
 - Co-Author: always append with current model name
 - Push: user handles manually (SSH passphrase required). Do not push.
-- After committing, check whether `origin` exists with `git remote get-url origin 2>/dev/null`, then check for an upstream tracking branch with `git rev-parse --abbrev-ref @{upstream} 2>/dev/null`, and show the appropriate push command:
-  - No `origin`: `git remote add origin <url>` then `git push -u origin <branch>`
-  - Has `origin`, no upstream: `git push -u origin <branch>`
+- After committing, get the current branch with `git branch --show-current`, then check for an upstream tracking branch with `git rev-parse --abbrev-ref @{upstream} 2>/dev/null`, and show the appropriate push command:
   - Has upstream: `git push`
+  - Has `origin`, no upstream: `git push -u origin <branch>`
+  - No `origin`: `git remote add origin <url> && git push -u origin <branch>`

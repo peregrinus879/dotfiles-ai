@@ -28,10 +28,10 @@ Official docs: https://code.claude.com/docs/en/overview
 |------|---------|
 | `CLAUDE.md` | User-level persistent instructions (loaded every session) |
 | `settings.json` | User-level runtime settings (status line, permissions, env, features) |
+| `statusline.sh` | Terminal status line script ([docs](https://code.claude.com/docs/en/statusline)) |
 | `agents/` | User-level custom agents |
 | `rules/` | User-level organized instruction files (loaded before project rules) |
 | `skills/` | User-level custom skills (SKILL.md files, on-demand workflows) |
-| `statusline.sh` | Terminal status line script ([docs](https://code.claude.com/docs/en/statusline)) |
 
 Best practices:
 - Keep `CLAUDE.md` under 200 lines for context window efficiency
@@ -52,11 +52,11 @@ Official docs: https://opencode.ai/docs
 | `tui.json` | TUI-specific settings |
 | `agents/` | Custom agent definitions (markdown with frontmatter) |
 | `commands/` | Custom command definitions |
-| `tools/` | Custom tool definitions |
-| `themes/` | Custom themes |
 | `modes/` | Mode configurations |
 | `plugins/` | Plugin files |
 | `skills/` | Agent skills |
+| `themes/` | Custom themes |
+| `tools/` | Custom tool definitions |
 
 Notes:
 - OpenCode falls back to `CLAUDE.md` if `AGENTS.md` is absent
@@ -64,6 +64,7 @@ Notes:
 - Built-in agents can be overridden in `opencode.json`; custom agents can be defined as markdown files in `agents/`
 - Skills are agent-loadable instruction packs; slash-invokable workflows belong in `commands/`
 - Prefer `permission` over legacy `tools` for new OpenCode configuration
+- This repo currently tracks OpenCode `opencode.json` for the shared default model `openai/gpt-5.4`, local `ollama/gemma4:31b` provider configuration, and the built-in `build` agent permission override
 
 ## Editing Guidelines
 
