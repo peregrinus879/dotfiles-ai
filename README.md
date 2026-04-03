@@ -14,23 +14,23 @@ dotfiles-ai/
 ├── claude-code/                          # stow package -> ~/.claude/
 │   └── .claude/
 │       ├── CLAUDE.md                     # global instructions
-│       ├── agents/                       # custom agents
 │       ├── settings.json                 # runtime settings (status line, permissions)
+│       ├── statusline.sh                 # terminal status line script
+│       ├── agents/                       # custom agents
 │       ├── rules/                        # organized instruction files
-│       ├── skills/                       # custom skills (SKILL.md files)
-│       │   ├── commit/                   # commit conventions
-│       │   └── update/                   # post-change doc updates
-│       └── statusline.sh                 # terminal status line script
+│       └── skills/                       # custom skills (SKILL.md files)
+│           ├── commit/                   # commit conventions
+│           └── update/                   # post-change doc updates
 └── opencode/                             # stow package -> ~/.config/opencode/
     └── .config/
         └── opencode/
             ├── AGENTS.md                 # global instructions
+            ├── opencode.json             # runtime config and agent overrides
             ├── agents/                   # custom agent definitions
             ├── commands/                 # custom slash commands
             │   ├── commit.md             # wrapper for the commit skill
             │   └── update.md             # wrapper for the update skill
             ├── modes/                    # mode configurations
-            ├── opencode.json             # runtime config and agent overrides
             ├── plugins/                  # plugins
             ├── skills/                   # agent skills
             │   ├── commit/               # commit conventions
@@ -39,7 +39,7 @@ dotfiles-ai/
             └── tools/                    # custom tool definitions
 ```
 
-Tracked runtime config is limited to shared behavior, currently Claude Code `settings.json` for the custom status line and OpenCode `opencode.json` for the built-in `build` agent approval policy.
+Tracked runtime config is limited to shared behavior, currently Claude Code `settings.json` for the custom status line and OpenCode `opencode.json` for the shared default model `openai/gpt-5.4`, local `ollama/gemma4:31b` provider definition, and built-in `build` agent approval policy.
 
 Machine-local paths (`projects/`, `agent-memory/`), auth/session state, and generated or host-specific config files remain intentionally excluded.
 
