@@ -37,10 +37,12 @@
       "Read(~/.ssh/**)"
     ]
   },
-  "model": "opus[1m]",
+  "model": "fable[1m]",
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh"
   },
-  "effortLevel": "xhigh"
+  "effortLevel": "xhigh",
+  "enableWorkflows": true,
+  "ultracode": true
 }
