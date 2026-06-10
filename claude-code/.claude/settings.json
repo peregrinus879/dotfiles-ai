@@ -37,7 +37,7 @@
       "Read(~/.ssh/**)"
     ]
   },
-  "model": "fable[1m]",
+  "model": "opus[1m]",
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh"
