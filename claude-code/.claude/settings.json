@@ -44,5 +44,8 @@
   },
   "effortLevel": "xhigh",
   "enableWorkflows": true,
-  "ultracode": true
+  "ultracode": true,
+  "enabledPlugins": {
+    "vercel@claude-plugins-official": true
+  }
 }
