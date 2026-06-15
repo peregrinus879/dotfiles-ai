@@ -65,6 +65,7 @@ scratch or iteration artifacts (`git ls-files --others --exclude-standard`).
 - Subject: imperative mood, concise (50 chars), lowercase
 - Body: when the change needs context (explain why, not what)
 - Co-Author: always append with current provider and model
+- Commit identity: confirm `git config user.email` is the GitHub no-reply, not a personal inbox; stop if not.
 - Push: user handles manually (SSH passphrase required). Do not push.
 
 ## Push hint

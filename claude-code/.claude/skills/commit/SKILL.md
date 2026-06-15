@@ -67,6 +67,7 @@ scratch or iteration artifacts (`git ls-files --others --exclude-standard`).
 - Body: when the change needs context (explain why, not what)
 - No ephemeral references: no audit numbers, ticket IDs, or session-specific identifiers
 - Co-Author: always append with current model
+- Commit identity: confirm `git config user.email` is the GitHub no-reply, not a personal inbox; stop if not.
 - Push: user handles manually (SSH passphrase required). Do not push.
 
 ## Push hint

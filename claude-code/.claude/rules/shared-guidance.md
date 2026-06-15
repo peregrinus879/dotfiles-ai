@@ -60,5 +60,7 @@ When a project grows an `AGENTS.md`, the four sections **Invariants**, **Post-Ch
 - Verify the target machine before changing live config, stow links, packages, services, or `$HOME`.
 - Never apply machine-specific dotfiles from the wrong machine. Do not mutate unless the current machine matches. Stop and provide commands for the correct machine instead.
 - Commits: Use `/commit` skill.
+- Commit identity: before committing, verify `git config user.email` resolves to the GitHub no-reply, never a personal inbox. Identity lives in the untracked per-host `~/.config/git/config.local`; the tracked git config carries none. If it resolves to a personal address, stop and tell the user instead of committing.
+- GitHub email privacy is ON for this account: "Keep my email addresses private" (web-based Git ops and notification email use the GitHub no-reply; command-line Git uses whatever `git config user.email` is set to) and "Block command line pushes that expose my email" (on push, GitHub checks the latest commit and blocks it if the author is a private email registered on the account). These are backstops; they do not change how local commits are authored and do not fix already-public commits.
 - Push: User handles manually (SSH passphrase required). Do not push.
 - Patch review: `!git status --short`, `!git diff --stat`, `!git diff`, `!git diff -- path/to/file`.
