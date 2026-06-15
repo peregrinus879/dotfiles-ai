@@ -22,10 +22,6 @@ cwd="${_f[0]}" model="${_f[1]}" used_pct="${_f[2]}" ctx_size="${_f[3]}"
 rate_5h="${_f[4]}" rate_7d="${_f[5]}" cost_usd="${_f[6]}"
 reset_5h="${_f[7]}" reset_7d="${_f[8]}" session_id="${_f[9]}"
 
-# effortLevel is not in the statusline JSON schema;
-# read directly from settings.json as a workaround.
-effort=$(jq -r '.effortLevel // empty' ~/.claude/settings.json 2>/dev/null)
-
 # --- ANSI colors ---
 dim='\033[2m'
 bold_cyan='\033[1;36m'
@@ -156,10 +152,6 @@ fi
 # 3. Model (strip "Claude " prefix if present)
 short_model="${model#Claude }"
 
-# 4. Effort
-effort_seg=""
-[ -n "$effort" ] && [ "$effort" != "null" ] && effort_seg="  ${dim}${effort}${reset}"
-
 # 5. Context window: used (pct%)
 # used_percentage and ctx_size can be null early in session before first API call.
 ctx_seg=""
@@ -209,4 +201,4 @@ else
 fi
 
 # --- Output ---
-printf "%b\n" "${host_seg}${bold_cyan}${short_cwd}${reset}${branch:+  ${italic_cyan}${branch}${reset}}  ${dim}${short_model}${reset}${effort_seg}${ctx_seg}${rate_seg}${cost_seg}"
+printf "%b\n" "${host_seg}${bold_cyan}${short_cwd}${reset}${branch:+  ${italic_cyan}${branch}${reset}}  ${dim}${short_model}${reset}${ctx_seg}${rate_seg}${cost_seg}"
