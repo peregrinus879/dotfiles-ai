@@ -32,6 +32,7 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 ## Safety
 
 - Exhaust read-only diagnostics before changes (read files, search code, check status, review logs).
+- Root-required read-only checks: do not use sudo. Provide the exact command with expected output; H runs it via the `!` prefix.
 - When troubleshooting third-party software, search upstream issue trackers, discussions, and release notes first. Cite any matching report.
 - Present proposed changes before editing files. Do not edit without approval.
 - Never edit outside the current working directory. Exceptions require explicit instruction and per-hunk pre-approval, one task at a time.
@@ -51,11 +52,17 @@ For non-trivial tasks (multiple files, multiple steps, or architectural decision
 
 When a project grows an `AGENTS.md`, the four sections **Invariants**, **Post-Change Verification**, **Known Limitations**, and **Deferred Items** form a useful backbone: pre-change rules, post-change checks, structural constraints, and open work. Use what fits; do not prescribe the full template to every repo.
 
+## Agents and Workflows
+
+- Order workflow agents by criticality: run synthesis- and verification-critical agents before optional breadth agents. Near session limits, split large workflows across turns instead of one big run.
+- Multi-agent runs are expensive. Scale finder pools to the remaining session budget.
+- Resume a killed or edited workflow with `resumeFromRunId` plus `scriptPath`; completed agents return cached results, so only the failed tail re-runs.
+- Agents that write scratch files must use one session scratch directory (e.g. `/tmp/claude-scratch-<session-id>/`) and state its path, so cleanup is a single `rm -rf`.
+
 ## Environment
 
-- Execution host: usually a headless Arch Linux machine accessed over SSH.
-- Client OS: Omarchy (Arch Linux + Hyprland) or WSL (Arch Linux).
-- Client terminal: Ghostty (Omarchy) or Windows Terminal (WSL).
+- Hosts: Omarchy (Arch Linux + Hyprland), WSL (Arch Linux), or Android (Claude app).
+- Terminals: Ghostty (Omarchy), Windows Terminal (WSL).
 - Dev: Tmux, Neovim (LazyVim), Bash.
 - Verify the target machine before changing live config, stow links, packages, services, or `$HOME`.
 - Never apply machine-specific dotfiles from the wrong machine. Do not mutate unless the current machine matches. Stop and provide commands for the correct machine instead.
