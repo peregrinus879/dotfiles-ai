@@ -39,7 +39,7 @@ dotfiles-ai/
 ├── claude-code/                          # stow package -> ~/.claude/
 │   └── .claude/
 │       ├── CLAUDE.md                     # Claude-specific instructions
-│       ├── settings.json                 # runtime settings (status line, permissions)
+│       ├── settings.json                 # runtime settings (model, status line, permissions, workflows)
 │       ├── statusline.sh                 # terminal status line script
 │       ├── agents/                       # custom agents
 │       ├── rules/                        # organized instruction files
@@ -63,7 +63,7 @@ dotfiles-ai/
             └── tools/                    # custom tool definitions
 ```
 
-Tracked runtime config is limited to shared behavior, currently Claude Code `settings.json` for the custom status line and a shared allow/deny permission policy, OpenCode `opencode.json` for the default agent `plan`, the shared default model `openai/gpt-5.5` with `xhigh` reasoning effort, a shared top-level permission policy for read-only web fetch/search and code search tools, local `ollama/gemma4:31b` provider definition, built-in `build` agent approval policy, and disabled conversation sharing, plus OpenCode `tui.json` for a stacked diff view that works better in narrow terminals.
+Tracked runtime config is limited to shared behavior. Claude Code `settings.json` pins the default model `claude-fable-5[1m]` with `xhigh` effort, enables workflows and ultracode, sets the custom status line and fullscreen TUI, carries the shared allow/deny permission policy, and enables the `vercel` plugin. OpenCode `opencode.json` sets the shared default model `openai/gpt-5.5` with `xhigh` reasoning effort, a shared top-level permission policy for read-only web fetch/search and code search tools, the local `ollama/gemma4:31b` provider definition, the built-in `build` agent approval policy, disabled conversation sharing, and shared-guidance instruction loading. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
 
 Machine-local paths (`projects/`, `agent-memory/`), auth/session state, and generated or host-specific config files remain intentionally excluded. The repo root `.gitignore` tracks the documented machine-local paths so accidental local state stays out of Git.
 
