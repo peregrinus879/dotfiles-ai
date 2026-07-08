@@ -4,7 +4,7 @@
 SHELL := /bin/bash
 PACKAGES := claude-code opencode
 
-.PHONY: help stow unstow dry-run restow verify clean
+.PHONY: help stow unstow dry-run restow verify clean lint
 
 help:
 	@echo "Targets:"
@@ -14,6 +14,7 @@ help:
 	@echo "  restow    Re-stow after repo content changes"
 	@echo "  verify    Check symlinks, JSON validity, and statusline syntax"
 	@echo "  clean     Remove files that would conflict with stow (README Prepare steps)"
+	@echo "  lint      ShellCheck over statusline.sh (.shellcheckrc holds the disable list)"
 
 stow:
 	stow -v -t ~ $(PACKAGES)
@@ -46,3 +47,7 @@ clean:
 	  ~/.config/opencode/modes ~/.config/opencode/plugins ~/.config/opencode/skills \
 	  ~/.config/opencode/themes ~/.config/opencode/tools
 	-rm -f ~/.claude/settings.json
+
+lint:
+	shellcheck -s bash claude-code/.claude/statusline.sh
+	@echo "ok:   shellcheck clean"

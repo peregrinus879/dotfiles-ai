@@ -80,4 +80,4 @@ It does not own:
 5. Verify Claude Code status line behavior still matches `claude-code/.claude/settings.json` and `statusline.sh`.
 6. Verify OpenCode diff review remains usable in narrow terminals and that sharing stays disabled unless intentionally changed.
 7. Verify `/commit` still performs doc sync and scratch cleanup before staging.
-8. Run `make verify` from the repo root after changing the stowed payloads.
+8. Run `make verify` and `make lint` from the repo root after changing the stowed payloads.

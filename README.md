@@ -205,6 +205,7 @@ A repo-root `Makefile` keeps the package list in one place and wraps the routine
 - `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets from Setup
 - `make verify` - the Verify symlink checks plus JSON validity and statusline syntax checks
 - `make clean` - the Prepare cleanup steps
+- `make lint` - ShellCheck over `statusline.sh`; `.shellcheckrc` disables the one style-level finding so new issues stand out
 
 ## References
 

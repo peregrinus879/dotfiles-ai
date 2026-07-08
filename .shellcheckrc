@@ -1,0 +1,3 @@
+# SC2004 (style: $ unnecessary on arithmetic variables) is the only finding
+# in statusline.sh; kept as-is per the minimal-change statusline convention.
+disable=SC2004
