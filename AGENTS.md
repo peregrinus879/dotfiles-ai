@@ -77,5 +77,5 @@ It does not own:
 3. Run `opencode debug config` and confirm the resolved config still matches the tracked intent.
 4. Start a fresh session in both tools and verify the shared guidance file is loaded.
 5. Verify Claude Code status line behavior still matches `claude-code/.claude/settings.json` and `statusline.sh`.
-6. Verify OpenCode diff review remains usable over SSH and that sharing stays disabled unless intentionally changed.
+6. Verify OpenCode diff review remains usable in narrow terminals and that sharing stays disabled unless intentionally changed.
 7. Verify `/commit` still performs doc sync and scratch cleanup before staging.

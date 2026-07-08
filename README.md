@@ -63,7 +63,7 @@ dotfiles-ai/
             └── tools/                    # custom tool definitions
 ```
 
-Tracked runtime config is limited to shared behavior, currently Claude Code `settings.json` for the custom status line and a shared allow/deny permission policy, OpenCode `opencode.json` for the default agent `plan`, the shared default model `openai/gpt-5.5` with `xhigh` reasoning effort, a shared top-level permission policy for read-only web fetch/search and code search tools, local `ollama/gemma4:31b` provider definition, built-in `build` agent approval policy, and disabled conversation sharing, plus OpenCode `tui.json` for a stacked diff view that works better over SSH.
+Tracked runtime config is limited to shared behavior, currently Claude Code `settings.json` for the custom status line and a shared allow/deny permission policy, OpenCode `opencode.json` for the default agent `plan`, the shared default model `openai/gpt-5.5` with `xhigh` reasoning effort, a shared top-level permission policy for read-only web fetch/search and code search tools, local `ollama/gemma4:31b` provider definition, built-in `build` agent approval policy, and disabled conversation sharing, plus OpenCode `tui.json` for a stacked diff view that works better in narrow terminals.
 
 Machine-local paths (`projects/`, `agent-memory/`), auth/session state, and generated or host-specific config files remain intentionally excluded. The repo root `.gitignore` tracks the documented machine-local paths so accidental local state stays out of Git.
 
@@ -97,7 +97,7 @@ For multi-file review in Claude Code or OpenCode, use Bash mode with Git diffs:
 
 Both tools support `!`-prefixed Bash commands in the interactive terminal UI.
 
-`opencode/.config/opencode/tui.json` sets `diff_style` to `stacked`, which is easier to scan in narrower SSH terminals.
+`opencode/.config/opencode/tui.json` sets `diff_style` to `stacked`, which is easier to scan in narrow terminals.
 
 OpenCode docs can reflect the `dev` branch before a feature reaches the latest stable release, so prefer your installed `/help` output when docs and behavior disagree.
 
