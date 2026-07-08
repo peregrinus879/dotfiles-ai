@@ -26,6 +26,7 @@ It does not own:
 ## Key Files
 
 - `README.md` - structure, setup, and verification
+- `Makefile` - stow, verification, and cleanup automation; single source of the package list
 - `CLAUDE.md` - thin Claude Code wrapper importing `AGENTS.md`
 - `claude-code/.claude/rules/shared-guidance.md` - canonical shared cross-tool guidance file
 - `claude-code/.claude/settings.json` - Claude Code runtime settings
@@ -79,3 +80,4 @@ It does not own:
 5. Verify Claude Code status line behavior still matches `claude-code/.claude/settings.json` and `statusline.sh`.
 6. Verify OpenCode diff review remains usable in narrow terminals and that sharing stays disabled unless intentionally changed.
 7. Verify `/commit` still performs doc sync and scratch cleanup before staging.
+8. Run `make verify` from the repo root after changing the stowed payloads.

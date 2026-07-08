@@ -198,9 +198,18 @@ After stowing the shared AI tooling config:
 - Run `opencode debug config` and confirm the resolved config includes the shared guidance path and `share = disabled`.
 - Confirm `/commit` still routes through the repo skill workflow in both tools.
 
+## Maintenance
+
+A repo-root `Makefile` keeps the package list in one place and wraps the routine commands. Run targets from the repo root:
+
+- `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets from Setup
+- `make verify` - the Verify symlink checks plus JSON validity and statusline syntax checks
+- `make clean` - the Prepare cleanup steps
+
 ## References
 
 - `README.md` - repo scope, structure, setup, and verification
+- `Makefile` - stow, verification, and cleanup automation
 - `AGENTS.md` - canonical repo-specific assistant context and maintainer checklist
 - `CLAUDE.md` - thin Claude Code wrapper importing `AGENTS.md`
 - `claude-code/.claude/rules/shared-guidance.md` - canonical shared cross-tool guidance
