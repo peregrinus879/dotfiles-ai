@@ -9,14 +9,14 @@ Derivation model for this repo family:
 ```text
 AI harness configs              → dotfiles-ai
 Omarchy + personal deviations   → dotfiles-omarchy
-Omarchy + headless deviations   → dotfiles-arch
-dotfiles-arch + WSL overlay     → dotfiles-wsl
+Omarchy + WSL deviations        → dotfiles-wsl
+Omarchy + headless deviations   → dotfiles-arch (reference-only)
 ```
 
 - [`dotfiles-ai`](https://github.com/peregrinus879/dotfiles-ai) - AI harness configs: Claude Code and OpenCode settings, shared guidance, and commit workflow
-- [`dotfiles-omarchy`](https://github.com/peregrinus879/dotfiles-omarchy) - Personal Omarchy customizations: Bash overrides, Hyprland bindings, Neovim plugins, and Yazi
-- [`dotfiles-arch`](https://github.com/peregrinus879/dotfiles-arch) - Shared Arch Linux terminal baseline: Bash, Tmux, Neovim, Starship, Git, Yazi, btop, and fastfetch
-- [`dotfiles-wsl`](https://github.com/peregrinus879/dotfiles-wsl) - WSL overlay for dotfiles-arch: Windows Terminal, clipboard integration, and repo auto-refresh
+- [`dotfiles-omarchy`](https://github.com/peregrinus879/dotfiles-omarchy) - Personal Omarchy customizations: Bash overrides, Hyprland bindings, and Yazi
+- [`dotfiles-wsl`](https://github.com/peregrinus879/dotfiles-wsl) - Self-contained WSL Arch dotfiles: terminal baseline plus Windows Terminal, clipboard integration, and OpenCode theme
+- [`dotfiles-arch`](https://github.com/peregrinus879/dotfiles-arch) - Reference-only headless Arch baseline, frozen for the remaining host until retirement
 
 ## Supported Tools
 
@@ -209,8 +209,9 @@ After stowing the shared AI tooling config:
 
 ## Related Repos
 
-- `~/Projects/repos/dotfiles/dotfiles-arch` - shared Linux baseline for terminal tooling and editor config
-- `~/Projects/repos/dotfiles/dotfiles-wsl` - additive WSL and Windows-specific overlay for the same repo family
+- `~/Projects/repos/dotfiles/dotfiles-omarchy` - personal Omarchy desktop customizations
+- `~/Projects/repos/dotfiles/dotfiles-wsl` - self-contained WSL Arch dotfiles for the same repo family
+- `~/Projects/repos/dotfiles/dotfiles-arch` - frozen reference baseline for the retiring headless host
 
 ## License
 
