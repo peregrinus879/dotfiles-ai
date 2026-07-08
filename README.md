@@ -10,13 +10,11 @@ Derivation model for this repo family:
 AI harness configs              → dotfiles-ai
 Omarchy + personal deviations   → dotfiles-omarchy
 Omarchy + WSL deviations        → dotfiles-wsl
-Omarchy + headless deviations   → dotfiles-arch (reference-only)
 ```
 
 - [`dotfiles-ai`](https://github.com/peregrinus879/dotfiles-ai) - AI harness configs: Claude Code and OpenCode settings, shared guidance, and commit workflow
 - [`dotfiles-omarchy`](https://github.com/peregrinus879/dotfiles-omarchy) - Personal Omarchy customizations: Bash overrides, Hyprland bindings, and Yazi
 - [`dotfiles-wsl`](https://github.com/peregrinus879/dotfiles-wsl) - Self-contained WSL Arch dotfiles: terminal baseline plus Windows Terminal, clipboard integration, and OpenCode theme
-- [`dotfiles-arch`](https://github.com/peregrinus879/dotfiles-arch) - Reference-only headless Arch baseline, frozen for the remaining host until retirement
 
 ## Supported Tools
 
@@ -211,7 +209,6 @@ After stowing the shared AI tooling config:
 
 - `~/Projects/repos/dotfiles/dotfiles-omarchy` - personal Omarchy desktop customizations
 - `~/Projects/repos/dotfiles/dotfiles-wsl` - self-contained WSL Arch dotfiles for the same repo family
-- `~/Projects/repos/dotfiles/dotfiles-arch` - frozen reference baseline for the retiring headless host
 
 ## License
 
