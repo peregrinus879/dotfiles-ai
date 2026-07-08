@@ -6,6 +6,7 @@
       "Bash(file *)",
       "Bash(find)",
       "Bash(find *)",
+      "Bash(gh search *)",
       "Bash(ls)",
       "Bash(ls *)",
       "Bash(stat *)",
@@ -37,15 +38,17 @@
       "Read(~/.ssh/**)"
     ]
   },
-  "model": "opus[1m]",
+  "model": "claude-fable-5[1m]",
+  "enableWorkflows": true,
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh"
   },
-  "effortLevel": "xhigh",
-  "enableWorkflows": true,
-  "ultracode": true,
   "enabledPlugins": {
     "vercel@claude-plugins-official": true
-  }
+  },
+  "effortLevel": "xhigh",
+  "ultracode": true,
+  "skipWorkflowUsageWarning": true,
+  "tui": "fullscreen"
 }

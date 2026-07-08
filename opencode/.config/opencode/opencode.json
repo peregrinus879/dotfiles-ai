@@ -13,6 +13,8 @@
       "permission": {
         "bash": {
           "*": "ask",
+          "gh search": "allow",
+          "gh search *": "allow",
           "git branch": "allow",
           "git branch --show-current": "allow",
           "git diff": "allow",
