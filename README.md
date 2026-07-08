@@ -65,6 +65,8 @@ Tracked runtime config is limited to shared behavior. Claude Code `settings.json
 
 Machine-local paths (`projects/`, `agent-memory/`), auth/session state, and generated or host-specific config files remain intentionally excluded. The repo root `.gitignore` tracks the documented machine-local paths so accidental local state stays out of Git.
 
+One exception lives inside the `opencode/` package: OpenCode generates its plugin dependencies (`package.json`, `bun.lock`, `package-lock.json`, and `node_modules/`) next to its config. The package directory holds the canonical copy, kept out of Git by a nested untracked `.gitignore`, and stow links them into `~/.config/opencode` with the rest of the payload. If stow reports conflicts on these files, remove the real copies under `$HOME` and re-stow; never delete the repo-side copies.
+
 Repo-root instruction files exist only to maintain `dotfiles-ai` itself; they are not part of the stowed payload.
 
 The built-in OpenCode `build` agent is intentionally overridden to require approval for file edits and non-read-only bash commands while allowing a narrow set of read-only shell inspections. The shared top-level permission policy explicitly allows read-only `webfetch`, `websearch`, and `codesearch` usage without widening shell command permissions.

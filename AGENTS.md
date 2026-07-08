@@ -39,6 +39,7 @@ It does not own:
 - shared cross-tool guidance lives in `claude-code/.claude/rules/shared-guidance.md`
 - OpenCode should reference shared user-level instruction files with `$HOME`-based paths
 - tracked runtime config stays portable; auth, session state, machine-local files, and generated host-specific files stay out of Git
+- OpenCode plugin dependencies (`package.json`, `bun.lock`, `package-lock.json`, `node_modules/`) are generated into `opencode/.config/opencode/`, stay out of Git via a nested untracked `.gitignore`, and are stowed into `$HOME`; the repo working-tree copy is canonical
 - keep the repo-root `.gitignore` aligned with the documented excluded local state
 
 ## Statusline Conventions
