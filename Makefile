@@ -28,10 +28,21 @@ dry-run:
 restow:
 	stow -R -v -t ~ $(PACKAGES)
 
+# Stow may tree-fold a parent directory (e.g. ~/.config/opencode) into a
+# single directory symlink, so per-file "test -L" checks false-negative.
+# Compare resolved paths instead: linked is linked, folded or not.
 verify:
 	@fail=0; \
-	for link in ~/.claude/CLAUDE.md ~/.claude/settings.json ~/.claude/statusline.sh ~/.config/opencode/opencode.json; do \
-	  if [[ -L "$$link" ]]; then echo "ok:   symlink $$link"; else echo "FAIL: missing symlink $$link"; fail=1; fi; \
+	for pair in "$$HOME/.claude/CLAUDE.md=claude-code/.claude/CLAUDE.md" \
+	  "$$HOME/.claude/settings.json=claude-code/.claude/settings.json" \
+	  "$$HOME/.claude/statusline.sh=claude-code/.claude/statusline.sh" \
+	  "$$HOME/.config/opencode/opencode.json=opencode/.config/opencode/opencode.json"; do \
+	  target="$${pair%%=*}"; src="$${pair##*=}"; \
+	  if [[ "$$(readlink -f "$$target")" == "$$(readlink -f "$$src")" ]]; then \
+	    echo "ok:   $$target resolves into the repo"; \
+	  else \
+	    echo "FAIL: $$target does not resolve into the repo"; fail=1; \
+	  fi; \
 	done; \
 	if bash -n claude-code/.claude/statusline.sh; then echo "ok:   bash -n statusline.sh"; else echo "FAIL: bash -n statusline.sh"; fail=1; fi; \
 	if command -v jq > /dev/null; then \
