@@ -47,5 +47,6 @@
     "vercel@claude-plugins-official": true
   },
   "effortLevel": "xhigh",
+  "disableWorkflows": false,
   "tui": "fullscreen"
 }
