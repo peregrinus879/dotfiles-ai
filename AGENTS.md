@@ -27,7 +27,7 @@ It does not own:
 
 - `README.md` - structure, setup, and verification
 - `Makefile` - stow, verification, and cleanup automation; single source of the package list
-- `.claude/settings.json` - project allowlist for this repo's read-only make targets
+- `.claude/settings.json` and `opencode.json` (repo root) - per-tool project allowlists for this repo's read-only make targets
 - `CLAUDE.md` - thin Claude Code wrapper importing `AGENTS.md`
 - `claude-code/.claude/rules/shared-guidance.md` - canonical shared cross-tool guidance file
 - `claude-code/.claude/settings.json` - Claude Code runtime settings
