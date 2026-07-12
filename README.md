@@ -33,9 +33,13 @@ It intentionally excludes auth and session state, machine-local files, and gener
 dotfiles-ai/
 ├── AGENTS.md                             # canonical repo maintenance instructions
 ├── CLAUDE.md                             # Claude wrapper importing AGENTS.md
+├── LICENSE                               # MIT license
+├── Makefile                              # stow, verification, and cleanup automation
 ├── README.md                             # human-facing documentation
 ├── .claude/
 │   └── settings.json                     # Claude Code project allowlist for read-only make targets
+├── .gitignore                            # documented machine-local exclusions
+├── .shellcheckrc                         # ShellCheck disable list for statusline.sh
 ├── opencode.json                         # OpenCode project allowlist for the same targets
 ├── claude-code/                          # stow package -> ~/.claude/
 │   └── .claude/
@@ -197,7 +201,7 @@ If the old clone is no longer available, run the full cleanup in the Prepare sec
 
 After stowing the shared AI tooling config:
 
-- Confirm core symlinks exist: `test -L ~/.claude/CLAUDE.md && test -L ~/.config/opencode/opencode.json`
+- Confirm core symlinks exist: run `make verify`; it compares `readlink -f` targets, so the check holds whether or not stow tree-folded a parent directory
 - Start a fresh Claude Code session and confirm the shared guidance file and status line load as expected.
 - Run `opencode debug config` and confirm the resolved config includes the shared guidance path and `share = disabled`.
 - Confirm no stray `~/.config/opencode/opencode.jsonc` exists; OpenCode auto-creates one only when it finds no config.
