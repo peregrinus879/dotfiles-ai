@@ -12,7 +12,7 @@ help:
 	@echo "  unstow    Remove all package symlinks"
 	@echo "  dry-run   Preview stow actions without making changes"
 	@echo "  restow    Re-stow after repo content changes"
-	@echo "  verify    Check symlinks, JSON validity, and statusline syntax"
+	@echo "  verify    Check symlinks, JSON validity, statusline syntax, and stray configs"
 	@echo "  clean     Remove files that would conflict with stow (README Prepare steps)"
 	@echo "  lint      ShellCheck over statusline.sh (.shellcheckrc holds the disable list)"
 
@@ -50,6 +50,9 @@ verify:
 	    if jq empty "$$f" > /dev/null 2>&1; then echo "ok:   valid JSON $$f"; else echo "FAIL: invalid JSON $$f"; fail=1; fi; \
 	  done; \
 	else echo "note: jq not found, skipping JSON validity checks"; fi; \
+	if [[ -e "$$HOME/.config/opencode/opencode.jsonc" ]]; then \
+	  echo "FAIL: stray ~/.config/opencode/opencode.jsonc shadows the stowed config"; fail=1; \
+	else echo "ok:   no stray opencode.jsonc"; fi; \
 	exit $$fail
 
 clean:
