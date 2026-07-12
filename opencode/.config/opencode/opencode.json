@@ -4,36 +4,29 @@
   "autoupdate": true,
   "model": "openai/gpt-5.5",
   "permission": {
+    "bash": {
+      "*": "ask",
+      "gh search": "allow",
+      "gh search *": "allow",
+      "git branch": "allow",
+      "git branch --show-current": "allow",
+      "git diff": "allow",
+      "git diff *": "allow",
+      "git log": "allow",
+      "git log *": "allow",
+      "git rev-parse --abbrev-ref @{upstream}": "allow",
+      "git rev-parse --abbrev-ref HEAD": "allow",
+      "git show": "allow",
+      "git show *": "allow",
+      "git status": "allow",
+      "git status *": "allow",
+      "ls": "allow",
+      "ls *": "allow",
+      "pwd": "allow"
+    },
+    "edit": "ask",
     "webfetch": "allow",
-    "websearch": "allow",
-    "codesearch": "allow"
-  },
-  "agent": {
-    "build": {
-      "permission": {
-        "bash": {
-          "*": "ask",
-          "gh search": "allow",
-          "gh search *": "allow",
-          "git branch": "allow",
-          "git branch --show-current": "allow",
-          "git diff": "allow",
-          "git diff *": "allow",
-          "git log": "allow",
-          "git log *": "allow",
-          "git rev-parse --abbrev-ref @{upstream}": "allow",
-          "git rev-parse --abbrev-ref HEAD": "allow",
-          "git show": "allow",
-          "git show *": "allow",
-          "git status": "allow",
-          "git status *": "allow",
-          "ls": "allow",
-          "ls *": "allow",
-          "pwd": "allow"
-        },
-        "edit": "ask"
-      }
-    }
+    "websearch": "allow"
   },
   "provider": {
     "ollama": {

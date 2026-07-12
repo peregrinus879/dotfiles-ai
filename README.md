@@ -61,7 +61,7 @@ dotfiles-ai/
             └── tools/                    # custom tool definitions
 ```
 
-Tracked runtime config is limited to shared behavior. Claude Code `settings.json` pins the default model `claude-fable-5` with `xhigh` effort, sets the custom status line (refreshed every 60 seconds) and fullscreen TUI, carries the shared allow/ask/deny permission policy with auto mode disabled, and enables the `vercel` plugin. OpenCode `opencode.json` sets the shared default model `openai/gpt-5.5` with `xhigh` reasoning effort, a shared top-level permission policy for read-only web fetch/search and code search tools, the local `ollama/gemma4:31b` provider definition, the built-in `build` agent approval policy, disabled conversation sharing, enabled autoupdate, and shared-guidance instruction loading. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
+Tracked runtime config is limited to shared behavior. Claude Code `settings.json` pins the default model `claude-fable-5` with `xhigh` effort, sets the custom status line (refreshed every 60 seconds) and fullscreen TUI, carries the shared allow/ask/deny permission policy with auto mode disabled, and enables the `vercel` plugin. OpenCode `opencode.json` sets the shared default model `openai/gpt-5.5` with `xhigh` reasoning effort, a top-level permission policy that asks before file edits and non-read-only bash while allowing read-only web fetch and search, the local `ollama/gemma4:31b` provider definition, disabled conversation sharing, enabled autoupdate, and shared-guidance instruction loading. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
 
 Machine-local paths (`projects/`, `agent-memory/`), auth/session state, and generated or host-specific config files remain intentionally excluded. The repo root `.gitignore` tracks the documented machine-local paths so accidental local state stays out of Git.
 
@@ -69,7 +69,7 @@ One exception lives inside the `opencode/` package: OpenCode generates its plugi
 
 Repo-root instruction files exist only to maintain `dotfiles-ai` itself; they are not part of the stowed payload.
 
-The built-in OpenCode `build` agent is intentionally overridden to require approval for file edits and non-read-only bash commands while allowing a narrow set of read-only shell inspections. The shared top-level permission policy explicitly allows read-only `webfetch`, `websearch`, and `codesearch` usage without widening shell command permissions.
+The top-level OpenCode permission policy requires approval for file edits and non-read-only bash commands while allowing a narrow set of read-only shell inspections. It applies to every agent, including task-spawned subagents, and keeps read-only `webfetch` and `websearch` allowed without widening shell command permissions.
 
 Shared guidance now lives in `claude-code/.claude/rules/shared-guidance.md`. Claude Code loads it natively from `rules/`, while OpenCode loads the same file through the `instructions` field in `opencode.json` using `$HOME`-based path expansion.
 
