@@ -27,7 +27,7 @@ It does not own:
 
 - `README.md` - structure, setup, and verification
 - `Makefile` - stow, verification, and cleanup automation; single source of the package list
-- `.claude/settings.json` and `opencode.json` (repo root) - per-tool project allowlists for this repo's read-only make targets
+- `.claude/settings.json` and `opencode.json` (repo root) - per-tool project allowlists for this repo's verification make targets (`verify`, `lint`)
 - `CLAUDE.md` - thin Claude Code wrapper importing `AGENTS.md`
 - `claude-code/.claude/rules/shared-guidance.md` - canonical shared cross-tool guidance file
 - `claude-code/.claude/settings.json` - Claude Code runtime settings
@@ -50,6 +50,7 @@ It does not own:
 - OpenCode bash allow patterns match literal command text, so redirect forms of allowed read-only commands (for example `git diff * > file`) skip the ask default
 - the Claude Code `Bash(* >*)` deny rule matches any command containing ` >`, including inside quoted arguments; reword over-blocked commands or run them via `!`
 - ultracode is session-only in current Claude Code: `/effort ultracode` in-session, or `claude --effort ultracode` at launch from v2.1.203
+- `disable-model-invocation` in skill frontmatter is Claude Code-only; the OpenCode commit skill has no equivalent gate and stays model-invocable
 - `workflowSizeGuideline` is `/config`-managed; the settings-file validator rejects it as a `settings.json` field (verified on 2.1.207), and its default `unrestricted` already matches the intended value
 - Claude Code writes app-managed state into `settings.json` through the stow symlink (its own key order plus internal keys like `skipWorkflowUsageWarning`); commit those rewrites as-is instead of reverting them
 
@@ -57,14 +58,16 @@ It does not own:
 
 - `headerTimeout` under `provider.ollama.options`: add if local Ollama requests start timing out
 - watch OpenCode PR sst/opencode#23262 (per-file navigation in multi-file permission prompts); the one-file-per-patch instruction becomes optional once it ships
+- evaluate Claude Code sandboxing (`sandbox.enabled`, `autoAllowBashIfSandboxed`) so compound read-only bash runs without prompts; needs bubblewrap and behavior testing first
 
 ## Statusline Conventions
 
-- Every segment must earn its place. No burn rate ($/hr); show cumulative cost only. No duration segment.
+- Every segment must earn its place. No burn rate ($/hr); show extra-usage spend only, cumulative. No duration segment.
 - No redundant indicators when the tool already surfaces the information natively.
 - Consistent `label:value` pattern (e.g., `5h:35%`, `5h:52m`, `7d:24h 0m`).
 - Space separators between segments, not special characters.
 - When iterating on `statusline.sh`, make only the requested change. Do not bundle formatting, naming, or structural changes unless explicitly asked.
+- `statusline.sh` intentionally omits Bash strict mode and uses `[ ]` guards so parse failures degrade to blank segments instead of killing the status line.
 
 ## Reference Sources
 

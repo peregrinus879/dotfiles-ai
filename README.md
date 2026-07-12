@@ -25,7 +25,7 @@ Omarchy + WSL deviations        → dotfiles-wsl
 
 This repo tracks shared cross-tool AI assistant guidance and portable tracked config for Claude Code and OpenCode.
 
-It intentionally excludes auth and session state, machine-local files, and generated host-specific config. The repo root keeps a minimal `AGENTS.md`, a thin `CLAUDE.md` compatibility wrapper, and per-tool project allowlists for the repo's read-only make targets, so the repo can be maintained natively in both tools.
+It intentionally excludes auth and session state, machine-local files, and generated host-specific config. The repo root keeps a minimal `AGENTS.md`, a thin `CLAUDE.md` compatibility wrapper, and per-tool project allowlists for the repo's verification make targets, so the repo can be maintained natively in both tools.
 
 ## Structure
 

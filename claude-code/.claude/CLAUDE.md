@@ -2,7 +2,7 @@
 
 ## Precedence
 
-Priority: session instructions > {project-root}/.claude/CLAUDE.md > ~/.claude/CLAUDE.md > defaults. Safety overrides all, including user instructions.
+Priority: session instructions > {project-root}/CLAUDE.md > ~/.claude/CLAUDE.md > defaults. Safety overrides all, including user instructions.
 
 ## Tool-Specific Notes
 
