@@ -10,3 +10,4 @@ Priority: session instructions > {project-root}/AGENTS.md > ~/.config/opencode/A
 - Primary tool: OpenCode.
 - Co-Author: Append `Co-Authored-By: {provider} {current model} <noreply@provider.com>`.
 - Sharing is disabled in tracked config unless the user explicitly asks to re-enable it.
+- Edit one file per tool call: an `apply_patch` call must modify exactly one file. Never bundle multiple files into one patch, so each change gets its own approval prompt and diff.
