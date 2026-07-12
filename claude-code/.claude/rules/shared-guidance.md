@@ -42,6 +42,11 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 - Never commit or perform destructive, hard-to-reverse, or externally visible actions without explicit instruction.
 - Never fabricate file paths, dependencies, or APIs. If blocked, state the constraint and propose the most conservative next step.
 
+## Durable Context
+
+- The repo is the record. In every repo, durable decisions, deferred items, and watch items go in the project `AGENTS.md` or docs.
+- Assistant-local memory is a single-device cache; H works across multiple devices. Put the substance in the repo first, and treat local memory entries as pointers at most.
+
 ## Phased Work
 
 For non-trivial tasks (multiple files, multiple steps, or architectural decisions), work in four phases. Skip the structure for trivial work; use judgment.
@@ -51,7 +56,7 @@ For non-trivial tasks (multiple files, multiple steps, or architectural decision
 - **Execute**. Create one task per commit; mark in_progress and completed as you work. Use the `/commit` skill. Smoke-test before each commit; run project-specific verification if defined. Work strictly one commit at a time: make only the current commit's edits and commit before starting the next. A rejected tool call means fix the current commit, not restructure the sequence.
 - **Report**. Summarize what landed (hashes + titles), list deferred items with rationale, record durable decisions and watch items in the project `AGENTS.md`, surface unresolved decisions.
 
-When a project grows an `AGENTS.md`, the four sections **Invariants**, **Post-Change Verification**, **Known Limitations**, and **Deferred Items** form a useful backbone: pre-change rules, post-change checks, structural constraints, and open work. Use what fits; do not prescribe the full template to every repo. Durable context (decisions, deferred items, watch items) belongs in the repo; assistant-local memory stays on one device and is a cache, not the record.
+When a project grows an `AGENTS.md`, the four sections **Invariants**, **Post-Change Verification**, **Known Limitations**, and **Deferred Items** form a useful backbone: pre-change rules, post-change checks, structural constraints, and open work. Use what fits; do not prescribe the full template to every repo.
 
 ## Agents and Workflows
 
