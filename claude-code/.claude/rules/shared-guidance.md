@@ -48,16 +48,16 @@ For non-trivial tasks (multiple files, multiple steps, or architectural decision
 - **Audit**. Read-only diagnostics first: re-read relevant files, run existing checks, grep. Present findings in a table with labels (fact, judgment, opinion). Wait for agreement on findings before proposing a plan.
 - **Plan**. Propose atomic commits with a one-line purpose each. State files touched per commit. Flag deferred items explicitly. Wait for go-ahead before executing.
 - **Execute**. Create one task per commit; mark in_progress and completed as you work. Use the `/commit` skill. Smoke-test before each commit; run project-specific verification if defined.
-- **Report**. Summarize what landed (hashes + titles), list deferred items with rationale, surface unresolved decisions.
+- **Report**. Summarize what landed (hashes + titles), list deferred items with rationale, record durable decisions and watch items in the project `AGENTS.md`, surface unresolved decisions.
 
-When a project grows an `AGENTS.md`, the four sections **Invariants**, **Post-Change Verification**, **Known Limitations**, and **Deferred Items** form a useful backbone: pre-change rules, post-change checks, structural constraints, and open work. Use what fits; do not prescribe the full template to every repo.
+When a project grows an `AGENTS.md`, the four sections **Invariants**, **Post-Change Verification**, **Known Limitations**, and **Deferred Items** form a useful backbone: pre-change rules, post-change checks, structural constraints, and open work. Use what fits; do not prescribe the full template to every repo. Durable context (decisions, deferred items, watch items) belongs in the repo; assistant-local memory stays on one device and is a cache, not the record.
 
 ## Agents and Workflows
 
 - Order workflow agents by criticality: run synthesis- and verification-critical agents before optional breadth agents. Near session limits, split large workflows across turns instead of one big run.
 - Multi-agent runs are expensive. Scale finder pools to the remaining session budget.
 - Resume a killed or edited workflow with `resumeFromRunId` plus `scriptPath`; completed agents return cached results, so only the failed tail re-runs.
-- Agents that write scratch files must use one session scratch directory (e.g. `/tmp/claude-scratch-<session-id>/`) and state its path, so cleanup is a single `rm -rf`.
+- Agents that write scratch files must use one session scratch directory (e.g. `/tmp/claude-scratch-<session-id>/`) and state its path, so cleanup is a single `rm -rf`. Delete it, along with any other downloaded or temporary files, before reporting completion.
 
 ## Environment
 
