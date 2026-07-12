@@ -53,7 +53,6 @@ dotfiles-ai/
             ├── agents/                   # custom agent definitions
             ├── commands/                 # custom slash commands
             │   └── commit.md             # wrapper for the commit skill
-            ├── modes/                    # mode configurations
             ├── plugins/                  # plugins
             ├── skills/                   # agent skills
             │   └── commit/               # commit workflow (doc sync, scratch cleanup)
