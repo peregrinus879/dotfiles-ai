@@ -59,6 +59,8 @@ It does not own:
 - `headerTimeout` under `provider.ollama.options`: add if local Ollama requests start timing out
 - watch OpenCode PR sst/opencode#23262 (per-file navigation in multi-file permission prompts); the one-file-per-patch instruction becomes optional once it ships
 - evaluate Claude Code sandboxing (`sandbox.enabled`, `autoAllowBashIfSandboxed`) so compound read-only bash runs without prompts; needs bubblewrap and behavior testing first
+- on the WSL host: verify the OpenCode generated-deps invariant; if real dep files live in `~/.config/opencode`, adopt them into the payload with `mv` plus `make restow` (done on the Omarchy host 2026-07-13) and confirm the nested `.gitignore` lists `package-lock.json`
+- in the sibling repos: reword the root-allowlist description to "verification make targets (`verify`, `lint`)" to match this repo's wording
 
 ## Statusline Conventions
 
