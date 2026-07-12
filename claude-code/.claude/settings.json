@@ -4,6 +4,9 @@
     "allow": [
       "Bash(file *)",
       "Bash(gh search *)",
+      "Bash(pacman -Q*)",
+      "Bash(pacman -Si *)",
+      "Bash(pacman -Ss *)",
       "Bash(tree *)",
       "WebFetch",
       "WebSearch"
