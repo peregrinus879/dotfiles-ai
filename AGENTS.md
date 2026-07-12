@@ -41,6 +41,21 @@ It does not own:
 - tracked runtime config stays portable; auth, session state, machine-local files, and generated host-specific files stay out of Git
 - OpenCode plugin dependencies (`package.json`, `bun.lock`, `package-lock.json`, `node_modules/`) are generated into `opencode/.config/opencode/`, stay out of Git via a nested untracked `.gitignore`, and are stowed into `$HOME`; the repo working-tree copy is canonical
 - keep the repo-root `.gitignore` aligned with the documented excluded local state
+- keep `~/.ssh` reads and `Bash(gh api *)` out of allowlists; the user runs those via `!` commands, and only `gh search` is auto-allowed
+
+## Known Limitations
+
+- OpenCode shows a multi-file `apply_patch` as one approval dialog; per-file review relies on the one-file-per-patch instruction in `opencode/.config/opencode/AGENTS.md`
+- OpenCode bash allow patterns match literal command text, so redirect forms of allowed read-only commands (for example `git diff * > file`) skip the ask default
+- the Claude Code `Bash(* >*)` deny rule matches any command containing ` >`, including inside quoted arguments; reword over-blocked commands or run them via `!`
+- ultracode is session-only in current Claude Code: `/effort ultracode` in-session, or `claude --effort ultracode` at launch from v2.1.203
+
+## Deferred Items
+
+- after upgrading Claude Code past v2.1.203: add a `claude --effort ultracode` launch alias in the shell dotfiles repos, and optionally add `workflowSizeGuideline` to `settings.json` (the key exists from v2.1.202; older versions reject it at validation)
+- absolute `Read(//**/...)` deny variants for key, pem, and credential files: add if coverage beyond the working directory is wanted
+- `headerTimeout` under `provider.ollama.options`: add if local Ollama requests start timing out
+- watch OpenCode PR sst/opencode#23262 (per-file navigation in multi-file permission prompts); the one-file-per-patch instruction becomes optional once it ships
 
 ## Statusline Conventions
 
