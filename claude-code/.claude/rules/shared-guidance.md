@@ -62,8 +62,8 @@ When a project grows an `AGENTS.md`, the four sections **Invariants**, **Post-Ch
 
 - Order workflow agents by criticality: run synthesis- and verification-critical agents before optional breadth agents. Near session limits, split large workflows across turns instead of one big run.
 - Multi-agent runs are expensive. Scale finder pools to the remaining session budget.
-- Resume a killed or edited workflow with `resumeFromRunId` plus `scriptPath`; completed agents return cached results, so only the failed tail re-runs.
-- Agents that write scratch files must use one session scratch directory (e.g. `/tmp/claude-scratch-<session-id>/`) and state its path, so cleanup is a single `rm -rf`. Delete it, along with any other downloaded or temporary files, before reporting completion.
+- Claude Code: resume a killed or edited workflow with `resumeFromRunId` plus `scriptPath`; completed agents return cached results, so only the failed tail re-runs.
+- Agents that write scratch files must use one session scratch directory (e.g. `/tmp/claude-scratch-<session-id>/`) and state its path, so cleanup is a single `rm -rf`. Delete it, along with any other downloaded or temporary files outside the repo, before reporting completion; untracked files inside the repo follow the `/commit` skill's confirm-before-delete rule.
 
 ## Environment
 
