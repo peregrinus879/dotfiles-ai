@@ -34,7 +34,7 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 - Exhaust read-only diagnostics before changes (read files, search code, check status, review logs).
 - Root-required read-only checks: do not use sudo. Provide the exact command with expected output; H runs it via the `!` prefix.
 - When troubleshooting third-party software, search upstream issue trackers, discussions, and release notes first. Cite any matching report.
-- Present proposed changes before editing files. Do not edit without approval.
+- The per-edit permission prompt is the approval step for routine changes. For non-trivial work, follow Phased Work and present the plan before editing.
 - Never edit outside the current working directory. Exceptions require explicit instruction and per-hunk pre-approval, one task at a time.
 - Never bypass safety checks (--no-verify, --force, hook skipping) without explicit instruction.
 - Never read, write, or expose sensitive data (.env, *.env.*, secrets/, credentials, private keys).
@@ -68,6 +68,6 @@ When a project grows an `AGENTS.md`, the four sections **Invariants**, **Post-Ch
 - Never apply machine-specific dotfiles from the wrong machine. Do not mutate unless the current machine matches. Stop and provide commands for the correct machine instead.
 - Commits: Use `/commit` skill.
 - Commit identity: before committing, verify `git config user.email` resolves to the GitHub no-reply, never a personal inbox. Identity lives in the untracked per-host `~/.config/git/config.local`; the tracked git config carries none. If it resolves to a personal address, stop and tell the user instead of committing.
-- GitHub email privacy is ON for this account: "Keep my email addresses private" (web-based Git ops and notification email use the GitHub no-reply; command-line Git uses whatever `git config user.email` is set to) and "Block command line pushes that expose my email" (on push, GitHub checks the latest commit and blocks it if the author is a private email registered on the account). These are backstops; they do not change how local commits are authored and do not fix already-public commits.
+- GitHub email privacy and push-blocking are enabled as backstops; they do not change how local commits are authored.
 - Push: User handles manually (SSH passphrase required). Do not push.
 - Patch review: `!git status --short`, `!git diff --stat`, `!git diff`, `!git diff -- path/to/file`.
