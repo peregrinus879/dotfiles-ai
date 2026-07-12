@@ -2,17 +2,9 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
-      "Bash(du *)",
       "Bash(file *)",
-      "Bash(find)",
-      "Bash(find *)",
       "Bash(gh search *)",
-      "Bash(ls)",
-      "Bash(ls *)",
-      "Bash(stat *)",
-      "Bash(tree)",
       "Bash(tree *)",
-      "Bash(wc *)",
       "WebFetch",
       "WebSearch"
     ],
@@ -22,8 +14,7 @@
       "Write"
     ],
     "deny": [
-      "Bash(* > *)",
-      "Bash(* >> *)",
+      "Bash(* >*)",
       "Bash(* | tee*)",
       "Bash(find * -delete*)",
       "Bash(find * -exec *)",
@@ -32,6 +23,8 @@
       "Bash(find * -okdir *)",
       "Bash(tree * --output *)",
       "Bash(tree * -o *)",
+      "Bash(tree --output*)",
+      "Bash(tree -o *)",
       "Read(./**/*.key)",
       "Read(./**/*.pem)",
       "Read(./**/*credentials*)",
