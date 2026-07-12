@@ -23,6 +23,7 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 - Use code blocks for code, commands, file paths, config values, and env variables.
 - Do not use em dashes (—). Use commas, periods, semicolons, or restructure the sentence.
 - Do not use conversational fillers: opening praise ("Great question!", "Certainly!"), action narration ("Let me look into that", "I'll start by..."), or hedges ("It's worth noting", "Interestingly").
+- In docs and reports, state what exists; avoid absence statements.
 
 ## Code
 
@@ -47,7 +48,7 @@ For non-trivial tasks (multiple files, multiple steps, or architectural decision
 
 - **Audit**. Read-only diagnostics first: re-read relevant files, run existing checks, grep. Present findings in a table with labels (fact, judgment, opinion). Wait for agreement on findings before proposing a plan.
 - **Plan**. Propose atomic commits with a one-line purpose each. State files touched per commit. Flag deferred items explicitly. Wait for go-ahead before executing.
-- **Execute**. Create one task per commit; mark in_progress and completed as you work. Use the `/commit` skill. Smoke-test before each commit; run project-specific verification if defined.
+- **Execute**. Create one task per commit; mark in_progress and completed as you work. Use the `/commit` skill. Smoke-test before each commit; run project-specific verification if defined. Work strictly one commit at a time: make only the current commit's edits and commit before starting the next. A rejected tool call means fix the current commit, not restructure the sequence.
 - **Report**. Summarize what landed (hashes + titles), list deferred items with rationale, record durable decisions and watch items in the project `AGENTS.md`, surface unresolved decisions.
 
 When a project grows an `AGENTS.md`, the four sections **Invariants**, **Post-Change Verification**, **Known Limitations**, and **Deferred Items** form a useful backbone: pre-change rules, post-change checks, structural constraints, and open work. Use what fits; do not prescribe the full template to every repo. Durable context (decisions, deferred items, watch items) belongs in the repo; assistant-local memory stays on one device and is a cache, not the record.

@@ -55,6 +55,7 @@ It does not own:
 - after upgrading Claude Code past v2.1.203: add a `claude --effort ultracode` launch alias in the shell dotfiles repos, and optionally add `workflowSizeGuideline` to `settings.json` (the key exists from v2.1.202; older versions reject it at validation)
 - absolute `Read(//**/...)` deny variants for key, pem, and credential files: add if coverage beyond the working directory is wanted
 - `headerTimeout` under `provider.ollama.options`: add if local Ollama requests start timing out
+- run the `fewer-permission-prompts` skill once transcripts reflect real usage on the current host, then fold the results into the tracked allowlist
 - watch OpenCode PR sst/opencode#23262 (per-file navigation in multi-file permission prompts); the one-file-per-patch instruction becomes optional once it ships
 
 ## Statusline Conventions
@@ -80,6 +81,7 @@ It does not own:
 - Read `README.md` before structural changes, doc rewrites, or config-layout changes.
 - Consult current official Claude Code and OpenCode docs before changing file layout, naming, or config conventions.
 - Keep shared cross-tool guidance canonical in `claude-code/.claude/rules/shared-guidance.md`.
+- Extend `shared-guidance.md` for new shared guidance; add a separate rules file only for large or truly tool-specific content.
 - Share policy, separate mechanism: share content only when the meaning is the same in both tools; keep tool-specific config, wrappers, schemas, and UI settings separate.
 - When editing sibling dotfiles repos, use identical wording for shared concepts. Only repo-specific values (scope, package lists, invariants) should differ.
 - Prefer native integration points for each tool: `.claude/rules/` and `@imports` for Claude Code, `AGENTS.md`, `instructions`, `permission`, and `tui.json` for OpenCode.
