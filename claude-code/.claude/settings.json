@@ -41,7 +41,8 @@
   "model": "claude-fable-5",
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/statusline.sh"
+    "command": "~/.claude/statusline.sh",
+    "refreshInterval": 60
   },
   "enabledPlugins": {
     "vercel@claude-plugins-official": true
