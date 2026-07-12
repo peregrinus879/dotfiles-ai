@@ -49,11 +49,11 @@ It does not own:
 - OpenCode bash allow patterns match literal command text, so redirect forms of allowed read-only commands (for example `git diff * > file`) skip the ask default
 - the Claude Code `Bash(* >*)` deny rule matches any command containing ` >`, including inside quoted arguments; reword over-blocked commands or run them via `!`
 - ultracode is session-only in current Claude Code: `/effort ultracode` in-session, or `claude --effort ultracode` at launch from v2.1.203
+- `workflowSizeGuideline` is `/config`-managed; the settings-file validator rejects it as a `settings.json` field (verified on 2.1.207), and its default `unrestricted` already matches the intended value
 - Claude Code writes app-managed state into `settings.json` through the stow symlink (its own key order plus internal keys like `skipWorkflowUsageWarning`); commit those rewrites as-is instead of reverting them
 
 ## Deferred Items
 
-- after upgrading Claude Code past v2.1.203: add a `claude --effort ultracode` launch alias in the shell dotfiles repos, and optionally add `workflowSizeGuideline` to `settings.json` (the key exists from v2.1.202; older versions reject it at validation)
 - absolute `Read(//**/...)` deny variants for key, pem, and credential files: add if coverage beyond the working directory is wanted
 - `headerTimeout` under `provider.ollama.options`: add if local Ollama requests start timing out
 - run the `fewer-permission-prompts` skill once transcripts reflect real usage on the current host, then fold the results into the tracked allowlist
