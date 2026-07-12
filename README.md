@@ -34,6 +34,8 @@ dotfiles-ai/
 ├── AGENTS.md                             # canonical repo maintenance instructions
 ├── CLAUDE.md                             # Claude wrapper importing AGENTS.md
 ├── README.md                             # human-facing documentation
+├── .claude/
+│   └── settings.json                     # project allowlist for read-only make targets
 ├── claude-code/                          # stow package -> ~/.claude/
 │   └── .claude/
 │       ├── CLAUDE.md                     # Claude-specific instructions

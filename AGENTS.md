@@ -27,6 +27,7 @@ It does not own:
 
 - `README.md` - structure, setup, and verification
 - `Makefile` - stow, verification, and cleanup automation; single source of the package list
+- `.claude/settings.json` - project allowlist for this repo's read-only make targets
 - `CLAUDE.md` - thin Claude Code wrapper importing `AGENTS.md`
 - `claude-code/.claude/rules/shared-guidance.md` - canonical shared cross-tool guidance file
 - `claude-code/.claude/settings.json` - Claude Code runtime settings
@@ -55,7 +56,6 @@ It does not own:
 ## Deferred Items
 
 - `headerTimeout` under `provider.ollama.options`: add if local Ollama requests start timing out
-- run the `fewer-permission-prompts` skill once transcripts reflect real usage on the current host, then fold the results into the tracked allowlist
 - watch OpenCode PR sst/opencode#23262 (per-file navigation in multi-file permission prompts); the one-file-per-patch instruction becomes optional once it ships
 
 ## Statusline Conventions
