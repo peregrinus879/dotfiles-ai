@@ -8,11 +8,6 @@
       "WebFetch",
       "WebSearch"
     ],
-    "ask": [
-      "Edit",
-      "NotebookEdit",
-      "Write"
-    ],
     "deny": [
       "Bash(* >*)",
       "Bash(* | tee*)",
@@ -34,10 +29,15 @@
       "Read(~/.aws/credentials)",
       "Read(~/.gnupg/**)",
       "Read(~/.ssh/**)"
+    ],
+    "ask": [
+      "Edit",
+      "NotebookEdit",
+      "Write"
     ]
   },
-  "disableAutoMode": "disable",
   "model": "claude-fable-5",
+  "disableWorkflows": false,
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh",
@@ -47,6 +47,7 @@
     "vercel@claude-plugins-official": true
   },
   "effortLevel": "xhigh",
-  "disableWorkflows": false,
-  "tui": "fullscreen"
+  "tui": "fullscreen",
+  "disableAutoMode": "disable",
+  "skipWorkflowUsageWarning": true
 }

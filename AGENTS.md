@@ -49,6 +49,7 @@ It does not own:
 - OpenCode bash allow patterns match literal command text, so redirect forms of allowed read-only commands (for example `git diff * > file`) skip the ask default
 - the Claude Code `Bash(* >*)` deny rule matches any command containing ` >`, including inside quoted arguments; reword over-blocked commands or run them via `!`
 - ultracode is session-only in current Claude Code: `/effort ultracode` in-session, or `claude --effort ultracode` at launch from v2.1.203
+- Claude Code writes app-managed state into `settings.json` through the stow symlink (its own key order plus internal keys like `skipWorkflowUsageWarning`); commit those rewrites as-is instead of reverting them
 
 ## Deferred Items
 
