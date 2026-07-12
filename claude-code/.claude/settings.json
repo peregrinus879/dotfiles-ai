@@ -38,8 +38,7 @@
       "Read(~/.ssh/**)"
     ]
   },
-  "model": "claude-fable-5[1m]",
-  "enableWorkflows": true,
+  "model": "claude-fable-5",
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh"
@@ -48,7 +47,5 @@
     "vercel@claude-plugins-official": true
   },
   "effortLevel": "xhigh",
-  "ultracode": true,
-  "skipWorkflowUsageWarning": true,
   "tui": "fullscreen"
 }
