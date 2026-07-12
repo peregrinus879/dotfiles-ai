@@ -36,7 +36,13 @@ verify:
 	for pair in "$$HOME/.claude/CLAUDE.md=claude-code/.claude/CLAUDE.md" \
 	  "$$HOME/.claude/settings.json=claude-code/.claude/settings.json" \
 	  "$$HOME/.claude/statusline.sh=claude-code/.claude/statusline.sh" \
-	  "$$HOME/.config/opencode/opencode.json=opencode/.config/opencode/opencode.json"; do \
+	  "$$HOME/.claude/rules/shared-guidance.md=claude-code/.claude/rules/shared-guidance.md" \
+	  "$$HOME/.claude/skills/commit/SKILL.md=claude-code/.claude/skills/commit/SKILL.md" \
+	  "$$HOME/.config/opencode/opencode.json=opencode/.config/opencode/opencode.json" \
+	  "$$HOME/.config/opencode/tui.json=opencode/.config/opencode/tui.json" \
+	  "$$HOME/.config/opencode/AGENTS.md=opencode/.config/opencode/AGENTS.md" \
+	  "$$HOME/.config/opencode/commands/commit.md=opencode/.config/opencode/commands/commit.md" \
+	  "$$HOME/.config/opencode/skills/commit/SKILL.md=opencode/.config/opencode/skills/commit/SKILL.md"; do \
 	  target="$${pair%%=*}"; src="$${pair##*=}"; \
 	  if [[ "$$(readlink -f "$$target")" == "$$(readlink -f "$$src")" ]]; then \
 	    echo "ok:   $$target resolves into the repo"; \
@@ -46,7 +52,7 @@ verify:
 	done; \
 	if bash -n claude-code/.claude/statusline.sh; then echo "ok:   bash -n statusline.sh"; else echo "FAIL: bash -n statusline.sh"; fail=1; fi; \
 	if command -v jq > /dev/null; then \
-	  for f in claude-code/.claude/settings.json opencode/.config/opencode/opencode.json opencode/.config/opencode/tui.json; do \
+	  for f in claude-code/.claude/settings.json opencode/.config/opencode/opencode.json opencode/.config/opencode/tui.json .claude/settings.json opencode.json; do \
 	    if jq empty "$$f" > /dev/null 2>&1; then echo "ok:   valid JSON $$f"; else echo "FAIL: invalid JSON $$f"; fail=1; fi; \
 	  done; \
 	else echo "note: jq not found, skipping JSON validity checks"; fi; \
