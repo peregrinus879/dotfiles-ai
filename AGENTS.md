@@ -54,7 +54,6 @@ It does not own:
 
 ## Deferred Items
 
-- absolute `Read(//**/...)` deny variants for key, pem, and credential files: add if coverage beyond the working directory is wanted
 - `headerTimeout` under `provider.ollama.options`: add if local Ollama requests start timing out
 - run the `fewer-permission-prompts` skill once transcripts reflect real usage on the current host, then fold the results into the tracked allowlist
 - watch OpenCode PR sst/opencode#23262 (per-file navigation in multi-file permission prompts); the one-file-per-patch instruction becomes optional once it ships
