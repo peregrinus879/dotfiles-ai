@@ -16,6 +16,11 @@
       "WebFetch",
       "WebSearch"
     ],
+    "ask": [
+      "Edit",
+      "NotebookEdit",
+      "Write"
+    ],
     "deny": [
       "Bash(* > *)",
       "Bash(* >> *)",
@@ -38,6 +43,7 @@
       "Read(~/.ssh/**)"
     ]
   },
+  "disableAutoMode": "disable",
   "model": "claude-fable-5",
   "statusLine": {
     "type": "command",
