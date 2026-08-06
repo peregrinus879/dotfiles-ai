@@ -212,7 +212,7 @@ After stowing the shared AI tooling config:
 A repo-root `Makefile` keeps the package list in one place and wraps the routine commands. Run targets from the repo root:
 
 - `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets from Setup
-- `make verify` - the Verify symlink checks plus JSON validity, statusline syntax, and stray `opencode.jsonc` checks
+- `make verify` - the Verify symlink checks plus JSON validity, statusline syntax, commit-skill sync, and stray `opencode.jsonc` checks
 - `make clean` - the Prepare cleanup steps
 - `make lint` - ShellCheck over `statusline.sh`; `.shellcheckrc` disables the one style-level finding so new issues stand out
 

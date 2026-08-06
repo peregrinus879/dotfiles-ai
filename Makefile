@@ -12,7 +12,7 @@ help:
 	@echo "  unstow    Remove all package symlinks"
 	@echo "  dry-run   Preview stow actions without making changes"
 	@echo "  restow    Re-stow after repo content changes"
-	@echo "  verify    Check symlinks, JSON validity, statusline syntax, and stray configs"
+	@echo "  verify    Check symlinks, JSON validity, statusline syntax, skill sync, and stray configs"
 	@echo "  clean     Remove files that would conflict with stow (README Prepare steps)"
 	@echo "  lint      ShellCheck over statusline.sh (.shellcheckrc holds the disable list)"
 
@@ -59,6 +59,11 @@ verify:
 	if [[ -e "$$HOME/.config/opencode/opencode.jsonc" ]]; then \
 	  echo "FAIL: stray ~/.config/opencode/opencode.jsonc shadows the stowed config"; fail=1; \
 	else echo "ok:   no stray opencode.jsonc"; fi; \
+	if diff -q \
+	  <(grep -v -e 'disable-model-invocation' -e 'Co-Authored-By' claude-code/.claude/skills/commit/SKILL.md) \
+	  <(grep -v -e 'Co-Authored-By' opencode/.config/opencode/skills/commit/SKILL.md) > /dev/null; then \
+	  echo "ok:   commit skill copies in sync"; \
+	else echo "FAIL: commit skill copies drifted (allowed diffs: disable-model-invocation, Co-Authored-By)"; fail=1; fi; \
 	exit $$fail
 
 clean:
