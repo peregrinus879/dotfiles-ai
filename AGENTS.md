@@ -51,7 +51,7 @@ It does not own:
 - the Claude Code `Bash(* >*)` deny rule matches any command containing ` >`, including inside quoted arguments; reword over-blocked commands or run them via `!`
 - ultracode is session-only in current Claude Code: `/effort ultracode` in-session, or `claude --effort ultracode` at launch from v2.1.203
 - `disable-model-invocation` in skill frontmatter is Claude Code-only; the OpenCode commit skill has no equivalent gate and stays model-invocable
-- `workflowSizeGuideline` is `/config`-managed; the settings-file validator rejects it as a `settings.json` field (verified on 2.1.207), and its default `unrestricted` already matches the intended value
+- `workflowSizeGuideline` is settable in settings files from v2.1.219 and overrides `/config`; the default changed from `unrestricted` to `medium`, so the tracked `settings.json` pins `unrestricted` explicitly
 - Claude Code writes app-managed state into `settings.json` through the stow symlink (its own key order plus internal keys like `skipWorkflowUsageWarning`); commit those rewrites as-is instead of reverting them
 
 ## Deferred Items

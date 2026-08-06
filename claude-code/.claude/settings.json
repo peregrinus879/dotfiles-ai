@@ -44,6 +44,7 @@
   },
   "model": "claude-fable-5",
   "disableWorkflows": false,
+  "workflowSizeGuideline": "unrestricted",
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh",
