@@ -1,3 +1,3 @@
 # CLAUDE.md
 
-- Multi-agent workflows are expensive: order agents by criticality, scale finder pools to the remaining session budget, and split large workflows across turns near session limits.
+- Order workflow agents by criticality; size fan-outs to a fraction of the remaining session budget, so the session can still act on what they return; near session limits, split large workflows across turns.
