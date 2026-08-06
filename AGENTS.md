@@ -29,11 +29,12 @@ This repo stores portable user-level AI assistant configuration for Claude Code 
 ## Known Limitations
 
 - OpenCode shows a multi-file `apply_patch` as one approval dialog; per-file review relies on the one-file-per-patch instruction in `opencode/.config/opencode/AGENTS.md`
-- OpenCode bash allow patterns match literal command text, so redirect forms of allowed read-only commands (for example `git diff * > file`) skip the ask default
+- OpenCode bash allow patterns match literal command text, so redirect forms of allowed read-only commands (for example `git diff * > file`) would match the allow; the trailing `* > *`, `* >> *`, and `* | tee *` ask rules re-gate those forms because rules are last-match-wins, which makes rule order in the `bash` permission map semantic (`*` ask first, redirect guards last); verify the re-gating in a fresh OpenCode session
 - the Claude Code `Bash(* >*)` deny rule matches any command containing ` >`, including inside quoted arguments; reword over-blocked commands or run them via `!`
 - ultracode is session-only in current Claude Code: `/effort ultracode` in-session, or `claude --effort ultracode` at launch from v2.1.203
 - `disable-model-invocation` in skill frontmatter is Claude Code-only; the OpenCode commit skill has no equivalent gate and stays model-invocable
 - `workflowSizeGuideline` is settable in settings files from v2.1.219 and overrides `/config`; the default changed from `unrestricted` to `medium`, so the tracked `settings.json` pins `unrestricted` explicitly
+- Claude Code runs a built-in, non-configurable set of read-only Bash commands without prompts (`ls`, `grep`, `find`, `wc`, plain `file`, read-only `git`, and more); allow rules for those commands are redundant, and a blanket allow like `Bash(file *)` would override the built-in re-prompt on write-capable flag forms (`file -m`), so keep them out of the allowlist
 - Claude Code writes app-managed state into `settings.json` through the stow symlink (its own key order plus internal keys like `skipWorkflowUsageWarning`); commit those rewrites as-is instead of reverting them
 
 ## Deferred Items

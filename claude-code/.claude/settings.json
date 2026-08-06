@@ -2,8 +2,8 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
-      "Bash(file *)",
       "Bash(gh search *)",
+      "Bash(jq *)",
       "Bash(pacman -Q*)",
       "Bash(pacman -Si *)",
       "Bash(pacman -Ss *)",

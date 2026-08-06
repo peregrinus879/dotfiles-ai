@@ -6,6 +6,8 @@
   "permission": {
     "bash": {
       "*": "ask",
+      "file": "allow",
+      "file *": "allow",
       "gh search": "allow",
       "gh search *": "allow",
       "git branch": "allow",
@@ -20,9 +22,18 @@
       "git show *": "allow",
       "git status": "allow",
       "git status *": "allow",
+      "jq *": "allow",
       "ls": "allow",
       "ls *": "allow",
-      "pwd": "allow"
+      "pacman -Q*": "allow",
+      "pacman -Si *": "allow",
+      "pacman -Ss *": "allow",
+      "pwd": "allow",
+      "tree": "allow",
+      "tree *": "allow",
+      "* > *": "ask",
+      "* >> *": "ask",
+      "* | tee *": "ask"
     },
     "edit": "ask",
     "webfetch": "allow",
