@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # Claude Code status line
 # Docs: https://code.claude.com/docs/en/statusline
+#
+# Design conventions:
+# - Every segment must earn its place. No burn rate ($/hr); show extra-usage
+#   spend only, cumulative. No duration segment.
+# - No redundant indicators when the tool already surfaces the information natively.
+# - Consistent label:value pattern (e.g., 5h:35%, 5h:52m, 7d:24h 0m).
+# - Space separators between segments, not special characters.
+# - Intentionally no Bash strict mode, and [ ] guards throughout: parse failures
+#   degrade to blank segments instead of killing the status line.
 
 input=$(cat)
 

@@ -31,6 +31,7 @@ It does not own:
 - `CLAUDE.md` - thin Claude Code wrapper importing `AGENTS.md`
 - `claude-code/.claude/rules/shared-guidance.md` - canonical shared cross-tool guidance file
 - `claude-code/.claude/settings.json` - Claude Code runtime settings
+- `claude-code/.claude/statusline.sh` - status line script; design conventions live in its header comment
 - `opencode/.config/opencode/opencode.json` - OpenCode runtime config and instruction loading
 - `opencode/.config/opencode/commands/commit.md` - OpenCode wrapper for the commit workflow
 
@@ -61,15 +62,6 @@ It does not own:
 - evaluate Claude Code sandboxing (`sandbox.enabled`, `autoAllowBashIfSandboxed`) so compound read-only bash runs without prompts; needs bubblewrap and behavior testing first
 - on the WSL host: verify the OpenCode generated-deps invariant; if real dep files live in `~/.config/opencode`, adopt them into the payload with `mv` plus `make restow` (done on the Omarchy host 2026-07-13) and confirm the nested `.gitignore` lists `package-lock.json`
 - in the sibling repos: reword the root-allowlist description to "verification make targets (`verify`, `lint`)" to match this repo's wording
-
-## Statusline Conventions
-
-- Every segment must earn its place. No burn rate ($/hr); show extra-usage spend only, cumulative. No duration segment.
-- No redundant indicators when the tool already surfaces the information natively.
-- Consistent `label:value` pattern (e.g., `5h:35%`, `5h:52m`, `7d:24h 0m`).
-- Space separators between segments, not special characters.
-- When iterating on `statusline.sh`, make only the requested change. Do not bundle formatting, naming, or structural changes unless explicitly asked.
-- `statusline.sh` intentionally omits Bash strict mode and uses `[ ]` guards so parse failures degrade to blank segments instead of killing the status line.
 
 ## Reference Sources
 
