@@ -40,9 +40,9 @@ This repo stores portable user-level AI assistant configuration for Claude Code 
 
 - `headerTimeout` under `provider.ollama.options`: add if local Ollama requests start timing out (OpenCode defaults to a 10s header timeout since 1.15.x)
 - watch OpenCode PR anomalyco/opencode#23262 (per-file navigation in multi-file permission prompts); the one-file-per-patch instruction becomes optional once it ships
-- evaluate Claude Code sandboxing (`sandbox.enabled`, `autoAllowBashIfSandboxed`) so compound read-only bash runs without prompts; needs bubblewrap and behavior testing first
+- Claude Code sandboxing: evaluated 2026-08-07 on the Omarchy host (bwrap and socat present, userns smoke test green), kept deferred. Auto-allow still prompts for `$VAR`, `$(...)`, and `VAR=` forms (anthropics/claude-code#43713), and it runs sandboxed in-repo writes (`sed -i`, `git commit`) without prompts, bypassing per-file review; shared enablement would also activate untested on WSL2 (leaked 0-byte files #26722, freezes #54215). Trial path when wanted: Omarchy-only via `/sandbox` (untracked `settings.local.json`) with `sandbox.credentials` denies for `~/.ssh`, `~/.aws`, `~/.gnupg` and an ask rule on `Bash(dangerouslyDisableSandbox:true)`; promote to tracked settings only after the trial and a WSL2 behavior test
 - on the WSL host: verify the OpenCode generated-deps invariant; if real dep files live in `~/.config/opencode`, adopt them into the payload with `mv` plus `make restow` (done on the Omarchy host 2026-07-13) and confirm the nested `.gitignore` lists `package-lock.json`
-- in the sibling repos: reword the root-allowlist description to "verification make targets (`verify`, `lint`)" and apply the same instruction-slim pass done here (2026-08-06)
+- in the sibling repos: reword the root-allowlist description to "verification make targets (`verify`, `lint`)" and apply the same instruction-slim pass done here; audited 2026-08-07 with agreed commit plans in `~/Projects/scratch/2026-08-06-dotfiles-sibling-slim-notes.md`, execute in a fresh session per repo
 
 ## Skills
 
