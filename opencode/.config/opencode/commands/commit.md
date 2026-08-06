@@ -4,4 +4,3 @@ agent: build
 ---
 
 Use the `commit` skill for this repository and commit the current working tree changes.
-Follow the skill's documentation sync, scratch cleanup, staging, commit message, and push-hint instructions.
