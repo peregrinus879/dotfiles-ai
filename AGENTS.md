@@ -18,6 +18,7 @@ This repo stores portable user-level AI assistant configuration for Claude Code 
 - Auth, session state, machine-local files, and generated host-specific files stay out of Git; keep the repo-root `.gitignore` aligned with the documented exclusions.
 - OpenCode plugin dependencies are generated into `opencode/.config/opencode/`, kept out of Git by a nested untracked `.gitignore`, and stowed with the payload; the repo working-tree copy is canonical.
 - Never weaken the sensitive-path deny rules; keep `~/.ssh` reads and `Bash(gh api *)` out of allowlists in both tools (H runs those via `!`, and only `gh search` is auto-allowed).
+- Sensitive-path Edit denies mirror unambiguous credential material only; `~/.ssh/**` and `./.env.*` stay ask-gated so the explicit-instruction exception for outside-cwd edits and placeholder files like `.env.example` remain workable.
 - `statusline.sh` design conventions, including its intentional strict-mode omission, live in the script's header comment.
 
 ## Post-Change Verification
@@ -29,7 +30,7 @@ This repo stores portable user-level AI assistant configuration for Claude Code 
 ## Known Limitations
 
 - OpenCode shows a multi-file `apply_patch` as one approval dialog; per-file review relies on the one-file-per-patch instruction in `opencode/.config/opencode/AGENTS.md`
-- OpenCode bash allow patterns match literal command text, so redirect forms of allowed read-only commands (for example `git diff * > file`) would match the allow; the trailing `* > *`, `* >> *`, and `* | tee *` ask rules re-gate those forms because rules are last-match-wins, which makes rule order in the `bash` permission map semantic (`*` ask first, redirect guards last); verify the re-gating in a fresh OpenCode session
+- OpenCode bash allow patterns match literal command text, so redirect forms of allowed read-only commands (for example `git diff * > file`) would match the allow; the trailing `* > *`, `* >> *`, and `* | tee *` ask rules re-gate those forms because rules are last-match-wins, which makes rule order in the `bash` permission map semantic: catch-all ask first, allows, then ask guards, denies last (`make verify` asserts no allow entry after the guard block); verify the re-gating in a fresh OpenCode session
 - the Claude Code `Bash(* >*)` deny rule matches any command containing ` >`, including inside quoted arguments; reword over-blocked commands or run them via `!`
 - ultracode is session-only in current Claude Code: `/effort ultracode` in-session, or `claude --effort ultracode` at launch from v2.1.203
 - `disable-model-invocation` in skill frontmatter is Claude Code-only; the OpenCode commit skill has no equivalent gate and stays model-invocable
@@ -39,6 +40,8 @@ This repo stores portable user-level AI assistant configuration for Claude Code 
 
 ## Deferred Items
 
+- schema-level denies for `sudo` and `git push` in both tools: blocked on whether permission rules also gate `!` bash-mode commands (undocumented); test in a fresh session with temporary deny rules (`! sudo -v`, `! git push --dry-run`), then either land the denies or record that root checks and pushes are terminal-only
+- OpenCode `permission.read` sensitive-path parity map: the schema accepts pattern maps but tilde and glob semantics are unverified against the installed binary; test a throwaway deny (for example `~/read-deny-test/**`) in a fresh session first, and only record parity after the deny demonstrably fires
 - `headerTimeout` under `provider.ollama.options`: add if local Ollama requests start timing out (OpenCode defaults to a 10s header timeout since 1.15.x)
 - watch OpenCode PR anomalyco/opencode#23262 (per-file navigation in multi-file permission prompts); the one-file-per-patch instruction becomes optional once it ships
 - Claude Code sandboxing: evaluated 2026-08-07 on the Omarchy host (bwrap and socat present, userns smoke test green), kept deferred. Auto-allow still prompts for `$VAR`, `$(...)`, and `VAR=` forms (anthropics/claude-code#43713), and it runs sandboxed in-repo writes (`sed -i`, `git commit`) without prompts, bypassing per-file review; shared enablement would also activate untested on WSL2 (leaked 0-byte files #26722, freezes #54215). Trial path when wanted: Omarchy-only via `/sandbox` (untracked `settings.local.json`) with `sandbox.credentials` denies for `~/.ssh`, `~/.aws`, `~/.gnupg` and an ask rule on `Bash(dangerouslyDisableSandbox:true)`; promote to tracked settings only after the trial and a WSL2 behavior test

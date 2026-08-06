@@ -33,7 +33,13 @@
       "tree *": "allow",
       "* > *": "ask",
       "* >> *": "ask",
-      "* | tee *": "ask"
+      "* | tee *": "ask",
+      "* 2> *": "ask",
+      "* &> *": "ask",
+      "tree -o *": "deny",
+      "tree --output*": "deny",
+      "tree * -o *": "deny",
+      "tree * --output *": "deny"
     },
     "edit": "ask",
     "webfetch": "allow",

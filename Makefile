@@ -55,6 +55,10 @@ verify:
 	  for f in claude-code/.claude/settings.json opencode/.config/opencode/opencode.json opencode/.config/opencode/tui.json .claude/settings.json opencode.json; do \
 	    if jq empty "$$f" > /dev/null 2>&1; then echo "ok:   valid JSON $$f"; else echo "FAIL: invalid JSON $$f"; fail=1; fi; \
 	  done; \
+	  if jq -e '.permission.bash | to_entries | (map(.key) | index("* > *")) as $$i | if $$i == null then false else .[$$i:] | all(.value != "allow") end' \
+	    opencode/.config/opencode/opencode.json > /dev/null; then \
+	    echo "ok:   opencode bash permission order (no allow after guards)"; \
+	  else echo "FAIL: opencode bash permission order (guards and denies must be the final entries)"; fail=1; fi; \
 	else echo "note: jq not found, skipping JSON validity checks"; fi; \
 	if [[ -e "$$HOME/.config/opencode/opencode.jsonc" ]]; then \
 	  echo "FAIL: stray ~/.config/opencode/opencode.jsonc shadows the stowed config"; fail=1; \
