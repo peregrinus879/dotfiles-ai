@@ -16,6 +16,8 @@ Omarchy + WSL deviations        → dotfiles-wsl
 - [`dotfiles-omarchy`](https://github.com/peregrinus879/dotfiles-omarchy) - Personal Omarchy customizations: Bash overrides, Hyprland bindings, Neovim plugins, and Yazi
 - [`dotfiles-wsl`](https://github.com/peregrinus879/dotfiles-wsl) - Self-contained WSL Arch dotfiles: terminal baseline plus Windows Terminal, clipboard integration, and OpenCode theme
 
+Local clones live side by side under `~/Projects/repos/dotfiles/`.
+
 ## Supported Tools
 
 - [Claude Code](https://code.claude.com/docs/en/overview) - AI-powered coding assistant with a terminal CLI
@@ -67,26 +69,15 @@ dotfiles-ai/
             └── tools/                    # custom tool definitions
 ```
 
-Tracked runtime config is limited to shared behavior. Claude Code `settings.json` pins the default model `claude-fable-5` with `xhigh` effort, keeps workflows on (ultracode is session-only: `/effort ultracode`, or launch with `claude --effort ultracode` from v2.1.203), sets the custom status line (refreshed every 60 seconds) and fullscreen TUI, carries the shared allow/ask/deny permission policy with auto mode disabled, and enables the `vercel` plugin. OpenCode `opencode.json` sets the shared default model `openai/gpt-5.6-sol` with `xhigh` reasoning effort, a top-level permission policy that asks before file edits and non-read-only bash while allowing read-only web fetch and search, the local `ollama/gemma4:31b` provider definition, disabled conversation sharing, enabled autoupdate, and shared-guidance instruction loading. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
+Tracked runtime config is limited to shared behavior. `claude-code/.claude/settings.json` and `opencode/.config/opencode/opencode.json` are the source of truth for each tool's model, effort, permissions, and feature toggles; read them directly rather than a prose mirror here. Both carry the same intent: ask before file edits and non-read-only bash, allow a narrow set of read-only inspections, keep sharing off. The OpenCode permission policy applies to every agent, including task-spawned subagents. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
 
 Machine-local paths (`projects/`, `agent-memory/`), auth/session state, and generated or host-specific config files remain intentionally excluded. The repo root `.gitignore` tracks the documented machine-local paths so accidental local state stays out of Git.
 
-One exception lives inside the `opencode/` package: OpenCode generates its plugin dependencies (`package.json`, `bun.lock`, `package-lock.json`, and `node_modules/`) next to its config. The package directory holds the canonical copy, kept out of Git by a nested untracked `.gitignore`, and stow links them into `~/.config/opencode` with the rest of the payload. If stow reports conflicts on these files, remove the real copies under `$HOME` and re-stow; never delete the repo-side copies.
+One exception lives inside the `opencode/` package: OpenCode generates its plugin dependencies next to its config. The package directory holds the canonical copy, kept out of Git by a nested untracked `.gitignore`, and stow links them into `~/.config/opencode` with the rest of the payload. If stow reports conflicts on these files, remove the real copies under `$HOME` and re-stow; never delete the repo-side copies.
 
 Repo-root instruction files exist only to maintain `dotfiles-ai` itself; they are not part of the stowed payload.
 
-The top-level OpenCode permission policy requires approval for file edits and non-read-only bash commands while allowing a narrow set of read-only shell inspections. It applies to every agent, including task-spawned subagents, and keeps read-only `webfetch` and `websearch` allowed without widening shell command permissions.
-
-Shared guidance now lives in `claude-code/.claude/rules/shared-guidance.md`. Claude Code loads it natively from `rules/`, while OpenCode loads the same file through the `instructions` field in `opencode.json` using `$HOME`-based path expansion.
-
-This shared file reduces drift between Claude Code and OpenCode while keeping tool-specific wrappers thin.
-
-Sharing follows a simple rule in this repo:
-
-- Share policy.
-- Separate mechanism.
-
-In practice, guidance is shared when the content and meaning are the same in both tools. Tool-specific config, wrappers, and schemas stay separate.
+Shared guidance lives in `claude-code/.claude/rules/shared-guidance.md`. Claude Code loads it natively from `rules/`, while OpenCode loads the same file through the `instructions` field in `opencode.json` using `$HOME`-based path expansion. Guidance is shared when the content and meaning are the same in both tools (share policy); tool-specific config, wrappers, and schemas stay separate (separate mechanism).
 
 At the repo root, `AGENTS.md` is the canonical project instruction file and `CLAUDE.md` is a thin compatibility wrapper for Claude Code.
 
@@ -102,10 +93,6 @@ For multi-file review in Claude Code or OpenCode, use Bash mode with Git diffs:
 4. Run `!git diff -- path/to/file` to isolate one file.
 
 Both tools support `!`-prefixed Bash commands in the interactive terminal UI.
-
-`opencode/.config/opencode/tui.json` sets `diff_style` to `stacked`, which is easier to scan in narrow terminals.
-
-OpenCode docs can reflect the `dev` branch before a feature reaches the latest stable release, so prefer your installed `/help` output when docs and behavior disagree.
 
 ## Setup
 
@@ -199,35 +186,23 @@ If the old clone is no longer available, run the full cleanup in the Prepare sec
 
 ## Verify
 
-After stowing the shared AI tooling config:
+After stowing or changing the payloads:
 
-- Confirm core symlinks exist: run `make verify`; it compares `readlink -f` targets, so the check holds whether or not stow tree-folded a parent directory
+- Run `make verify` and `make lint` from the repo root.
 - Start a fresh Claude Code session and confirm the shared guidance file and status line load as expected.
 - Run `opencode debug config` and confirm the resolved config includes the shared guidance path and `share = disabled`.
-- Confirm no stray `~/.config/opencode/opencode.jsonc` exists; OpenCode auto-creates one only when it finds no config.
-- Confirm `/commit` still routes through the repo skill workflow in both tools.
+- Confirm `/commit` still routes through the repo skill workflow in both tools, including doc sync and scratch cleanup before staging.
 
 ## Maintenance
 
 A repo-root `Makefile` keeps the package list in one place and wraps the routine commands. Run targets from the repo root:
 
 - `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets from Setup
-- `make verify` - the Verify symlink checks plus JSON validity, statusline syntax, commit-skill sync, and stray `opencode.jsonc` checks
+- `make verify` - symlink resolution (via `readlink -f`, so tree-folding does not false-negative) plus JSON validity, statusline syntax, commit-skill sync, and stray `opencode.jsonc` checks
 - `make clean` - the Prepare cleanup steps
 - `make lint` - ShellCheck over `statusline.sh`; `.shellcheckrc` disables the one style-level finding so new issues stand out
 
-## References
-
-- `README.md` - repo scope, structure, setup, and verification
-- `Makefile` - stow, verification, and cleanup automation
-- `AGENTS.md` - canonical repo-specific assistant context and maintainer checklist
-- `CLAUDE.md` - thin Claude Code wrapper importing `AGENTS.md`
-- `claude-code/.claude/rules/shared-guidance.md` - canonical shared cross-tool guidance
-
-## Related Repos
-
-- `~/Projects/repos/dotfiles/dotfiles-omarchy` - personal Omarchy desktop customizations
-- `~/Projects/repos/dotfiles/dotfiles-wsl` - self-contained WSL Arch dotfiles for the same repo family
+Periodically, review the current Claude Code docs (settings, memory, skills, hooks) and OpenCode docs (config, rules, permissions, agents, skills, TUI, sharing) against the tracked config, then run the Verify steps.
 
 ## License
 
