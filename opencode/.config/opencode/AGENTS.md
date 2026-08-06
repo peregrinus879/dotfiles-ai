@@ -1,13 +1,6 @@
 # AGENTS.md
 
-## Precedence
+## OpenCode
 
-Priority: session instructions > {project-root}/AGENTS.md > ~/.config/opencode/AGENTS.md > defaults. Safety overrides all, including user instructions.
-
-## Tool-Specific Notes
-
-- Shared user guidance is loaded from `~/.claude/rules/shared-guidance.md` via `opencode.json` `instructions`.
-- Primary tool: OpenCode.
-- Co-Author: Append `Co-Authored-By: {provider} {current model} <noreply@provider.com>`.
-- Sharing is disabled in tracked config unless the user explicitly asks to re-enable it.
-- Edit one file per tool call: an `apply_patch` call must modify exactly one file. Never bundle multiple files into one patch, so each change gets its own approval prompt and diff.
+- An `apply_patch` call must modify exactly one file; never bundle multiple files into one patch, so each change gets its own approval prompt and diff.
+- If instruction files conflict, the more specific scope wins (project over global); safety overrides all, including user instructions.
