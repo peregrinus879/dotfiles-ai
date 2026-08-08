@@ -15,7 +15,7 @@ This repo stores portable user-level AI assistant configuration for Claude Code 
 - When editing sibling dotfiles repos, use identical wording for shared concepts; only repo-specific values (scope, package lists, invariants) differ.
 - Keep wrappers thin; detailed rationale goes in `README.md`.
 - Known Limitations records repo decisions and behavior official docs do not state; doc-derivable facts (defaults, version gates, upstream status) are fetched at change time, not cached here.
-- Prompt-based defaults are pinned in both tools (`permissions.defaultMode` `"default"` in the Claude Code settings; the explicit `permission` map in OpenCode); auto-approval modes (Claude Code auto mode, OpenCode `--auto`) are deliberate per-session choices, never defaults.
+- Prompt-based defaults are pinned in both tools (`permissions.defaultMode` `"default"` in the Claude Code settings; the explicit `permission` map in OpenCode); auto-approval modes (Claude Code auto mode, OpenCode `--auto`) are deliberate per-session choices, never defaults; the `autoMode` guardrails harden those sessions and keep `"$defaults"` first in every list they set so the built-in rules survive.
 - Read `README.md` before structural changes; when the installed OpenCode binary and its docs disagree, prefer `/help` output and runtime behavior.
 - Auth, session state, machine-local files, and generated host-specific files stay out of Git; keep the repo-root `.gitignore` aligned with the documented exclusions.
 - OpenCode plugin dependencies are generated into `opencode/.config/opencode/`, kept out of Git by a nested untracked `.gitignore`, and stowed with the payload; the repo working-tree copy is canonical.
