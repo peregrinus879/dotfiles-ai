@@ -202,7 +202,7 @@ A repo-root `Makefile` keeps the package list in one place and wraps the routine
 - `make clean` - the Prepare cleanup steps
 - `make lint` - ShellCheck over `statusline.sh`; `.shellcheckrc` disables the one style-level finding so new issues stand out
 
-Periodically, review the current Claude Code docs (settings, memory, skills, hooks) and OpenCode docs (config, rules, permissions, agents, skills, TUI, sharing) against the tracked config, then run the Verify steps.
+Periodically, review the current Claude Code docs (settings, memory, skills, hooks) and OpenCode docs (config, rules, permissions, agents, skills, TUI, sharing) against the tracked config, then run the Verify steps. In Claude Code, `/doctor` automates part of this checkup; it reports findings before fixing anything, so screen its offers (such as switching to auto mode) against the pinned defaults before accepting.
 
 ## License
 
