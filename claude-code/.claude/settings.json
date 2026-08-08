@@ -1,6 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
+    "defaultMode": "default",
     "allow": [
       "Bash(gh search *)",
       "Bash(jq *)",
@@ -70,6 +71,5 @@
   },
   "effortLevel": "xhigh",
   "tui": "fullscreen",
-  "disableAutoMode": "disable",
   "skipWorkflowUsageWarning": true
 }
