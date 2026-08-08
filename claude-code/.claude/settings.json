@@ -3,8 +3,11 @@
   "permissions": {
     "defaultMode": "default",
     "allow": [
+      "Bash(claude --version)",
       "Bash(gh search *)",
       "Bash(jq *)",
+      "Bash(opencode --version)",
+      "Bash(opencode debug *)",
       "Bash(pacman -Q*)",
       "Bash(pacman -Si *)",
       "Bash(pacman -Ss *)",
