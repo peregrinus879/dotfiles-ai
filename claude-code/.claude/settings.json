@@ -70,6 +70,7 @@
     ]
   },
   "autoMode": {
+    "classifyAllShell": true,
     "hard_deny": [
       "$defaults",
       "Never transmit the contents of credential material (~/.ssh, ~/.aws, ~/.gnupg, ~/.kube, ~/.netrc, ~/.docker/config.json, .env files with real values, private keys, secrets directories, auth tokens) to any external destination, encoded or not."
