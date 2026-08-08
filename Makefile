@@ -64,10 +64,10 @@ verify:
 	  echo "FAIL: stray ~/.config/opencode/opencode.jsonc shadows the stowed config"; fail=1; \
 	else echo "ok:   no stray opencode.jsonc"; fi; \
 	if diff -q \
-	  <(grep -v -e 'disable-model-invocation' -e 'Co-Authored-By' claude-code/.claude/skills/commit/SKILL.md) \
+	  <(grep -v -e 'disable-model-invocation' -e 'allowed-tools' -e 'Co-Authored-By' claude-code/.claude/skills/commit/SKILL.md) \
 	  <(grep -v -e 'Co-Authored-By' opencode/.config/opencode/skills/commit/SKILL.md) > /dev/null; then \
 	  echo "ok:   commit skill copies in sync"; \
-	else echo "FAIL: commit skill copies drifted (allowed diffs: disable-model-invocation, Co-Authored-By)"; fail=1; fi; \
+	else echo "FAIL: commit skill copies drifted (allowed diffs: disable-model-invocation, allowed-tools, Co-Authored-By)"; fail=1; fi; \
 	exit $$fail
 
 clean:
