@@ -32,7 +32,7 @@ This repo stores portable user-level AI assistant configuration for Claude Code 
 
 - OpenCode shows a multi-file `apply_patch` as one approval dialog; per-file review relies on the one-file-per-patch instruction in `opencode/.config/opencode/AGENTS.md`; upstream has declined the fix (anomalyco/opencode#21914)
 - rule order in the OpenCode `bash` permission map is semantic (rules are last-match-wins over per-command text including redirects): catch-all ask first, allows, then the redirect ask guards, denies last; `make verify` asserts no allow entry after the guard block
-- the Claude Code `Bash(* >*)` deny rule matches any command containing ` >`, including inside quoted arguments; reword over-blocked commands or run them via `!`
+- the Claude Code redirect ask guards (`Bash(* >*)`, `Bash(* | tee*)`) mirror the OpenCode ask guards and stay ask-gated, never allowed; they match any command containing ` >` or `| tee`, including inside quoted arguments, so harmless matches prompt instead of hard-failing (verify in a fresh session that the guards re-gate allowed commands like `jq`)
 - `disable-model-invocation` in skill frontmatter is Claude Code-only; the OpenCode commit skill has no equivalent gate and stays model-invocable
 - the tracked `settings.json` pins `workflowSizeGuideline: unrestricted` deliberately (the app default is more restrictive); keep the pin
 - do not add allow rules for Claude Code's built-in auto-run read-only Bash commands; they are redundant, and a blanket allow like `Bash(file *)` overrides the built-in re-prompt on write-capable flag forms (`file -m`)

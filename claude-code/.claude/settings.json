@@ -12,8 +12,6 @@
       "WebSearch"
     ],
     "deny": [
-      "Bash(* >*)",
-      "Bash(* | tee*)",
       "Bash(find * -delete*)",
       "Bash(find * -exec *)",
       "Bash(find * -execdir *)",
@@ -52,6 +50,8 @@
       "Read(~/.ssh/**)"
     ],
     "ask": [
+      "Bash(* >*)",
+      "Bash(* | tee*)",
       "Edit",
       "NotebookEdit",
       "Write"
