@@ -79,6 +79,10 @@
       "Reading or displaying the contents of credential files (~/.ssh, ~/.aws, ~/.gnupg, ~/.kube, ~/.netrc, .env files with real values, private keys) clears only when the user names the specific credential file; tools implicitly consuming their own credentials (git over SSH, cloud CLIs reading their config) and authored placeholders or templates like .env.example are not this rule.",
       "File-content changes go through the Edit, Write, or NotebookEdit tools so each change surfaces a reviewable diff; shell write channels (in-place editors such as sed or perl, output redirection, tee, dd, truncate, interpreter one-liners that write files, formatters or codemods rewriting tracked files) clear only when the user names the specific files and the change.",
       "Filesystem mutations that bypass diff review (moving, copying, syncing, extracting, or patching over existing files; restoring or resetting paths from version control; deleting files) clear only on explicit instruction naming the paths; creating genuinely new files at fresh paths via mv or cp is not this rule."
+    ],
+    "allow": [
+      "$defaults",
+      "Deleting the session's own scratch files under /tmp/claude-* paths during scratch cleanup is allowed; this exception covers only files the session created there and never extends to repository files or any path outside those scratch directories."
     ]
   },
   "model": "claude-fable-5",
