@@ -19,6 +19,7 @@ This repo stores portable user-level AI assistant configuration for Claude Code 
 - Read `README.md` before structural changes; when the installed OpenCode binary and its docs disagree, prefer `/help` output and runtime behavior.
 - Auth, session state, machine-local files, and generated host-specific files stay out of Git; keep the repo-root `.gitignore` aligned with the documented exclusions.
 - OpenCode plugin dependencies are generated into `opencode/.config/opencode/`, kept out of Git by a nested untracked `.gitignore`, and stowed with the payload; the repo working-tree copy is canonical.
+- Stow tree-folds directories that do not pre-exist at stow time into directory symlinks pointing at the repo, so anything written there lands in the repo working tree; folding is the accepted repo-family stow convention (do not add `--no-folding`).
 - Never weaken the sensitive-path deny rules; keep `~/.ssh` reads and `Bash(gh api *)` out of allowlists in both tools (H runs those via `!`, and only `gh search` is auto-allowed).
 - Sensitive-path Edit denies mirror unambiguous credential material only; `~/.ssh/**` and `./.env.*` stay ask-gated so the explicit-instruction exception for outside-cwd edits and placeholder files like `.env.example` remain workable.
 - `statusline.sh` design conventions, including its intentional strict-mode omission, live in the script's header comment.
