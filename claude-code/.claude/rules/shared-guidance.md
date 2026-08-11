@@ -29,9 +29,9 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 For non-trivial tasks (multiple files, multiple steps, or architectural decisions):
 
 - **Audit**: read-only diagnostics; findings labeled fact, judgment, or opinion; wait for agreement.
-- **Plan**: atomic commits, one-line purpose and files touched each; wait for go-ahead.
+- **Plan**: atomic commits, one-line purpose and files touched each; offer `/spar` cross-model review of the draft plan; wait for go-ahead.
 - **Execute**: one commit at a time; smoke-test before each; a rejected tool call means fix the current commit, not restructure the sequence.
-- **Report**: hashes and titles, deferred items, durable decisions into the project `AGENTS.md`.
+- **Report**: hashes and titles, deferred items, durable decisions into the project `AGENTS.md`; if the plan was not sparred, offer `/spar` diff-only review first.
 
 Skip the structure for trivial work.
 
