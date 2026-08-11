@@ -56,6 +56,7 @@ This repo stores portable user-level AI assistant configuration for Claude Code 
 - OpenCode's websearch tool stays gated to the OpenCode provider or an opt-in env var (`OPENCODE_ENABLE_EXA`, or the newer Parallel-backend variable), so the tracked `websearch: allow` is inert with third-party models; decide whether to export the env var in the shell config or keep the entry as future-proofing, and re-verify the gate against the installed binary at decision time
 - decide whether the tracked `settings.json` adds `fallbackModel` (ordered fallback chain for provider overload; the highest-precedence file supplies the whole chain, no merge) for incident resilience
 - `statusline.sh`'s hostname segment renders only under `SSH_CONNECTION` and may never render with no headless host; removal candidate on a future statusline-only pass, not bundled with unrelated changes
+- watch native cross-model features in both tools for spar-relevant capabilities (Claude Code team/teammate settings; OpenCode per-agent provider-pinned subagents): re-run the spar gap analysis when either ships a native reviewer or cross-vendor path; today's `claude -p` bridge is kept partly because it rides subscription auth rather than API-key billing
 
 ## Skills
 
