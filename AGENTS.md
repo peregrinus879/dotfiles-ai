@@ -60,3 +60,4 @@ This repo stores portable user-level AI assistant configuration for Claude Code 
 ## Skills
 
 - `/commit` - commit workflow with doc sync, scratch cleanup, staging, and push hint
+- `/spar` - cross-model plan sparring: adversarial review rounds to evidence-based convergence, then execution and diff review; the counterpart tool is the read-only reviewer in a pinned headless session

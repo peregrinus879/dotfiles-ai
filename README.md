@@ -52,7 +52,8 @@ dotfiles-ai/
 │       ├── rules/                        # organized instruction files
 │       │   └── shared-guidance.md        # canonical shared instructions
 │       └── skills/                       # custom skills (SKILL.md files)
-│           └── commit/                   # commit workflow (doc sync, scratch cleanup)
+│           ├── commit/                   # commit workflow (doc sync, scratch cleanup)
+│           └── spar/                     # cross-model plan sparring (reviewer: opencode run)
 └── opencode/                             # stow package -> ~/.config/opencode/
     └── .config/
         └── opencode/
@@ -61,10 +62,12 @@ dotfiles-ai/
             ├── tui.json                  # TUI-specific config
             ├── agents/                   # custom agent definitions
             ├── commands/                 # custom slash commands
-            │   └── commit.md             # wrapper for the commit skill
+            │   ├── commit.md             # wrapper for the commit skill
+            │   └── spar.md               # wrapper for the spar skill
             ├── plugins/                  # plugins
             ├── skills/                   # agent skills
-            │   └── commit/               # commit workflow (doc sync, scratch cleanup)
+            │   ├── commit/               # commit workflow (doc sync, scratch cleanup)
+            │   └── spar/                 # cross-model plan sparring (reviewer: claude -p)
             ├── themes/                   # custom themes
             └── tools/                    # custom tool definitions
 ```
@@ -81,7 +84,7 @@ Shared guidance lives in `claude-code/.claude/rules/shared-guidance.md`. Claude 
 
 At the repo root, `AGENTS.md` is the canonical project instruction file and `CLAUDE.md` is a thin compatibility wrapper for Claude Code.
 
-OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps a `/commit` wrapper and folds documentation sync and scratch file cleanup into the commit workflow instead of maintaining a separate `/update` command.
+OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps `/commit` and `/spar` wrappers and folds documentation sync and scratch file cleanup into the commit workflow instead of maintaining a separate `/update` command. The spar skill's copies share their protocol wording but each carries only its own tool's reviewer incantations, so a session can never invoke its own model as the reviewer.
 
 ## Review Workflow
 
