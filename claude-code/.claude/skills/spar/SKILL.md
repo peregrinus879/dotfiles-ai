@@ -22,16 +22,17 @@ The reviewer is OpenCode (model pinned; update the pin when the preferred model 
 ## Protocol
 
 1. Draft the plan into the session scratch directory as `spar-plan.md`: goal, approach, ordered steps, files touched, risks, open questions. State the path to the user.
-2. Round 1: send the reviewer the full plan text with the charter below; capture the pinned session id.
-3. Each later round: answer every objection by number, either amending the plan or rebutting with evidence (file contents, command output, document citations); send the rebuttals plus the full amended plan, not a diff.
-4. An objection closes only by plan amendment, by refuting evidence the reviewer accepts with a stated reason, or by the user's ruling. Agreement without a stated reason closes nothing; treat it as still open.
-5. Convergence requires zero open blocking objections plus a final cold read: the reviewer rereads the complete amended plan fresh and confirms no new blocking objections. Round cap: 4.
-6. Converged or capped, stop and present to the user before any execution: the final plan, each side's one-paragraph position on every open or disputed item, and the reviewer session id for interactive handoff. Execute only on the user's go.
-7. After execution, send `git diff` (plus test output when available) to the same reviewer session for a final review; relay its findings verbatim.
+2. Round 0, blind sketch: send the reviewer only the goal and constraints, not the plan, and ask for a 3-5 bullet independent approach sketch; capture the pinned session id. This exists to prevent anchoring on the author's framing.
+3. Round 1: send the reviewer the full plan text with the charter below; instruct it to compare the plan against its own sketch and treat divergences as challenge material.
+4. Each later round: answer every objection by number, either amending the plan or rebutting with evidence (file contents, command output, document citations); send the rebuttals plus the full amended plan, not a diff.
+5. An objection closes only by plan amendment, by refuting evidence the reviewer accepts with a stated reason, or by the user's ruling. Agreement without new evidence or an amendment closes nothing; record it as unresolved (capitulation, not persuasion, is the dominant two-model failure mode).
+6. Convergence requires zero open blocking objections plus a final cold read: the reviewer rereads the complete amended plan fresh and confirms no new blocking objections. Cap: 4 rounds, a ceiling not a target; stop early once a round changes no positions.
+7. Converged or capped, stop and present to the user before any execution: the final plan, each side's one-paragraph position on every open or disputed item, and the reviewer session id for interactive handoff. Convergence between the models is not correctness, and disagreement surviving the cap is signal for the user, not failure. Execute only on the user's go.
+8. After execution, send `git diff` (plus test output when available) to the same reviewer session for a final review; relay its findings verbatim.
 
 ## Reviewer charter (send verbatim in round 1)
 
-You are the read-only reviewer in an adversarial planning loop; a different model drafted the plan. Challenge it on logic and evidence, not tone. Number every objection, label each blocking or non-blocking, and ground each in a file, command, or document. Do not agree to be agreeable: withdrawing an objection requires stating what evidence or amendment changed your assessment. A sound plan deserves a short confirmation; inventing objections is as much a failure as rubber-stamping. End every reply with `VERDICT: CONVERGED` or `VERDICT: OPEN <blocking> BLOCKING / <non-blocking> NON-BLOCKING`.
+You are the read-only reviewer in an adversarial planning loop; a different model drafted the plan. Challenge it on logic and evidence, not tone. Make each objection a single verifiable claim with a concrete failure scenario; number it, label it blocking or non-blocking, and ground it in a file, command, or document. Treat the plan's stated confidence and verification claims as claims to verify, not as evidence. Do not agree to be agreeable: withdrawing an objection requires new evidence or an amendment, stated explicitly; agreement without either counts as unresolved. If you find nothing blocking on a first read, cite the three weakest points of the plan before your verdict stands. A sound plan deserves a short confirmation; inventing objections is as much a failure as rubber-stamping. End every reply with `VERDICT: CONVERGED` or `VERDICT: OPEN <blocking> BLOCKING / <non-blocking> NON-BLOCKING`.
 
 ## Rules
 
