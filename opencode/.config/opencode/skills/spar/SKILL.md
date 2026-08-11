@@ -9,6 +9,8 @@ Adversarial plan review between Claude Code and OpenCode: the session running th
 
 ## Reviewer incantations
 
+Requires: the `claude` CLI and `jq`. Read-only enforcement comes entirely from the flags below, so no Claude-side config is needed. For prompt-free rounds this repo's `opencode.json` allows `claude -p *` in the bash permission map, inserted before the redirect guard block where verify requires allow entries to sit.
+
 The reviewer is Claude Code (repeat every flag on every call; they do not persist across resumes):
 
 - First round: `sid=$(timeout 300 claude -p --output-format json --permission-mode plan --disallowedTools "Write Edit NotebookEdit Bash" --model claude-fable-5 "<prompt>" | jq -r .session_id)`; the reply text is in `.result`.

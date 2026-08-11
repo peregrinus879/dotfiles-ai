@@ -11,6 +11,8 @@ Adversarial plan review between Claude Code and OpenCode: the session running th
 
 ## Reviewer incantations
 
+Requires: the `opencode` CLI, `jq`, and a read-only `reviewer` agent in the OpenCode config; this repo tracks it in `opencode/.config/opencode/opencode.json` under `agent.reviewer` with `permission: { "edit": "deny", "bash": { "*": "deny" } }`. This skill's `allowed-tools` frontmatter pre-approves `Bash(opencode run *)` for the invoking turn, so no global allowlist entry is needed.
+
 The reviewer is OpenCode (model pinned; update the pin when the preferred model changes):
 
 - First round: `SID=$(timeout 300 opencode run --format json -m openai/gpt-5.6-sol --agent reviewer "<prompt>" | head -1 | jq -r .sessionID)`; validate the `ses_` prefix; the reply text is in the message events of the same output.
