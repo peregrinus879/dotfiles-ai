@@ -38,11 +38,14 @@ verify:
 	  "$$HOME/.claude/statusline.sh=claude-code/.claude/statusline.sh" \
 	  "$$HOME/.claude/rules/shared-guidance.md=claude-code/.claude/rules/shared-guidance.md" \
 	  "$$HOME/.claude/skills/commit/SKILL.md=claude-code/.claude/skills/commit/SKILL.md" \
+	  "$$HOME/.claude/skills/spar/SKILL.md=claude-code/.claude/skills/spar/SKILL.md" \
 	  "$$HOME/.config/opencode/opencode.json=opencode/.config/opencode/opencode.json" \
 	  "$$HOME/.config/opencode/tui.json=opencode/.config/opencode/tui.json" \
 	  "$$HOME/.config/opencode/AGENTS.md=opencode/.config/opencode/AGENTS.md" \
 	  "$$HOME/.config/opencode/commands/commit.md=opencode/.config/opencode/commands/commit.md" \
-	  "$$HOME/.config/opencode/skills/commit/SKILL.md=opencode/.config/opencode/skills/commit/SKILL.md"; do \
+	  "$$HOME/.config/opencode/commands/spar.md=opencode/.config/opencode/commands/spar.md" \
+	  "$$HOME/.config/opencode/skills/commit/SKILL.md=opencode/.config/opencode/skills/commit/SKILL.md" \
+	  "$$HOME/.config/opencode/skills/spar/SKILL.md=opencode/.config/opencode/skills/spar/SKILL.md"; do \
 	  target="$${pair%%=*}"; src="$${pair##*=}"; \
 	  if [[ "$$(readlink -f "$$target")" == "$$(readlink -f "$$src")" ]]; then \
 	    echo "ok:   $$target resolves into the repo"; \
@@ -63,11 +66,13 @@ verify:
 	if [[ -e "$$HOME/.config/opencode/opencode.jsonc" ]]; then \
 	  echo "FAIL: stray ~/.config/opencode/opencode.jsonc shadows the stowed config"; fail=1; \
 	else echo "ok:   no stray opencode.jsonc"; fi; \
-	if diff -q \
-	  <(grep -v -e 'disable-model-invocation' -e 'allowed-tools' -e 'Co-Authored-By' claude-code/.claude/skills/commit/SKILL.md) \
-	  <(grep -v -e 'Co-Authored-By' opencode/.config/opencode/skills/commit/SKILL.md) > /dev/null; then \
-	  echo "ok:   commit skill copies in sync"; \
-	else echo "FAIL: commit skill copies drifted (allowed diffs: disable-model-invocation, allowed-tools, Co-Authored-By)"; fail=1; fi; \
+	for s in commit spar; do \
+	  if diff -q \
+	    <(awk '/^## Reviewer incantations$$/{skip=1; next} /^## /{skip=0} !skip' "claude-code/.claude/skills/$$s/SKILL.md" | grep -v -e 'disable-model-invocation' -e 'allowed-tools' -e 'Co-Authored-By') \
+	    <(awk '/^## Reviewer incantations$$/{skip=1; next} /^## /{skip=0} !skip' "opencode/.config/opencode/skills/$$s/SKILL.md" | grep -v -e 'Co-Authored-By') > /dev/null; then \
+	    echo "ok:   $$s skill copies in sync (shared sections)"; \
+	  else echo "FAIL: $$s skill copies drifted (allowed diffs: tool frontmatter keys, Co-Authored-By, Reviewer incantations section)"; fail=1; fi; \
+	done; \
 	exit $$fail
 
 clean:
