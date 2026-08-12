@@ -93,7 +93,7 @@ verify:
 clean:
 	-rm -f ~/.claude/agents ~/.claude/rules ~/.claude/skills
 	-rm -f ~/.codex/AGENTS.md
-	-rm -rf ~/.agents/skills/commit ~/.agents/skills/spar
+	-rm -f ~/.agents/skills/commit ~/.agents/skills/spar
 	-rm -f ~/.config/opencode ~/.config/opencode/agents ~/.config/opencode/commands \
 	  ~/.config/opencode/modes ~/.config/opencode/plugins ~/.config/opencode/skills \
 	  ~/.config/opencode/themes ~/.config/opencode/tools

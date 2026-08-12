@@ -88,7 +88,7 @@ Tracked runtime config is limited to shared behavior. `claude-code/.claude/setti
 
 Machine-local paths (`projects/`, `agent-memory/`), auth/session state, and generated or host-specific config files remain intentionally excluded. The repo root `.gitignore` tracks the documented machine-local paths so accidental local state stays out of Git.
 
-Two payload-side exceptions exist. Inside `codex/`, Codex writes runtime state into `config.toml` itself (project trust entries, notice keys, MCP additions); those rewrites flow through the stow symlink into the repo working tree and are committed as-is, while a nested untracked `.gitignore` keeps every other runtime file Codex drops next to the stowed links out of Git. Inside `opencode/`, OpenCode generates its plugin dependencies next to its config; the package directory holds the canonical copy, kept out of Git by a nested untracked `.gitignore`, and stow links them into `~/.config/opencode` with the rest of the payload. If stow reports conflicts on these files, remove the real copies under `$HOME` and re-stow; never delete the repo-side copies.
+Two payload-side exceptions exist. Inside `codex/`, Codex writes runtime state into `config.toml` itself (project trust entries, notice keys, MCP additions); those rewrites flow through the stow symlink into the repo working tree and are committed as-is, while a tracked nested `.gitignore` keeps every other runtime file Codex drops next to the stowed links out of Git (tracked deliberately, unlike OpenCode's generated one, so fresh clones reproduce the defense). Inside `opencode/`, OpenCode generates its plugin dependencies next to its config; the package directory holds the canonical copy, kept out of Git by a nested untracked `.gitignore`, and stow links them into `~/.config/opencode` with the rest of the payload. If stow reports conflicts on these files, remove the real copies under `$HOME` and re-stow; never delete the repo-side copies.
 
 Repo-root instruction files exist only to maintain `dotfiles-ai` itself; they are not part of the stowed payload.
 
@@ -96,7 +96,7 @@ Shared guidance lives in `claude-code/.claude/rules/shared-guidance.md`. Claude 
 
 At the repo root, `AGENTS.md` is the canonical project instruction file and `CLAUDE.md` is a thin compatibility wrapper for Claude Code.
 
-OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps `/commit` and `/spar` wrappers and folds documentation sync and scratch file cleanup into the commit workflow instead of maintaining a separate `/update` command. The spar skill's copies share their protocol wording but each carries only its own tool's reviewer incantations, so a session can never invoke its own model as the reviewer. The reviewer matrix is cross-vendor: Claude Code spars with Codex through the pinned `spar-codex-reviewer` bridge, and Codex and OpenCode spar with Claude through `claude -p`. Codex replaced OpenCode as the Claude-side reviewer for its OS-enforced read-only sandbox, native stdin for large payloads, clean session resume, and fail-fast limit reporting.
+OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps `/commit` and `/spar` wrappers and folds documentation sync and scratch file cleanup into the commit workflow instead of maintaining a separate `/update` command. The spar skill's copies share their protocol wording but each carries only its own tool's reviewer incantations, so a session can never invoke its own model as the reviewer. The reviewer matrix is cross-vendor: Claude Code spars with Codex through the pinned `spar-codex-reviewer` bridge, and Codex and OpenCode spar with Claude through `claude -p`. Codex replaced OpenCode as the Claude-side reviewer for its OS-enforced read-only sandbox, clean session resume, and fail-fast limit reporting; large payloads travel in the in-repo handoff file.
 
 ## Review Workflow
 
@@ -114,9 +114,10 @@ Both tools support `!`-prefixed Bash commands in the interactive terminal UI.
 ### Prerequisites
 
 - [GNU Stow](https://www.gnu.org/software/stow/)
+- jq (the spar reviewer bridge parses JSON events)
 
 ```bash
-sudo pacman -S --needed stow
+sudo pacman -S --needed stow jq
 ```
 
 ### Clone
@@ -147,7 +148,7 @@ Remove existing files that would conflict with stow. The first block removes tre
 # Tree-folded directory symlinks (from a previous stow)
 rm -f ~/.claude/agents ~/.claude/rules ~/.claude/skills
 rm -f ~/.codex/AGENTS.md
-rm -rf ~/.agents/skills/commit ~/.agents/skills/spar
+rm -f ~/.agents/skills/commit ~/.agents/skills/spar
 rm -f ~/.config/opencode ~/.config/opencode/agents ~/.config/opencode/commands \
   ~/.config/opencode/modes ~/.config/opencode/plugins ~/.config/opencode/skills \
   ~/.config/opencode/themes ~/.config/opencode/tools
@@ -214,7 +215,7 @@ After stowing or changing the payloads:
 - Start a fresh Claude Code session and confirm the shared guidance file and status line load as expected.
 - Start a fresh Codex session and confirm the shared guidance loads (the assistant addresses the user as H) and `spar-codex-reviewer` is on PATH.
 - Run `opencode debug config` and confirm the resolved config includes the shared guidance path and `share = disabled`.
-- Confirm `/commit` still routes through the repo skill workflow in both tools, including doc sync and scratch cleanup before staging.
+- Confirm `/commit` still routes through the repo skill workflow in all managed tools, including doc sync and scratch cleanup before staging.
 
 ## Maintenance
 
