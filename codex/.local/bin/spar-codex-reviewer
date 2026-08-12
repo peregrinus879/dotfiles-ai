@@ -9,33 +9,49 @@ set -euo pipefail
 MODEL="gpt-5.6-sol"
 CEILING=1800 # absolute seconds per call
 STALL=180    # kill after this many seconds without a JSON event
+UUID_RE='^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
 
 usage() {
   echo 'usage: spar-codex-reviewer new "<prompt>" | resume <sid> "<prompt>"' >&2
   exit 64
 }
 
+abort() { echo "SPAR-BRIDGE ABORT: $1" >&2; exit 2; }
+
 preflight() {
+  command -v jq >/dev/null || abort "jq is required and missing"
   timeout 30 codex login status 2>&1 | grep -q "ChatGPT" ||
-    { echo "SPAR-BRIDGE ABORT: codex is not on ChatGPT subscription auth" >&2; exit 2; }
-  local extra="" f
-  for f in "$HOME/.codex/plugins/"* "$HOME/.codex/plugins/".*; do
-    [[ -e $f ]] || continue
-    case ${f##*/} in . | .. | cache | .remote-plugin-install-staging) continue ;; esac
-    extra+="${f##*/} "
-  done
-  [[ -z $extra ]] ||
-    { echo "SPAR-BRIDGE ABORT: codex plugins present, reviewer isolation unverified: $extra" >&2; exit 2; }
+    abort "codex is not on ChatGPT subscription auth"
+  local installed
+  installed=$(timeout 30 codex plugin list --json 2>/dev/null | jq -r '.installed | length' 2>/dev/null || echo "")
+  if [[ $installed != 0 ]]; then
+    local extra="" f
+    for f in "$HOME/.codex/plugins/"* "$HOME/.codex/plugins/".*; do
+      [[ -e $f ]] || continue
+      case ${f##*/} in . | .. | cache | .remote-plugin-install-staging) continue ;; esac
+      extra+="${f##*/} "
+    done
+    [[ $installed == "" && -z $extra ]] ||
+      abort "codex plugins present, reviewer isolation unverified: ${installed:-?} installed ${extra}"
+  fi
 }
 
-# Stream codex JSON events through a stall watchdog; print reply text to the
-# chosen fd, thread id to stdout in new mode. Limit errors exit immediately.
-stream() { # $1 reply_fd; rest = codex exec args
-  local reply_fd=$1 fifo pid line rc=0
+# Stream codex JSON events through a stall watchdog; reply text to the chosen
+# fd, thread id to stdout in new mode. Limit errors exit immediately.
+# Args: reply_fd, then codex-exec flags, then --, then positionals.
+stream() { # fifo and pid stay script-scoped so the EXIT trap can clean them
+  local reply_fd=$1 line rc=0
   shift
+  local pre=() post=() seen_sep=0 a
+  for a in "$@"; do
+    if [[ $a == "--" && $seen_sep == 0 ]]; then seen_sep=1; continue; fi
+    if [[ $seen_sep == 0 ]]; then pre+=("$a"); else post+=("$a"); fi
+  done
   fifo=$(mktemp -u) && mkfifo "$fifo"
-  timeout "$CEILING" codex exec "$@" --json \
-    -c model_reasoning_effort=xhigh -c 'mcp_servers={}' \
+  pid=""
+  trap '[[ -n "${pid:-}" ]] && kill "$pid" 2>/dev/null; [[ -n "${fifo:-}" ]] && rm -f "$fifo"; true' EXIT INT TERM
+  timeout "$CEILING" codex exec "${pre[@]}" --json \
+    -c model_reasoning_effort=xhigh -c 'mcp_servers={}' -- "${post[@]}" \
     </dev/null >"$fifo" 2>/dev/null &
   pid=$!
   # shellcheck disable=SC2094 # the fifo's writer is the background codex process
@@ -49,29 +65,27 @@ stream() { # $1 reply_fd; rest = codex exec args
       *'"error"'* | *'"turn.failed"'*)
         if grep -qiE 'usage limit|rate limit|quota|too many requests|429' <<<"$line"; then
           echo "SPAR-BRIDGE LIMIT: reviewer hit a usage limit; surface to the user now: $line" >&2
-          kill "$pid" 2>/dev/null || true
-          # shellcheck disable=SC2094 # reader and writer are separate processes
-          rm -f "$fifo"
           exit 3
         fi
         echo "SPAR-BRIDGE ERROR: $line" >&2 ;;
     esac
   done 3<"$fifo"
-  rm -f "$fifo"
   if [[ $rc -gt 128 ]]; then # read -t timed out: stall
-    kill "$pid" 2>/dev/null || true
     echo "SPAR-BRIDGE STALL: no reviewer event for ${STALL}s; killed the call" >&2
     exit 4
   fi
   wait "$pid" || { rc=$?; [[ $rc == 124 ]] &&
     echo "SPAR-BRIDGE CEILING: call exceeded ${CEILING}s" >&2; exit "$rc"; }
+  pid=""
 }
 
 [[ $# -ge 2 ]] || usage
 mode=$1
 case $mode in
-  new) preflight; stream 2 -s read-only -m "$MODEL" "$2" ;;
-  resume) [[ $# -ge 3 ]] || usage
-          preflight; stream 1 resume "$2" -c sandbox_mode='"read-only"' "$3" ;;
+  new) preflight; stream 2 -s read-only -m "$MODEL" -- "$2" ;;
+  resume)
+    [[ $# -ge 3 ]] || usage
+    [[ $2 =~ $UUID_RE ]] || abort "resume session id is not a UUID: $2"
+    preflight; stream 1 resume -c sandbox_mode='"read-only"' -- "$2" "$3" ;;
   *) usage ;;
 esac
