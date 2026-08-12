@@ -16,6 +16,7 @@ The reviewer is Claude Code (model pinned inside the bridge; update it there whe
 - First round: `sid=$(spar-claude new "<prompt>")`; the reply text arrives on stderr, the session id on stdout; state the literal session id in the user presentation.
 - Later rounds: `spar-claude resume "$sid" "<pointer prompt>"`; the reply is stdout. The cold read takes a fresh id from `new`.
 - Bridge exit codes: 2 preflight, 3 usage limit, 4 stall, 5 reviewer error, 124 ceiling; all follow the bridge-failure and limit rules.
+- Codex sessions run the bridge through an escalated on-request approval (the read-only sandbox blocks the bridge's fifo); expect one approval per call until a trusted-command rule is validated.
 - Interactive handoff for the user: `claude -r "$sid"`.
 
 ## Protocol

@@ -62,7 +62,7 @@ dotfiles-ai/
 │   ├── .agents/
 │   │   └── skills/                       # agent skills (documented user scope)
 │   │       ├── commit/                   # commit workflow (doc sync, scratch cleanup)
-│   │       └── spar/                     # cross-model plan sparring (reviewer: claude -p)
+│   │       └── spar/                     # cross-model plan sparring (reviewer: spar-claude)
 │   ├── .codex/
 │   │   ├── AGENTS.md                     # symlink chain to the canonical shared guidance
 │   │   └── config.toml                   # runtime config (model, sandbox, approvals, trust)
@@ -82,7 +82,7 @@ dotfiles-ai/
             ├── plugins/                  # plugins
             ├── skills/                   # agent skills
             │   ├── commit/               # commit workflow (doc sync, scratch cleanup)
-            │   └── spar/                 # cross-model plan sparring (reviewer: claude -p)
+            │   └── spar/                 # cross-model plan sparring (reviewer: spar-claude)
             ├── themes/                   # custom themes
             └── tools/                    # custom tool definitions
 ```
@@ -227,7 +227,7 @@ A repo-root `Makefile` keeps the package list in one place and wraps the routine
 - `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets from Setup
 - `make verify` - symlink resolution (via `readlink -f`, so tree-folding does not false-negative) plus JSON and TOML validity, statusline syntax, the reviewer-bridge executable check, three-way skill sync, OpenCode permission-rule order, and stray `opencode.jsonc` checks
 - `make clean` - the Prepare cleanup steps
-- `make lint` - ShellCheck over `statusline.sh` and `spar-codex`; `.shellcheckrc` disables the one style-level finding so new issues stand out
+- `make lint` - ShellCheck over `statusline.sh` and the two spar bridges; `.shellcheckrc` disables the one style-level finding so new issues stand out
 
 Periodically, review the current Claude Code docs (settings, memory, skills, hooks), Codex docs (config, AGENTS.md, skills, sandbox, approvals), and OpenCode docs (config, rules, permissions, agents, skills, TUI, sharing) against the tracked config, then run the Verify steps. In Claude Code, `/doctor` automates part of this checkup; it reports findings before fixing anything, so screen its offers (such as switching to auto mode) against the pinned defaults before accepting.
 

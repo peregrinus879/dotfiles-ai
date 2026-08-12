@@ -43,7 +43,8 @@ stream() { # fifo and pid stay script-scoped so the EXIT trap can clean them
     if [[ $a == "--" && $seen_sep == 0 ]]; then seen_sep=1; continue; fi
     if [[ $seen_sep == 0 ]]; then pre+=("$a"); else post+=("$a"); fi
   done
-  workdir=$(mktemp -d) && mkfifo -m 600 "$workdir/fifo"
+  workdir=$(mktemp -d) && [[ -d ${workdir:-} ]] || abort "cannot create a private temp directory"
+  mkfifo -m 600 "$workdir/fifo" || abort "cannot create the event fifo"
   fifo="$workdir/fifo"
   pid=""
   trap '{ [[ -z "${pid:-}" ]] || kill "$pid" || true; [[ -z "${workdir:-}" ]] || rm -rf "$workdir" || true; } 2>/dev/null' EXIT INT TERM
