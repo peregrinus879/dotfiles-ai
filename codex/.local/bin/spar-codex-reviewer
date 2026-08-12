@@ -23,17 +23,9 @@ preflight() {
   timeout 30 codex login status 2>&1 | grep -q "ChatGPT" ||
     abort "codex is not on ChatGPT subscription auth"
   local installed
-  installed=$(timeout 30 codex plugin list --json 2>/dev/null | jq -r '.installed | length' 2>/dev/null || echo "")
-  if [[ $installed != 0 ]]; then
-    local extra="" f
-    for f in "$HOME/.codex/plugins/"* "$HOME/.codex/plugins/".*; do
-      [[ -e $f ]] || continue
-      case ${f##*/} in . | .. | cache | .remote-plugin-install-staging) continue ;; esac
-      extra+="${f##*/} "
-    done
-    [[ $installed == "" && -z $extra ]] ||
-      abort "codex plugins present, reviewer isolation unverified: ${installed:-?} installed ${extra}"
-  fi
+  installed=$(timeout 30 codex plugin list --json 2>/dev/null | jq -r '.installed | length' 2>/dev/null) || installed=""
+  [[ $installed == 0 ]] ||
+    abort "cannot verify codex plugins are absent (installed: ${installed:-unknown}); fail closed"
 }
 
 # Stream codex JSON events through a stall watchdog; reply text to the chosen
