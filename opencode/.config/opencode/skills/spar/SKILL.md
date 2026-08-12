@@ -5,7 +5,7 @@ description: Cross-model plan sparring with adversarial review rounds to evidenc
 
 # Spar - Cross-Model Plan Sparring
 
-Adversarial plan review between Claude Code and OpenCode: the session running this skill is the implementer; the counterpart model is a read-only reviewer in a pinned headless session. Convergence is evidence-based, and the user arbitrates anything left open.
+Adversarial plan review between the session's tool and its cross-vendor counterpart: the session running this skill is the implementer; the counterpart model is a read-only reviewer in a pinned headless session. Convergence is evidence-based, and the user arbitrates anything left open.
 
 ## Reviewer incantations
 

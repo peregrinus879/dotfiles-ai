@@ -1,8 +1,6 @@
 ---
 name: spar
 description: Cross-model plan sparring with adversarial review rounds to evidence-based convergence, then execution and diff review.
-disable-model-invocation: true
-allowed-tools: Bash(timeout 600 opencode run --agent reviewer *)
 ---
 
 # Spar - Cross-Model Plan Sparring
@@ -11,15 +9,15 @@ Adversarial plan review between the session's tool and its cross-vendor counterp
 
 ## Reviewer incantations
 
-Requires: the `opencode` CLI, `jq`, and a read-only `reviewer` agent in the OpenCode config; this repo tracks it in `opencode/.config/opencode/opencode.json` under `agent.reviewer` with `permission: { "edit": "deny", "bash": { "*": "deny" } }`. Tracked allowlist entries auto-approve `timeout 600 opencode run --agent reviewer *` and Edit/Write under `./spar-scratch*/`, so rounds run without prompts; the first-round `SID=$(...)` capture still prompts once (command-substitution forms never match allow rules). Keep `--agent reviewer` immediately after `run` so the allow rule matches.
+Requires: the `claude` CLI. Read-only enforcement comes entirely from the flags below, so no Claude-side config is needed.
 
-The reviewer is OpenCode (model pinned; update the pin when the preferred model changes):
+The reviewer is Claude Code (repeat every flag on every call; they do not persist across resumes):
 
-- First round: `SID=$(timeout 600 opencode run --agent reviewer --format json -m openai/gpt-5.6-sol "<prompt>" | head -1 | jq -r .sessionID)`; validate the `ses_` prefix; the reply text is in the message events of the same output.
-- Later rounds: `timeout 600 opencode run --agent reviewer -s "$SID" -m openai/gpt-5.6-sol "<pointer prompt>"`, always run from the directory where the session was created (cross-directory resume hangs the CLI).
-- Keep argv prompts under ~2 KB: larger hangs `opencode run` before session creation (live-reproduced 2026-08-12 on 1.18.16). Payloads travel in the in-repo handoff file; out-of-project reads hang headless runs on the `external_directory` ask, so everything the reviewer reads stays inside the repository.
-- A timed-out send with a small prompt does not poison the session: retry once, then fail per the bridge-failure rule.
-- Never pass `--auto`. Interactive handoff for the user: `opencode -s "$SID"`.
+- Preflight once per spar: `timeout 30 claude auth status` must show `"loggedIn": true` and `"authMethod": "claude.ai"`, and `ANTHROPIC_API_KEY` must be unset; anything else aborts per the bridge-failure rule (subscription auth only, never API billing).
+- First round: `sid=$(cat /proc/sys/kernel/random/uuid); timeout 600 claude -p --session-id "$sid" --permission-mode plan --disallowedTools "Write Edit NotebookEdit Bash" --model claude-fable-5 "<pointer prompt>" && echo "$sid"`; the reply is plain stdout; state the literal session id in the user presentation.
+- Later rounds: the same flags with `--resume "$sid"` and without `--session-id` (combining them errors; live-verified 2026-08-12 on 2.1.228).
+- Keep prompts small and payloads in the in-repo handoff file.
+- Interactive handoff for the user: `claude -r "$sid"`.
 
 ## Protocol
 
