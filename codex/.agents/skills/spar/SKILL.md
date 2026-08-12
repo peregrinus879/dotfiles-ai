@@ -42,4 +42,5 @@ You are the read-only reviewer in an adversarial planning loop; a different mode
 - Relay reviewer objections in substance; do not soften or reframe them.
 - Disagreements the implementer cannot resolve with evidence go to the user as disputed items, never silently accepted or dropped.
 - If the reviewer bridge fails, report and stop; never substitute self-review.
+- A reviewer usage-limit error surfaces to the user immediately, with any reset information; never retry into a limit.
 - Delete the spar scratch directory during completion cleanup per the shared scratch rules.

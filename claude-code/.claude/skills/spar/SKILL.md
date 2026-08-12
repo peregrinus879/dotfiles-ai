@@ -2,7 +2,7 @@
 name: spar
 description: Cross-model plan sparring with adversarial review rounds to evidence-based convergence, then execution and diff review.
 disable-model-invocation: true
-allowed-tools: Bash(timeout 600 opencode run --agent reviewer *)
+allowed-tools: Bash(spar-codex-reviewer *)
 ---
 
 # Spar - Cross-Model Plan Sparring
@@ -11,15 +11,14 @@ Adversarial plan review between the session's tool and its cross-vendor counterp
 
 ## Reviewer incantations
 
-Requires: the `opencode` CLI, `jq`, and a read-only `reviewer` agent in the OpenCode config; this repo tracks it in `opencode/.config/opencode/opencode.json` under `agent.reviewer` with `permission: { "edit": "deny", "bash": { "*": "deny" } }`. Tracked allowlist entries auto-approve `timeout 600 opencode run --agent reviewer *` and Edit/Write under `./spar-scratch*/`, so rounds run without prompts; the first-round `SID=$(...)` capture still prompts once (command-substitution forms never match allow rules). Keep `--agent reviewer` immediately after `run` so the allow rule matches.
+Requires: the `codex` CLI and the stowed `spar-codex-reviewer` bridge (this repo, codex/.local/bin), which hard-codes the safe flags: ChatGPT-subscription and no-plugins preflights, read-only sandbox, xhigh effort, MCP-disable override, stdin guard, a 180 s stall watchdog under a 1800 s ceiling, fail-fast usage-limit classification, never `--last`. Tracked allowlist entries auto-approve `Bash(spar-codex-reviewer *)` and Edit/Write under `./spar-scratch*/`, so rounds run without prompts; the first-round `SID=$(...)` capture still prompts once (command-substitution forms never match allow rules).
 
-The reviewer is OpenCode (model pinned; update the pin when the preferred model changes):
+The reviewer is Codex (model pinned inside the bridge; update it there when the preferred model changes):
 
-- First round: `SID=$(timeout 600 opencode run --agent reviewer --format json -m openai/gpt-5.6-sol "<prompt>" | head -1 | jq -r .sessionID)`; validate the `ses_` prefix; the reply text is in the message events of the same output.
-- Later rounds: `timeout 600 opencode run --agent reviewer -s "$SID" -m openai/gpt-5.6-sol "<pointer prompt>"`, always run from the directory where the session was created (cross-directory resume hangs the CLI).
-- Keep argv prompts under ~2 KB: larger hangs `opencode run` before session creation (live-reproduced 2026-08-12 on 1.18.16). Payloads travel in the in-repo handoff file; out-of-project reads hang headless runs on the `external_directory` ask, so everything the reviewer reads stays inside the repository.
-- A timed-out send with a small prompt does not poison the session: retry once, then fail per the bridge-failure rule.
-- Never pass `--auto`. Interactive handoff for the user: `opencode -s "$SID"`.
+- First round: `SID=$(spar-codex-reviewer new "<prompt>")`; the reply text arrives on stderr, the thread id on stdout.
+- Later rounds: `spar-codex-reviewer resume "$SID" "<pointer prompt>"`; the reply is stdout. The cold read takes a fresh id from `new`.
+- Bridge exit codes: 2 preflight, 3 usage limit, 4 stall, 124 ceiling; all follow the bridge-failure and limit rules.
+- Interactive handoff for the user: `codex resume "$SID"`.
 
 ## Protocol
 
@@ -44,4 +43,5 @@ You are the read-only reviewer in an adversarial planning loop; a different mode
 - Relay reviewer objections in substance; do not soften or reframe them.
 - Disagreements the implementer cannot resolve with evidence go to the user as disputed items, never silently accepted or dropped.
 - If the reviewer bridge fails, report and stop; never substitute self-review.
+- A reviewer usage-limit error surfaces to the user immediately, with any reset information; never retry into a limit.
 - Delete the spar scratch directory during completion cleanup per the shared scratch rules.

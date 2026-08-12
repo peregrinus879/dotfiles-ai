@@ -11,7 +11,7 @@
       "Bash(pacman -Q*)",
       "Bash(pacman -Si *)",
       "Bash(pacman -Ss *)",
-      "Bash(timeout 600 opencode run --agent reviewer *)",
+      "Bash(spar-codex-reviewer *)",
       "Bash(tree *)",
       "Edit(./spar-scratch*/**)",
       "WebFetch",

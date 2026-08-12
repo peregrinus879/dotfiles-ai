@@ -3,17 +3,6 @@
   "share": "disabled",
   "autoupdate": true,
   "model": "openai/gpt-5.6-sol",
-  "agent": {
-    "reviewer": {
-      "description": "Read-only plan and diff reviewer for the spar skill",
-      "permission": {
-        "edit": "deny",
-        "bash": {
-          "*": "deny"
-        }
-      }
-    }
-  },
   "permission": {
     "bash": {
       "*": "ask",
