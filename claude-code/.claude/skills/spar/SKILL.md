@@ -11,7 +11,7 @@ Adversarial plan review between Claude Code and OpenCode: the session running th
 
 ## Reviewer incantations
 
-Requires: the `opencode` CLI, `jq`, and a read-only `reviewer` agent in the OpenCode config; this repo tracks it in `opencode/.config/opencode/opencode.json` under `agent.reviewer` with `permission: { "edit": "deny", "bash": { "*": "deny" } }`. This skill's `allowed-tools` frontmatter pre-approves `Bash(opencode run *)` for the invoking turn, so no global allowlist entry is needed.
+Requires: the `opencode` CLI, `jq`, and a read-only `reviewer` agent in the OpenCode config; this repo tracks it in `opencode/.config/opencode/opencode.json` under `agent.reviewer` with `permission: { "edit": "deny", "bash": { "*": "deny" } }`. Tracked allowlist entries auto-approve `timeout 600 opencode run *` and Edit/Write under `./spar-scratch*/`, so rounds run without prompts; the first-round `SID=$(...)` capture still prompts once (command-substitution forms never match allow rules).
 
 The reviewer is OpenCode (model pinned; update the pin when the preferred model changes):
 

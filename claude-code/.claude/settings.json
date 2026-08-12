@@ -11,9 +11,12 @@
       "Bash(pacman -Q*)",
       "Bash(pacman -Si *)",
       "Bash(pacman -Ss *)",
+      "Bash(timeout 600 opencode run *)",
       "Bash(tree *)",
+      "Edit(./spar-scratch*/**)",
       "WebFetch",
-      "WebSearch"
+      "WebSearch",
+      "Write(./spar-scratch*/**)"
     ],
     "deny": [
       "Bash(find * -delete*)",
