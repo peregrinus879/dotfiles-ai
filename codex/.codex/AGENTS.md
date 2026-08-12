@@ -1,0 +1,1 @@
+../../claude-code/.claude/rules/shared-guidance.md

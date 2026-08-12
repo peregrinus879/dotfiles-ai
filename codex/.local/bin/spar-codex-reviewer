@@ -1,0 +1,77 @@
+#!/bin/bash
+# spar-codex-reviewer - pinned read-only codex reviewer bridge for the spar skill.
+# Flags are hard-coded so no caller can weaken them (AGENTS.md, Known Limitations).
+# Modes: new "<prompt>" (thread id to stdout, reply to stderr)
+#        resume <sid> "<prompt>" (reply to stdout)
+# Exit codes: 0 ok, 2 preflight failed, 3 usage limit, 4 stall, 64 usage, 124 ceiling.
+set -euo pipefail
+
+MODEL="gpt-5.6-sol"
+CEILING=1800 # absolute seconds per call
+STALL=180    # kill after this many seconds without a JSON event
+
+usage() {
+  echo 'usage: spar-codex-reviewer new "<prompt>" | resume <sid> "<prompt>"' >&2
+  exit 64
+}
+
+preflight() {
+  timeout 30 codex login status 2>&1 | grep -q "ChatGPT" ||
+    { echo "SPAR-BRIDGE ABORT: codex is not on ChatGPT subscription auth" >&2; exit 2; }
+  local extra="" f
+  for f in "$HOME/.codex/plugins/"* "$HOME/.codex/plugins/".*; do
+    [[ -e $f ]] || continue
+    case ${f##*/} in . | .. | cache | .remote-plugin-install-staging) continue ;; esac
+    extra+="${f##*/} "
+  done
+  [[ -z $extra ]] ||
+    { echo "SPAR-BRIDGE ABORT: codex plugins present, reviewer isolation unverified: $extra" >&2; exit 2; }
+}
+
+# Stream codex JSON events through a stall watchdog; print reply text to the
+# chosen fd, thread id to stdout in new mode. Limit errors exit immediately.
+stream() { # $1 reply_fd; rest = codex exec args
+  local reply_fd=$1 fifo pid line rc=0
+  shift
+  fifo=$(mktemp -u) && mkfifo "$fifo"
+  timeout "$CEILING" codex exec "$@" --json \
+    -c model_reasoning_effort=xhigh -c 'mcp_servers={}' \
+    </dev/null >"$fifo" 2>/dev/null &
+  pid=$!
+  # shellcheck disable=SC2094 # the fifo's writer is the background codex process
+  while true; do
+    IFS= read -t "$STALL" -r line <&3 || { rc=$?; break; }
+    case $line in
+      *'"thread.started"'*)
+        [[ $reply_fd == 2 ]] && jq -r '.thread_id // empty' <<<"$line" ;;
+      *'"agent_message"'*)
+        jq -r '.item.text // empty' <<<"$line" >&"$reply_fd" ;;
+      *'"error"'* | *'"turn.failed"'*)
+        if grep -qiE 'usage limit|rate limit|quota|too many requests|429' <<<"$line"; then
+          echo "SPAR-BRIDGE LIMIT: reviewer hit a usage limit; surface to the user now: $line" >&2
+          kill "$pid" 2>/dev/null || true
+          # shellcheck disable=SC2094 # reader and writer are separate processes
+          rm -f "$fifo"
+          exit 3
+        fi
+        echo "SPAR-BRIDGE ERROR: $line" >&2 ;;
+    esac
+  done 3<"$fifo"
+  rm -f "$fifo"
+  if [[ $rc -gt 128 ]]; then # read -t timed out: stall
+    kill "$pid" 2>/dev/null || true
+    echo "SPAR-BRIDGE STALL: no reviewer event for ${STALL}s; killed the call" >&2
+    exit 4
+  fi
+  wait "$pid" || { rc=$?; [[ $rc == 124 ]] &&
+    echo "SPAR-BRIDGE CEILING: call exceeded ${CEILING}s" >&2; exit "$rc"; }
+}
+
+[[ $# -ge 2 ]] || usage
+mode=$1
+case $mode in
+  new) preflight; stream 2 -s read-only -m "$MODEL" "$2" ;;
+  resume) [[ $# -ge 3 ]] || usage
+          preflight; stream 1 resume "$2" -c sandbox_mode='"read-only"' "$3" ;;
+  *) usage ;;
+esac
