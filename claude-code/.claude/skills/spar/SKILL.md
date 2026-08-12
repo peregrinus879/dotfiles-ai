@@ -2,7 +2,7 @@
 name: spar
 description: Cross-model plan sparring with adversarial review rounds to evidence-based convergence, then execution and diff review.
 disable-model-invocation: true
-allowed-tools: Bash(spar-codex-reviewer *)
+allowed-tools: Bash(spar-codex *)
 ---
 
 # Spar - Cross-Model Plan Sparring
@@ -11,12 +11,12 @@ Adversarial plan review between the session's tool and its cross-vendor counterp
 
 ## Reviewer incantations
 
-Requires: the `codex` CLI and the stowed `spar-codex-reviewer` bridge (this repo, codex/.local/bin), which hard-codes the safe flags: ChatGPT-subscription and no-plugins preflights, read-only sandbox, xhigh effort, MCP-disable override, stdin guard, a 180 s stall watchdog under a 1800 s ceiling, fail-fast usage-limit classification, never `--last`. Tracked allowlist entries auto-approve `Bash(spar-codex-reviewer *)` and Edit/Write under `./spar-scratch*/`, so rounds run without prompts; the first-round `SID=$(...)` capture still prompts once (command-substitution forms never match allow rules).
+Requires: the `codex` CLI and the stowed `spar-codex` bridge (this repo, codex/.local/bin), which hard-codes the safe flags: ChatGPT-subscription and no-plugins preflights, read-only sandbox, xhigh effort, MCP-disable override, stdin guard, a 180 s stall watchdog under a 1800 s ceiling, fail-fast usage-limit classification, never `--last`. Tracked allowlist entries auto-approve `Bash(spar-codex *)` and Edit/Write under `./spar-scratch*/`, so rounds run without prompts; the first-round `SID=$(...)` capture still prompts once (command-substitution forms never match allow rules).
 
 The reviewer is Codex (model pinned inside the bridge; update it there when the preferred model changes):
 
-- First round: `SID=$(spar-codex-reviewer new "<prompt>")`; the reply text arrives on stderr, the thread id on stdout.
-- Later rounds: `spar-codex-reviewer resume "$SID" "<pointer prompt>"`; the reply is stdout. The cold read takes a fresh id from `new`.
+- First round: `SID=$(spar-codex new "<prompt>")`; the reply text arrives on stderr, the thread id on stdout.
+- Later rounds: `spar-codex resume "$SID" "<pointer prompt>"`; the reply is stdout. The cold read takes a fresh id from `new`.
 - Bridge exit codes: 2 preflight, 3 usage limit, 4 stall, 124 ceiling; all follow the bridge-failure and limit rules.
 - Interactive handoff for the user: `codex resume "$SID"`.
 

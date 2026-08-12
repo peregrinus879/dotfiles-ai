@@ -11,7 +11,7 @@
       "Bash(pacman -Q*)",
       "Bash(pacman -Si *)",
       "Bash(pacman -Ss *)",
-      "Bash(spar-codex-reviewer *)",
+      "Bash(spar-codex *)",
       "Bash(tree *)",
       "Edit(./spar-scratch*/**)",
       "WebFetch",

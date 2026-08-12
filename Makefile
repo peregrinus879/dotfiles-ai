@@ -43,7 +43,7 @@ verify:
 	  "$$HOME/.codex/AGENTS.md=codex/.codex/AGENTS.md" \
 	  "$$HOME/.agents/skills/commit/SKILL.md=codex/.agents/skills/commit/SKILL.md" \
 	  "$$HOME/.agents/skills/spar/SKILL.md=codex/.agents/skills/spar/SKILL.md" \
-	  "$$HOME/.local/bin/spar-codex-reviewer=codex/.local/bin/spar-codex-reviewer" \
+	  "$$HOME/.local/bin/spar-codex=codex/.local/bin/spar-codex" \
 	  "$$HOME/.config/opencode/opencode.json=opencode/.config/opencode/opencode.json" \
 	  "$$HOME/.config/opencode/tui.json=opencode/.config/opencode/tui.json" \
 	  "$$HOME/.config/opencode/AGENTS.md=opencode/.config/opencode/AGENTS.md" \
@@ -59,7 +59,7 @@ verify:
 	  fi; \
 	done; \
 	if bash -n claude-code/.claude/statusline.sh; then echo "ok:   bash -n statusline.sh"; else echo "FAIL: bash -n statusline.sh"; fail=1; fi; \
-	if [[ -x "$$HOME/.local/bin/spar-codex-reviewer" ]]; then echo "ok:   spar-codex-reviewer executable"; else echo "FAIL: spar-codex-reviewer missing or not executable"; fail=1; fi; \
+	if [[ -x "$$HOME/.local/bin/spar-codex" ]]; then echo "ok:   spar-codex executable"; else echo "FAIL: spar-codex missing or not executable"; fail=1; fi; \
 	if command -v python3 > /dev/null; then \
 	  if python3 -c 'import tomllib; tomllib.load(open("codex/.codex/config.toml","rb"))' 2>/dev/null; then \
 	    echo "ok:   valid TOML codex/.codex/config.toml"; \
@@ -100,5 +100,5 @@ clean:
 	-rm -f ~/.claude/settings.json
 
 lint:
-	shellcheck -s bash claude-code/.claude/statusline.sh codex/.local/bin/spar-codex-reviewer
+	shellcheck -s bash claude-code/.claude/statusline.sh codex/.local/bin/spar-codex
 	@echo "ok:   shellcheck clean"

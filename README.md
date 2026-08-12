@@ -54,7 +54,7 @@ dotfiles-ai/
 │       │   └── shared-guidance.md        # canonical shared instructions
 │       └── skills/                       # custom skills (SKILL.md files)
 │           ├── commit/                   # commit workflow (doc sync, scratch cleanup)
-│           └── spar/                     # cross-model plan sparring (reviewer: spar-codex-reviewer)
+│           └── spar/                     # cross-model plan sparring (reviewer: spar-codex)
 ├── codex/                                # stow package -> ~/.codex/, ~/.agents/, ~/.local/bin/
 │   ├── .agents/
 │   │   └── skills/                       # agent skills (documented user scope)
@@ -65,7 +65,7 @@ dotfiles-ai/
 │   │   └── config.toml                   # runtime config (model, sandbox, approvals, trust)
 │   └── .local/
 │       └── bin/
-│           └── spar-codex-reviewer       # pinned read-only reviewer bridge for spar
+│           └── spar-codex       # pinned read-only reviewer bridge for spar
 └── opencode/                             # stow package -> ~/.config/opencode/
     └── .config/
         └── opencode/
@@ -96,7 +96,7 @@ Shared guidance lives in `claude-code/.claude/rules/shared-guidance.md`. Claude 
 
 At the repo root, `AGENTS.md` is the canonical project instruction file and `CLAUDE.md` is a thin compatibility wrapper for Claude Code.
 
-OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps `/commit` and `/spar` wrappers and folds documentation sync and scratch file cleanup into the commit workflow instead of maintaining a separate `/update` command. The spar skill's copies share their protocol wording but each carries only its own tool's reviewer incantations, so a session can never invoke its own model as the reviewer. The reviewer matrix is cross-vendor: Claude Code spars with Codex through the pinned `spar-codex-reviewer` bridge, and Codex and OpenCode spar with Claude through `claude -p`. Codex replaced OpenCode as the Claude-side reviewer for its OS-enforced read-only sandbox, clean session resume, and fail-fast limit reporting; large payloads travel in the in-repo handoff file.
+OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps `/commit` and `/spar` wrappers and folds documentation sync and scratch file cleanup into the commit workflow instead of maintaining a separate `/update` command. The spar skill's copies share their protocol wording but each carries only its own tool's reviewer incantations, so a session can never invoke its own model as the reviewer. The reviewer matrix is cross-vendor: Claude Code spars with Codex through the pinned `spar-codex` bridge, and Codex and OpenCode spar with Claude through `claude -p`. Codex replaced OpenCode as the Claude-side reviewer for its OS-enforced read-only sandbox, clean session resume, and fail-fast limit reporting; large payloads travel in the in-repo handoff file.
 
 ## Review Workflow
 
@@ -213,7 +213,7 @@ After stowing or changing the payloads:
 
 - Run `make verify` and `make lint` from the repo root.
 - Start a fresh Claude Code session and confirm the shared guidance file and status line load as expected.
-- Start a fresh Codex session and confirm the shared guidance loads (the assistant addresses the user as H) and `spar-codex-reviewer` is on PATH.
+- Start a fresh Codex session and confirm the shared guidance loads (the assistant addresses the user as H) and `spar-codex` is on PATH.
 - Run `opencode debug config` and confirm the resolved config includes the shared guidance path and `share = disabled`.
 - Confirm `/commit` still routes through the repo skill workflow in all managed tools, including doc sync and scratch cleanup before staging.
 
@@ -224,7 +224,7 @@ A repo-root `Makefile` keeps the package list in one place and wraps the routine
 - `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets from Setup
 - `make verify` - symlink resolution (via `readlink -f`, so tree-folding does not false-negative) plus JSON and TOML validity, statusline syntax, the reviewer-bridge executable check, three-way skill sync, OpenCode permission-rule order, and stray `opencode.jsonc` checks
 - `make clean` - the Prepare cleanup steps
-- `make lint` - ShellCheck over `statusline.sh` and `spar-codex-reviewer`; `.shellcheckrc` disables the one style-level finding so new issues stand out
+- `make lint` - ShellCheck over `statusline.sh` and `spar-codex`; `.shellcheckrc` disables the one style-level finding so new issues stand out
 
 Periodically, review the current Claude Code docs (settings, memory, skills, hooks), Codex docs (config, AGENTS.md, skills, sandbox, approvals), and OpenCode docs (config, rules, permissions, agents, skills, TUI, sharing) against the tracked config, then run the Verify steps. In Claude Code, `/doctor` automates part of this checkup; it reports findings before fixing anything, so screen its offers (such as switching to auto mode) against the pinned defaults before accepting.
 
