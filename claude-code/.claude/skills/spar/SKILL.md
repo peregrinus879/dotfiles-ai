@@ -15,8 +15,10 @@ Requires: the `opencode` CLI, `jq`, and a read-only `reviewer` agent in the Open
 
 The reviewer is OpenCode (model pinned; update the pin when the preferred model changes):
 
-- First round: `SID=$(timeout 300 opencode run --format json -m openai/gpt-5.6-sol --agent reviewer "<prompt>" | head -1 | jq -r .sessionID)`; validate the `ses_` prefix; the reply text is in the message events of the same output.
-- Later rounds: `timeout 300 opencode run -s "$SID" -m openai/gpt-5.6-sol --agent reviewer "<prompt>"`, always run from the directory where the session was created (cross-directory resume hangs the CLI).
+- First round: `SID=$(timeout 600 opencode run --format json -m openai/gpt-5.6-sol --agent reviewer "<prompt>" | head -1 | jq -r .sessionID)`; validate the `ses_` prefix; the reply text is in the message events of the same output.
+- Later rounds: `timeout 600 opencode run -s "$SID" -m openai/gpt-5.6-sol --agent reviewer "<pointer prompt>"`, always run from the directory where the session was created (cross-directory resume hangs the CLI).
+- Keep argv prompts under ~2 KB: larger hangs `opencode run` before session creation (live-reproduced 2026-08-12 on 1.18.16). Payloads travel in the in-repo handoff file; out-of-project reads hang headless runs on the `external_directory` ask, so everything the reviewer reads stays inside the repository.
+- A timed-out send with a small prompt does not poison the session: retry once, then fail per the bridge-failure rule.
 - Never pass `--auto`. Interactive handoff for the user: `opencode -s "$SID"`.
 
 ## Protocol

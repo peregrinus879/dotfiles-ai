@@ -9,12 +9,13 @@ Adversarial plan review between Claude Code and OpenCode: the session running th
 
 ## Reviewer incantations
 
-Requires: the `claude` CLI and `jq`. Read-only enforcement comes entirely from the flags below, so no Claude-side config is needed. For prompt-free rounds this repo's `opencode.json` allows `claude -p *` in the bash permission map, inserted before the redirect guard block where verify requires allow entries to sit.
+Requires: the `claude` CLI. Read-only enforcement comes entirely from the flags below, so no Claude-side config is needed. For prompt-free rounds this repo's `opencode.json` allows `claude -p *` in the bash permission map, inserted before the redirect guard block where verify requires allow entries to sit.
 
 The reviewer is Claude Code (repeat every flag on every call; they do not persist across resumes):
 
-- First round: `sid=$(timeout 300 claude -p --output-format json --permission-mode plan --disallowedTools "Write Edit NotebookEdit Bash" --model claude-fable-5 "<prompt>" | jq -r .session_id)`; the reply text is in `.result`.
-- Later rounds: the same flags plus `--resume "$sid"`.
+- First round: `sid=$(cat /proc/sys/kernel/random/uuid); timeout 600 claude -p --session-id "$sid" --permission-mode plan --disallowedTools "Write Edit NotebookEdit Bash" --model claude-fable-5 "<prompt>" && echo "$sid"`; the reply is plain stdout; state the literal session id in the user presentation.
+- Later rounds: the same flags with `--resume "$sid"` and without `--session-id` (combining them errors; live-verified 2026-08-12 on 2.1.228).
+- Keep prompts small and payloads in the in-repo handoff file.
 - Interactive handoff for the user: `claude -r "$sid"`.
 
 ## Protocol
