@@ -1,6 +1,6 @@
 # dotfiles-ai
 
-Claude Code and OpenCode global dotfiles, managed with [GNU Stow](https://www.gnu.org/software/stow/).
+Claude Code, Codex, and OpenCode global dotfiles, managed with [GNU Stow](https://www.gnu.org/software/stow/).
 
 ## Repo Family
 
@@ -12,7 +12,7 @@ Omarchy + personal deviations   → dotfiles-omarchy
 Omarchy + WSL deviations        → dotfiles-wsl
 ```
 
-- [`dotfiles-ai`](https://github.com/peregrinus879/dotfiles-ai) - AI harness configs: Claude Code and OpenCode settings, shared guidance, and commit workflow
+- [`dotfiles-ai`](https://github.com/peregrinus879/dotfiles-ai) - AI harness configs: Claude Code, Codex, and OpenCode settings, shared guidance, and commit workflow
 - [`dotfiles-omarchy`](https://github.com/peregrinus879/dotfiles-omarchy) - Personal Omarchy customizations: Bash overrides, Hyprland bindings, Neovim plugins, and Yazi
 - [`dotfiles-wsl`](https://github.com/peregrinus879/dotfiles-wsl) - Self-contained WSL Arch dotfiles: terminal baseline plus Windows Terminal, clipboard integration, and OpenCode theme
 
@@ -21,13 +21,14 @@ Local clones live side by side under `~/Projects/repos/dotfiles/`.
 ## Supported Tools
 
 - [Claude Code](https://code.claude.com/docs/en/overview) - AI-powered coding assistant with a terminal CLI
+- [Codex](https://learn.chatgpt.com/docs/codex) - OpenAI's coding agent with a terminal CLI
 - [OpenCode](https://opencode.ai/docs) - Open source AI coding agent with a terminal-based interface
 
 ## Scope
 
-This repo tracks shared cross-tool AI assistant guidance and portable tracked config for Claude Code and OpenCode.
+This repo tracks shared cross-tool AI assistant guidance and portable tracked config for Claude Code, Codex, and OpenCode.
 
-It intentionally excludes auth and session state, machine-local files, and generated host-specific config. The repo root keeps a minimal `AGENTS.md`, a thin `CLAUDE.md` compatibility wrapper, and per-tool project allowlists for the repo's verification make targets, so the repo can be maintained natively in both tools.
+It intentionally excludes auth and session state, machine-local files, and generated host-specific config. The repo root keeps a minimal `AGENTS.md`, a thin `CLAUDE.md` compatibility wrapper, and per-tool project allowlists for the repo's verification make targets, so the repo can be maintained natively in the managed tools.
 
 ## Structure
 
@@ -53,7 +54,18 @@ dotfiles-ai/
 │       │   └── shared-guidance.md        # canonical shared instructions
 │       └── skills/                       # custom skills (SKILL.md files)
 │           ├── commit/                   # commit workflow (doc sync, scratch cleanup)
-│           └── spar/                     # cross-model plan sparring (reviewer: opencode run)
+│           └── spar/                     # cross-model plan sparring (reviewer: spar-codex-reviewer)
+├── codex/                                # stow package -> ~/.codex/, ~/.agents/, ~/.local/bin/
+│   ├── .agents/
+│   │   └── skills/                       # agent skills (documented user scope)
+│   │       ├── commit/                   # commit workflow (doc sync, scratch cleanup)
+│   │       └── spar/                     # cross-model plan sparring (reviewer: claude -p)
+│   ├── .codex/
+│   │   ├── AGENTS.md                     # symlink chain to the canonical shared guidance
+│   │   └── config.toml                   # runtime config (model, sandbox, approvals, trust)
+│   └── .local/
+│       └── bin/
+│           └── spar-codex-reviewer       # pinned read-only reviewer bridge for spar
 └── opencode/                             # stow package -> ~/.config/opencode/
     └── .config/
         └── opencode/
@@ -72,19 +84,19 @@ dotfiles-ai/
             └── tools/                    # custom tool definitions
 ```
 
-Tracked runtime config is limited to shared behavior. `claude-code/.claude/settings.json` and `opencode/.config/opencode/opencode.json` are the source of truth for each tool's model, effort, permissions, and feature toggles; read them directly rather than a prose mirror here. Both carry the same intent: ask before file edits and non-read-only bash, allow a narrow set of read-only inspections, keep sharing off. The OpenCode permission policy applies to every agent, including task-spawned subagents. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
+Tracked runtime config is limited to shared behavior. `claude-code/.claude/settings.json`, `codex/.codex/config.toml`, and `opencode/.config/opencode/opencode.json` are the source of truth for each tool's model, effort, permissions, and feature toggles; read them directly rather than a prose mirror here. All three carry the same intent: gate writes behind review (Codex expresses it as a read-only sandbox with on-request approvals), allow a narrow set of read-only inspections, keep sharing off. The OpenCode permission policy applies to every agent, including task-spawned subagents. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
 
 Machine-local paths (`projects/`, `agent-memory/`), auth/session state, and generated or host-specific config files remain intentionally excluded. The repo root `.gitignore` tracks the documented machine-local paths so accidental local state stays out of Git.
 
-One exception lives inside the `opencode/` package: OpenCode generates its plugin dependencies next to its config. The package directory holds the canonical copy, kept out of Git by a nested untracked `.gitignore`, and stow links them into `~/.config/opencode` with the rest of the payload. If stow reports conflicts on these files, remove the real copies under `$HOME` and re-stow; never delete the repo-side copies.
+Two payload-side exceptions exist. Inside `codex/`, Codex writes runtime state into `config.toml` itself (project trust entries, notice keys, MCP additions); those rewrites flow through the stow symlink into the repo working tree and are committed as-is, while a nested untracked `.gitignore` keeps every other runtime file Codex drops next to the stowed links out of Git. Inside `opencode/`, OpenCode generates its plugin dependencies next to its config; the package directory holds the canonical copy, kept out of Git by a nested untracked `.gitignore`, and stow links them into `~/.config/opencode` with the rest of the payload. If stow reports conflicts on these files, remove the real copies under `$HOME` and re-stow; never delete the repo-side copies.
 
 Repo-root instruction files exist only to maintain `dotfiles-ai` itself; they are not part of the stowed payload.
 
-Shared guidance lives in `claude-code/.claude/rules/shared-guidance.md`. Claude Code loads it natively from `rules/`, while OpenCode loads the same file through the `instructions` field in `opencode.json` using `$HOME`-based path expansion. Guidance is shared when the content and meaning are the same in both tools (share policy); tool-specific config, wrappers, and schemas stay separate (separate mechanism).
+Shared guidance lives in `claude-code/.claude/rules/shared-guidance.md`. Claude Code loads it natively from `rules/`; Codex loads the same file as its global instructions through the `~/.codex/AGENTS.md` symlink chain (Codex has no import mechanism); OpenCode loads it through the `instructions` field in `opencode.json` using `$HOME`-based path expansion. Guidance is shared when the content and meaning are the same in every managed tool (share policy); tool-specific config, wrappers, and schemas stay separate (separate mechanism).
 
 At the repo root, `AGENTS.md` is the canonical project instruction file and `CLAUDE.md` is a thin compatibility wrapper for Claude Code.
 
-OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps `/commit` and `/spar` wrappers and folds documentation sync and scratch file cleanup into the commit workflow instead of maintaining a separate `/update` command. The spar skill's copies share their protocol wording but each carries only its own tool's reviewer incantations, so a session can never invoke its own model as the reviewer.
+OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps `/commit` and `/spar` wrappers and folds documentation sync and scratch file cleanup into the commit workflow instead of maintaining a separate `/update` command. The spar skill's copies share their protocol wording but each carries only its own tool's reviewer incantations, so a session can never invoke its own model as the reviewer. The reviewer matrix is cross-vendor: Claude Code spars with Codex through the pinned `spar-codex-reviewer` bridge, and Codex and OpenCode spar with Claude through `claude -p`. Codex replaced OpenCode as the Claude-side reviewer for its OS-enforced read-only sandbox, native stdin for large payloads, clean session resume, and fail-fast limit reporting.
 
 ## Review Workflow
 
@@ -134,13 +146,20 @@ Remove existing files that would conflict with stow. The first block removes tre
 ```bash
 # Tree-folded directory symlinks (from a previous stow)
 rm -f ~/.claude/agents ~/.claude/rules ~/.claude/skills
+rm -f ~/.codex/AGENTS.md
+rm -rf ~/.agents/skills/commit ~/.agents/skills/spar
 rm -f ~/.config/opencode ~/.config/opencode/agents ~/.config/opencode/commands \
   ~/.config/opencode/modes ~/.config/opencode/plugins ~/.config/opencode/skills \
   ~/.config/opencode/themes ~/.config/opencode/tools
 
 # Individual config files
 rm -f ~/.claude/settings.json
+
+# Codex: keep the state directories real so stow never tree-folds them
+mkdir -p ~/.codex ~/.agents/skills
 ```
+
+Codex stores per-host project trust inside `config.toml`. If `~/.codex/config.toml` already exists, merge its `[projects]` entries into `codex/.codex/config.toml` before stowing, then remove the real file; do not simply delete it.
 
 ### Stow
 
@@ -148,14 +167,14 @@ Create symlinks for all packages:
 
 ```bash
 cd ~/Projects/repos/dotfiles/dotfiles-ai
-stow -v -t ~ claude-code opencode
+stow -v -t ~ claude-code codex opencode
 ```
 
 ### Unstow
 
 ```bash
 cd ~/Projects/repos/dotfiles/dotfiles-ai
-stow -D -v -t ~ claude-code opencode
+stow -D -v -t ~ claude-code codex opencode
 ```
 
 ### Dry Run
@@ -164,7 +183,7 @@ Preview what stow would do without making changes:
 
 ```bash
 cd ~/Projects/repos/dotfiles/dotfiles-ai
-stow -v -n -t ~ claude-code opencode
+stow -v -n -t ~ claude-code codex opencode
 ```
 
 ### Re-stow
@@ -173,16 +192,16 @@ To update symlinks after the repo content changes (same clone path):
 
 ```bash
 cd ~/Projects/repos/dotfiles/dotfiles-ai
-stow -R -v -t ~ claude-code opencode
+stow -R -v -t ~ claude-code codex opencode
 ```
 
 To migrate from a different clone path, unstow from the old location first:
 
 ```bash
 cd /old/clone/path
-stow -D -v -t ~ claude-code opencode
+stow -D -v -t ~ claude-code codex opencode
 cd ~/Projects/repos/dotfiles/dotfiles-ai
-stow -v -t ~ claude-code opencode
+stow -v -t ~ claude-code codex opencode
 ```
 
 If the old clone is no longer available, run the full cleanup in the Prepare section before stowing.
@@ -193,6 +212,7 @@ After stowing or changing the payloads:
 
 - Run `make verify` and `make lint` from the repo root.
 - Start a fresh Claude Code session and confirm the shared guidance file and status line load as expected.
+- Start a fresh Codex session and confirm the shared guidance loads (the assistant addresses the user as H) and `spar-codex-reviewer` is on PATH.
 - Run `opencode debug config` and confirm the resolved config includes the shared guidance path and `share = disabled`.
 - Confirm `/commit` still routes through the repo skill workflow in both tools, including doc sync and scratch cleanup before staging.
 
@@ -201,11 +221,11 @@ After stowing or changing the payloads:
 A repo-root `Makefile` keeps the package list in one place and wraps the routine commands. Run targets from the repo root:
 
 - `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets from Setup
-- `make verify` - symlink resolution (via `readlink -f`, so tree-folding does not false-negative) plus JSON validity, statusline syntax, commit-skill sync, OpenCode permission-rule order, and stray `opencode.jsonc` checks
+- `make verify` - symlink resolution (via `readlink -f`, so tree-folding does not false-negative) plus JSON and TOML validity, statusline syntax, the reviewer-bridge executable check, three-way skill sync, OpenCode permission-rule order, and stray `opencode.jsonc` checks
 - `make clean` - the Prepare cleanup steps
-- `make lint` - ShellCheck over `statusline.sh`; `.shellcheckrc` disables the one style-level finding so new issues stand out
+- `make lint` - ShellCheck over `statusline.sh` and `spar-codex-reviewer`; `.shellcheckrc` disables the one style-level finding so new issues stand out
 
-Periodically, review the current Claude Code docs (settings, memory, skills, hooks) and OpenCode docs (config, rules, permissions, agents, skills, TUI, sharing) against the tracked config, then run the Verify steps. In Claude Code, `/doctor` automates part of this checkup; it reports findings before fixing anything, so screen its offers (such as switching to auto mode) against the pinned defaults before accepting.
+Periodically, review the current Claude Code docs (settings, memory, skills, hooks), Codex docs (config, AGENTS.md, skills, sandbox, approvals), and OpenCode docs (config, rules, permissions, agents, skills, TUI, sharing) against the tracked config, then run the Verify steps. In Claude Code, `/doctor` automates part of this checkup; it reports findings before fixing anything, so screen its offers (such as switching to auto mode) against the pinned defaults before accepting.
 
 ## License
 
