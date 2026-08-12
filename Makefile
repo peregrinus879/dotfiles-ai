@@ -63,6 +63,10 @@ verify:
 	for b in spar-claude spar-codex; do \
 	  if [[ -x "$$HOME/.local/bin/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
 	done; \
+	if [[ $$(grep -Fc -- '--tools ' claude-code/.local/bin/spar-claude) == 1 ]] && \
+	  grep -Fqx '    --tools "Read,Glob,Grep" \' claude-code/.local/bin/spar-claude; then \
+	  echo "ok:   spar-claude read-only tool whitelist"; \
+	else echo "FAIL: spar-claude read-only tool whitelist missing"; fail=1; fi; \
 	if command -v python3 > /dev/null; then \
 	  if python3 -c 'import tomllib; tomllib.load(open("codex/.codex/config.toml","rb"))' 2>/dev/null; then \
 	    echo "ok:   valid TOML codex/.codex/config.toml"; \
@@ -80,6 +84,10 @@ verify:
 	    opencode/.config/opencode/opencode.json > /dev/null; then \
 	    echo "ok:   opencode claude bridge allow (spar-claude only, no raw claude -p)"; \
 	  else echo "FAIL: opencode claude bridge allow (need spar-claude allow, no claude -p entry)"; fail=1; fi; \
+	  if jq -e '.permission.edit | to_entries == [{"key":"*","value":"ask"},{"key":"spar-scratch*/**","value":"allow"}]' \
+	    opencode/.config/opencode/opencode.json > /dev/null; then \
+	    echo "ok:   opencode spar scratch edit allow (all other edits ask)"; \
+	  else echo "FAIL: opencode spar scratch edit allow (need catch-all ask then spar-scratch allow)"; fail=1; fi; \
 	else echo "note: jq not found, skipping JSON validity checks"; fi; \
 	if [[ -e "$$HOME/.config/opencode/opencode.jsonc" ]]; then \
 	  echo "FAIL: stray ~/.config/opencode/opencode.jsonc shadows the stowed config"; fail=1; \

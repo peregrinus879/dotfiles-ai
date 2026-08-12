@@ -44,6 +44,7 @@ stream() { # $1 reply_fd; rest = claude session flags
   trap '{ [[ -z "${pid:-}" ]] || kill "$pid" || true; [[ -z "${workdir:-}" ]] || rm -rf "$workdir" || true; } 2>/dev/null' EXIT INT TERM
   printf '%s' "$PROMPT" | timeout "$CEILING" claude -p "$@" \
     --permission-mode plan --disallowedTools "Write Edit NotebookEdit Bash" \
+    --tools "Read,Glob,Grep" \
     --model "$MODEL" --safe-mode --output-format stream-json \
     --include-partial-messages --verbose >"$workdir/fifo" 2>/dev/null &
   pid=$!

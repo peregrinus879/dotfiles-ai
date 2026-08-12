@@ -9,7 +9,7 @@ Adversarial plan review between the session's tool and its cross-vendor counterp
 
 ## Reviewer incantations
 
-Requires: the `claude` CLI, `jq`, and the stowed `spar-claude` bridge (this repo, claude-code/.local/bin), which hard-codes the safe flags: claude.ai-subscription preflight with `ANTHROPIC_API_KEY` required unset, plan permission mode with the write tools disallowed, safe mode (no plugins, hooks, MCP, or other customizations), pinned model, prompts via stdin, a stall watchdog under an absolute ceiling (SPAR_BRIDGE_STALL and SPAR_BRIDGE_CEILING, positive integers only, defaults 180/1800), and fail-fast usage-limit classification.
+Requires: the `claude` CLI, `jq`, and the stowed `spar-claude` bridge (this repo, claude-code/.local/bin), which hard-codes the safe flags: claude.ai-subscription preflight with `ANTHROPIC_API_KEY` required unset, an explicit read-only tool whitelist (`Read`, `Glob`, `Grep`) backed by plan permission mode and disallowed write tools, safe mode (no plugins, hooks, MCP, or other customizations), pinned model, prompts via stdin, a stall watchdog under an absolute ceiling (SPAR_BRIDGE_STALL and SPAR_BRIDGE_CEILING, positive integers only, defaults 180/1800), and fail-fast usage-limit classification.
 
 The reviewer is Claude Code (model pinned inside the bridge; update it there when the preferred model changes):
 

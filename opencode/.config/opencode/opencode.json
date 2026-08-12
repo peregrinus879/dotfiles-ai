@@ -49,7 +49,10 @@
       "tree * -o *": "deny",
       "tree * --output *": "deny"
     },
-    "edit": "ask",
+    "edit": {
+      "*": "ask",
+      "spar-scratch*/**": "allow"
+    },
     "external_directory": "ask",
     "webfetch": "allow",
     "websearch": "allow"
