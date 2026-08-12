@@ -7,9 +7,10 @@
 set -euo pipefail
 
 MODEL="gpt-5.6-sol"
-CEILING=1800 # absolute seconds per call
-STALL=180    # kill after this many seconds without a JSON event
+CEILING="${SPAR_BRIDGE_CEILING:-1800}" # absolute seconds per call
+STALL="${SPAR_BRIDGE_STALL:-180}"      # kill after this many seconds without a JSON event
 UUID_RE='^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
+POSINT_RE='^[1-9][0-9]*$'
 
 usage() {
   echo 'usage: spar-codex new "<prompt>" | resume <sid> "<prompt>"' >&2
@@ -17,6 +18,9 @@ usage() {
 }
 
 abort() { echo "SPAR-BRIDGE ABORT: $1" >&2; exit 2; }
+
+[[ $CEILING =~ $POSINT_RE && $STALL =~ $POSINT_RE ]] ||
+  abort "timeout knobs must be positive integers (CEILING=$CEILING STALL=$STALL); zero disables timeout"
 
 preflight() {
   command -v jq >/dev/null || abort "jq is required and missing"
@@ -39,9 +43,10 @@ stream() { # fifo and pid stay script-scoped so the EXIT trap can clean them
     if [[ $a == "--" && $seen_sep == 0 ]]; then seen_sep=1; continue; fi
     if [[ $seen_sep == 0 ]]; then pre+=("$a"); else post+=("$a"); fi
   done
-  fifo=$(mktemp -u) && mkfifo "$fifo"
+  workdir=$(mktemp -d) && mkfifo -m 600 "$workdir/fifo"
+  fifo="$workdir/fifo"
   pid=""
-  trap '[[ -n "${pid:-}" ]] && kill "$pid" 2>/dev/null; [[ -n "${fifo:-}" ]] && rm -f "$fifo"; true' EXIT INT TERM
+  trap '{ [[ -z "${pid:-}" ]] || kill "$pid" || true; [[ -z "${workdir:-}" ]] || rm -rf "$workdir" || true; } 2>/dev/null' EXIT INT TERM
   timeout "$CEILING" codex exec "${pre[@]}" --json \
     -c model_reasoning_effort=xhigh -c 'mcp_servers={}' -- "${post[@]}" \
     </dev/null >"$fifo" 2>/dev/null &

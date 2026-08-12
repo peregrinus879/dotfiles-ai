@@ -9,14 +9,13 @@ Adversarial plan review between the session's tool and its cross-vendor counterp
 
 ## Reviewer incantations
 
-Requires: the `claude` CLI. Read-only enforcement comes entirely from the flags below, so no Claude-side config is needed. For prompt-free rounds this repo's `opencode.json` allows `claude -p *` in the bash permission map, inserted before the redirect guard block where verify requires allow entries to sit.
+Requires: the `claude` CLI, `jq`, and the stowed `spar-claude` bridge (this repo, claude-code/.local/bin), which hard-codes the safe flags: claude.ai-subscription preflight with `ANTHROPIC_API_KEY` required unset, plan permission mode with the write tools disallowed, safe mode (no plugins, hooks, MCP, or other customizations), pinned model, prompts via stdin, a stall watchdog under an absolute ceiling (SPAR_BRIDGE_STALL and SPAR_BRIDGE_CEILING, positive integers only, defaults 180/1800), and fail-fast usage-limit classification. For prompt-free rounds this repo's `opencode.json` allows `spar-claude *` in the bash permission map, inserted before the redirect guard block where verify requires allow entries to sit.
 
-The reviewer is Claude Code (repeat every flag on every call; they do not persist across resumes):
+The reviewer is Claude Code (model pinned inside the bridge; update it there when the preferred model changes):
 
-- Preflight once per spar: `timeout 30 claude auth status` must show `"loggedIn": true` and `"authMethod": "claude.ai"`, and `ANTHROPIC_API_KEY` must be unset; anything else aborts per the bridge-failure rule (subscription auth only, never API billing).
-- First round: `sid=$(cat /proc/sys/kernel/random/uuid); timeout 600 claude -p --session-id "$sid" --permission-mode plan --disallowedTools "Write Edit NotebookEdit Bash" --model claude-fable-5 "<prompt>" && echo "$sid"`; the reply is plain stdout; state the literal session id in the user presentation.
-- Later rounds: the same flags with `--resume "$sid"` and without `--session-id` (combining them errors; live-verified 2026-08-12 on 2.1.228).
-- Keep prompts small and payloads in the in-repo handoff file.
+- First round: `sid=$(spar-claude new "<prompt>")`; the reply text arrives on stderr, the session id on stdout; state the literal session id in the user presentation.
+- Later rounds: `spar-claude resume "$sid" "<pointer prompt>"`; the reply is stdout. The cold read takes a fresh id from `new`.
+- Bridge exit codes: 2 preflight, 3 usage limit, 4 stall, 5 reviewer error, 124 ceiling; all follow the bridge-failure and limit rules.
 - Interactive handoff for the user: `claude -r "$sid"`.
 
 ## Protocol

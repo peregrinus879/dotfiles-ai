@@ -1,0 +1,91 @@
+#!/bin/bash
+# spar-claude - pinned read-only claude reviewer bridge for the spar skill.
+# Flags are hard-coded so no caller can weaken them (AGENTS.md, Known Limitations).
+# Modes: new "<prompt>" (session id to stdout, reply to stderr)
+#        resume <sid> "<prompt>" (reply to stdout)
+# Exit codes: 0 ok, 2 preflight failed, 3 usage limit, 4 stall, 5 reviewer error,
+#             64 usage, 124 ceiling.
+set -euo pipefail
+
+MODEL="claude-fable-5"
+CEILING="${SPAR_BRIDGE_CEILING:-1800}" # absolute seconds per call
+STALL="${SPAR_BRIDGE_STALL:-180}"      # kill after this many seconds without a stream event
+UUID_RE='^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
+POSINT_RE='^[1-9][0-9]*$'
+
+usage() {
+  echo 'usage: spar-claude new "<prompt>" | resume <sid> "<prompt>"' >&2
+  exit 64
+}
+
+abort() { echo "SPAR-BRIDGE ABORT: $1" >&2; exit 2; }
+
+[[ $CEILING =~ $POSINT_RE && $STALL =~ $POSINT_RE ]] ||
+  abort "timeout knobs must be positive integers (CEILING=$CEILING STALL=$STALL); zero disables timeout"
+
+preflight() {
+  command -v jq >/dev/null || abort "jq is required and missing"
+  [[ -z ${ANTHROPIC_API_KEY:-} ]] || abort "ANTHROPIC_API_KEY is set; subscription auth only"
+  timeout 30 claude auth status 2>/dev/null |
+    jq -e '.loggedIn == true and .authMethod == "claude.ai"' >/dev/null 2>&1 ||
+    abort "claude is not on claude.ai subscription auth"
+}
+
+# Stream claude stream-json events through a stall watchdog; the prompt travels
+# via stdin (never argv). Reply text lands on the chosen fd. Result events are
+# terminal: success extracts .result, errors classify fail-fast.
+# workdir and pid stay script-scoped so the EXIT trap can clean them.
+stream() { # $1 reply_fd; rest = claude session flags
+  local reply_fd=$1 line rc=0
+  shift
+  workdir=$(mktemp -d) && mkfifo -m 600 "$workdir/fifo"
+  pid=""
+  trap '{ [[ -z "${pid:-}" ]] || kill "$pid" || true; [[ -z "${workdir:-}" ]] || rm -rf "$workdir" || true; } 2>/dev/null' EXIT INT TERM
+  printf '%s' "$PROMPT" | timeout "$CEILING" claude -p "$@" \
+    --permission-mode plan --disallowedTools "Write Edit NotebookEdit Bash" \
+    --model "$MODEL" --safe-mode --output-format stream-json \
+    --include-partial-messages --verbose >"$workdir/fifo" 2>/dev/null &
+  pid=$!
+  # shellcheck disable=SC2094 # the fifo's writer is the background claude process
+  while true; do
+    IFS= read -t "$STALL" -r line <&3 || { rc=$?; break; }
+    case $line in
+      *'"type":"result"'*)
+        if jq -e '.is_error == true' <<<"$line" >/dev/null 2>&1; then
+          if grep -qiE 'usage limit|rate limit|quota|too many requests|overloaded|429' <<<"$line"; then
+            echo "SPAR-BRIDGE LIMIT: reviewer hit a usage limit; surface to the user now: $line" >&2
+            exit 3
+          fi
+          echo "SPAR-BRIDGE ERROR: $line" >&2
+          exit 5
+        fi
+        jq -r '.result // empty' <<<"$line" >&"$reply_fd" ;;
+    esac
+  done 3<"$workdir/fifo"
+  if [[ $rc -gt 128 ]]; then # read -t timed out: stall
+    echo "SPAR-BRIDGE STALL: no reviewer event for ${STALL}s; killed the call" >&2
+    exit 4
+  fi
+  wait "$pid" || { rc=$?; [[ $rc == 124 ]] &&
+    echo "SPAR-BRIDGE CEILING: call exceeded ${CEILING}s" >&2; exit "$rc"; }
+  pid=""
+}
+
+[[ $# -ge 1 ]] || usage
+mode=$1
+case $mode in
+  new)
+    [[ $# -eq 2 ]] || usage
+    PROMPT=$2
+    sid=$(cat /proc/sys/kernel/random/uuid)
+    preflight
+    stream 2 --session-id "$sid"
+    printf '%s\n' "$sid" ;;
+  resume)
+    [[ $# -eq 3 ]] || usage
+    [[ $2 =~ $UUID_RE ]] || abort "resume session id is not a UUID: $2"
+    PROMPT=$3
+    preflight
+    stream 1 --resume "$2" ;;
+  *) usage ;;
+esac

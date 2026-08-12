@@ -39,6 +39,7 @@ verify:
 	  "$$HOME/.claude/rules/shared-guidance.md=claude-code/.claude/rules/shared-guidance.md" \
 	  "$$HOME/.claude/skills/commit/SKILL.md=claude-code/.claude/skills/commit/SKILL.md" \
 	  "$$HOME/.claude/skills/spar/SKILL.md=claude-code/.claude/skills/spar/SKILL.md" \
+	  "$$HOME/.local/bin/spar-claude=claude-code/.local/bin/spar-claude" \
 	  "$$HOME/.codex/config.toml=codex/.codex/config.toml" \
 	  "$$HOME/.codex/AGENTS.md=codex/.codex/AGENTS.md" \
 	  "$$HOME/.agents/skills/commit/SKILL.md=codex/.agents/skills/commit/SKILL.md" \
@@ -59,7 +60,9 @@ verify:
 	  fi; \
 	done; \
 	if bash -n claude-code/.claude/statusline.sh; then echo "ok:   bash -n statusline.sh"; else echo "FAIL: bash -n statusline.sh"; fail=1; fi; \
-	if [[ -x "$$HOME/.local/bin/spar-codex" ]]; then echo "ok:   spar-codex executable"; else echo "FAIL: spar-codex missing or not executable"; fail=1; fi; \
+	for b in spar-claude spar-codex; do \
+	  if [[ -x "$$HOME/.local/bin/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
+	done; \
 	if command -v python3 > /dev/null; then \
 	  if python3 -c 'import tomllib; tomllib.load(open("codex/.codex/config.toml","rb"))' 2>/dev/null; then \
 	    echo "ok:   valid TOML codex/.codex/config.toml"; \
@@ -73,6 +76,10 @@ verify:
 	    opencode/.config/opencode/opencode.json > /dev/null; then \
 	    echo "ok:   opencode bash permission order (no allow after guards)"; \
 	  else echo "FAIL: opencode bash permission order (guards and denies must be the final entries)"; fail=1; fi; \
+	  if jq -e '.permission.bash["spar-claude *"] == "allow" and (.permission.bash | has("claude -p *") | not)' \
+	    opencode/.config/opencode/opencode.json > /dev/null; then \
+	    echo "ok:   opencode claude bridge allow (spar-claude only, no raw claude -p)"; \
+	  else echo "FAIL: opencode claude bridge allow (need spar-claude allow, no claude -p entry)"; fail=1; fi; \
 	else echo "note: jq not found, skipping JSON validity checks"; fi; \
 	if [[ -e "$$HOME/.config/opencode/opencode.jsonc" ]]; then \
 	  echo "FAIL: stray ~/.config/opencode/opencode.jsonc shadows the stowed config"; fail=1; \
@@ -100,5 +107,5 @@ clean:
 	-rm -f ~/.claude/settings.json
 
 lint:
-	shellcheck -s bash claude-code/.claude/statusline.sh codex/.local/bin/spar-codex
+	shellcheck -s bash claude-code/.claude/statusline.sh claude-code/.local/bin/spar-claude codex/.local/bin/spar-codex
 	@echo "ok:   shellcheck clean"

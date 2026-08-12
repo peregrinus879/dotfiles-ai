@@ -14,7 +14,7 @@ This repo stores portable user-level AI assistant configuration for Claude Code,
 
 - Shared cross-tool guidance is canonical in `claude-code/.claude/rules/shared-guidance.md`; extend it for new shared guidance and keep tool-specific mechanism in each tool's wrapper (share policy, separate mechanism). Codex consumes it through the `codex/.codex/AGENTS.md` symlink chain, never a copy.
 - Sequence rule: every repo list, tree, and doc orders the tools Claude Code, Codex, OpenCode.
-- Reviewer matrix (cross-vendor, subscription auth only): Claude Code spars with Codex via the stowed `spar-codex` bridge; Codex and OpenCode spar with Claude via `claude -p` behind the auth preflight.
+- Reviewer matrix (cross-vendor, subscription auth only): Claude Code spars with Codex via the stowed `spar-codex` bridge; Codex and OpenCode spar with Claude via the stowed `spar-claude` bridge; both bridges hard-code their safety flags, preflight subscription auth fail-closed, and validate their timeout knobs (zero or malformed values abort).
 - When editing sibling dotfiles repos, use identical wording for shared concepts; only repo-specific values (scope, package lists, invariants) differ.
 - Keep wrappers thin; detailed rationale goes in `README.md`.
 - Known Limitations records repo decisions and behavior official docs do not state; doc-derivable facts (defaults, version gates, upstream status) are fetched at change time, not cached here.
@@ -68,7 +68,8 @@ This repo stores portable user-level AI assistant configuration for Claude Code,
 - decide whether the tracked `settings.json` adds `fallbackModel` (ordered fallback chain for provider overload; the highest-precedence file supplies the whole chain, no merge) for incident resilience
 - `statusline.sh`'s hostname segment renders only under `SSH_CONNECTION` and may never render with no headless host; removal candidate on a future statusline-only pass, not bundled with unrelated changes
 - watch native cross-model features in the managed tools for spar-relevant capabilities: gap analysis re-run 2026-08-12 (Claude Code agent teams experimental and Anthropic-only; OpenCode 1.18.16 ships no native review), Codex adopted as the Claude-side reviewer the same day; re-run when any tool ships a native reviewer or cross-vendor path; both bridges are kept partly because they ride subscription auth rather than API-key billing
-- if `claude -p` ever defaults to bare mode, re-verify the OpenCode-side spar bridge auth
+- if `claude -p` ever defaults to bare mode, re-verify the spar-claude bridge auth
+- reverse-bridge validation: in a fresh Codex session and a fresh OpenCode session, run a diff-only spar over the spar-claude bridge; verify the opencode `spar-claude *` allow entry matches the sid-capture invocation (command-substitution forms may not match, worst case rounds prompt interactively) and that plan-mode read-only holds
 - file the opencode argv hang upstream (`opencode run` with argv prompts above ~3.8 KB hangs before session creation, ~2.3 KB fine; 1.18.16) and link the issue from the Known Limitations entry
 - OpenCode-side spar approval parity: test whether `permission.edit` accepts pattern maps on the installed binary (allow `spar-scratch*/**` writes only); until then, spar temp files in OpenCode sessions still prompt
 - spar bridge visibility (tool-agnostic): live-watching headless reviewer rounds has no working path today; datum 2026-08-12: a standalone `opencode -s` TUI shows the session only as of open (the shared-server path `opencode serve` plus `run --attach` plus `opencode attach <url>` streams live but no longer hosts our reviewer), `codex resume <id>` opens a session interactively but does not follow a concurrent headless run; recheck when either tool ships session-follow

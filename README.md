@@ -44,17 +44,20 @@ dotfiles-ai/
 ├── .gitignore                            # documented machine-local exclusions
 ├── .shellcheckrc                         # ShellCheck disable list for statusline.sh
 ├── opencode.json                         # OpenCode project allowlist for the same targets
-├── claude-code/                          # stow package -> ~/.claude/
-│   └── .claude/
-│       ├── CLAUDE.md                     # Claude-specific instructions
-│       ├── settings.json                 # runtime settings (model, status line, permissions, workflows)
-│       ├── statusline.sh                 # terminal status line script
-│       ├── agents/                       # custom agents
-│       ├── rules/                        # organized instruction files
-│       │   └── shared-guidance.md        # canonical shared instructions
-│       └── skills/                       # custom skills (SKILL.md files)
-│           ├── commit/                   # commit workflow (doc sync, scratch cleanup)
-│           └── spar/                     # cross-model plan sparring (reviewer: spar-codex)
+├── claude-code/                          # stow package -> ~/.claude/, ~/.local/bin/
+│   ├── .claude/
+│   │   ├── CLAUDE.md                     # Claude-specific instructions
+│   │   ├── settings.json                 # runtime settings (model, status line, permissions, workflows)
+│   │   ├── statusline.sh                 # terminal status line script
+│   │   ├── agents/                       # custom agents
+│   │   ├── rules/                        # organized instruction files
+│   │   │   └── shared-guidance.md        # canonical shared instructions
+│   │   └── skills/                       # custom skills (SKILL.md files)
+│   │       ├── commit/                   # commit workflow (doc sync, scratch cleanup)
+│   │       └── spar/                     # cross-model plan sparring (reviewer: spar-codex)
+│   └── .local/
+│       └── bin/
+│           └── spar-claude               # pinned read-only reviewer bridge for spar
 ├── codex/                                # stow package -> ~/.codex/, ~/.agents/, ~/.local/bin/
 │   ├── .agents/
 │   │   └── skills/                       # agent skills (documented user scope)
@@ -96,7 +99,7 @@ Shared guidance lives in `claude-code/.claude/rules/shared-guidance.md`. Claude 
 
 At the repo root, `AGENTS.md` is the canonical project instruction file and `CLAUDE.md` is a thin compatibility wrapper for Claude Code.
 
-OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps `/commit` and `/spar` wrappers and folds documentation sync and scratch file cleanup into the commit workflow instead of maintaining a separate `/update` command. The spar skill's copies share their protocol wording but each carries only its own tool's reviewer incantations, so a session can never invoke its own model as the reviewer. The reviewer matrix is cross-vendor: Claude Code spars with Codex through the pinned `spar-codex` bridge, and Codex and OpenCode spar with Claude through `claude -p`. Codex replaced OpenCode as the Claude-side reviewer for its OS-enforced read-only sandbox, clean session resume, and fail-fast limit reporting; large payloads travel in the in-repo handoff file.
+OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps `/commit` and `/spar` wrappers and folds documentation sync and scratch file cleanup into the commit workflow instead of maintaining a separate `/update` command. The spar skill's copies share their protocol wording but each carries only its own tool's reviewer incantations, so a session can never invoke its own model as the reviewer. The reviewer matrix is cross-vendor: Claude Code spars with Codex through the pinned `spar-codex` bridge, and Codex and OpenCode spar with Claude through the pinned `spar-claude` bridge. Codex replaced OpenCode as the Claude-side reviewer for its OS-enforced read-only sandbox, clean session resume, and fail-fast limit reporting; large payloads travel in the in-repo handoff file.
 
 ## Review Workflow
 
