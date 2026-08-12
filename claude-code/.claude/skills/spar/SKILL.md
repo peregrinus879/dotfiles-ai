@@ -11,12 +11,12 @@ Adversarial plan review between Claude Code and OpenCode: the session running th
 
 ## Reviewer incantations
 
-Requires: the `opencode` CLI, `jq`, and a read-only `reviewer` agent in the OpenCode config; this repo tracks it in `opencode/.config/opencode/opencode.json` under `agent.reviewer` with `permission: { "edit": "deny", "bash": { "*": "deny" } }`. Tracked allowlist entries auto-approve `timeout 600 opencode run *` and Edit/Write under `./spar-scratch*/`, so rounds run without prompts; the first-round `SID=$(...)` capture still prompts once (command-substitution forms never match allow rules).
+Requires: the `opencode` CLI, `jq`, and a read-only `reviewer` agent in the OpenCode config; this repo tracks it in `opencode/.config/opencode/opencode.json` under `agent.reviewer` with `permission: { "edit": "deny", "bash": { "*": "deny" } }`. Tracked allowlist entries auto-approve `timeout 600 opencode run --agent reviewer *` and Edit/Write under `./spar-scratch*/`, so rounds run without prompts; the first-round `SID=$(...)` capture still prompts once (command-substitution forms never match allow rules). Keep `--agent reviewer` immediately after `run` so the allow rule matches.
 
 The reviewer is OpenCode (model pinned; update the pin when the preferred model changes):
 
-- First round: `SID=$(timeout 600 opencode run --format json -m openai/gpt-5.6-sol --agent reviewer "<prompt>" | head -1 | jq -r .sessionID)`; validate the `ses_` prefix; the reply text is in the message events of the same output.
-- Later rounds: `timeout 600 opencode run -s "$SID" -m openai/gpt-5.6-sol --agent reviewer "<pointer prompt>"`, always run from the directory where the session was created (cross-directory resume hangs the CLI).
+- First round: `SID=$(timeout 600 opencode run --agent reviewer --format json -m openai/gpt-5.6-sol "<prompt>" | head -1 | jq -r .sessionID)`; validate the `ses_` prefix; the reply text is in the message events of the same output.
+- Later rounds: `timeout 600 opencode run --agent reviewer -s "$SID" -m openai/gpt-5.6-sol "<pointer prompt>"`, always run from the directory where the session was created (cross-directory resume hangs the CLI).
 - Keep argv prompts under ~2 KB: larger hangs `opencode run` before session creation (live-reproduced 2026-08-12 on 1.18.16). Payloads travel in the in-repo handoff file; out-of-project reads hang headless runs on the `external_directory` ask, so everything the reviewer reads stays inside the repository.
 - A timed-out send with a small prompt does not poison the session: retry once, then fail per the bridge-failure rule.
 - Never pass `--auto`. Interactive handoff for the user: `opencode -s "$SID"`.
@@ -32,7 +32,7 @@ The reviewer is OpenCode (model pinned; update the pin when the preferred model 
 7. Converged or capped, stop and present to the user before any execution: the final plan; each side's one-paragraph position and the implementer's one-line recommended ruling, labeled judgment, on every open or disputed item; and the reviewer session ids for interactive handoff. Convergence between the models is not correctness, and disagreement surviving the cap is signal for the user, not failure. Execute only on the user's go.
 8. After execution, run the kind gate in the same reviewer session: code sends `git diff` plus test output; procedure sends a tabletop walkthrough with one injected failure; document sends the deliverable for claim-trace and a hostile-reader pass. Drift check: compare diff and approved plan in both directions; unplanned changes and silently skipped plan steps are objections by default. Relay findings verbatim; they reach the user before any fix.
 
-Diff-only mode, for work that did not go through a sparred plan: run steps 2 and 8 alone. Create the pinned session with a brief statement of the goal and the artifact kind, then send the diff with the charter adapted to implementation review; the same objection, closure, and verdict rules apply, and findings go to the user before any fix is made.
+Diff-only mode, for work that did not go through a sparred plan: run step 1 without a plan file (scratch directory and objection log only), then steps 2 and 8. Create the pinned session with a brief statement of the goal and the artifact kind; the diff travels in the handoff file with the charter adapted to implementation review; the same objection, closure, and verdict rules apply, and findings go to the user before any fix is made.
 
 ## Reviewer charter (send verbatim in round 1)
 
