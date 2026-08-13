@@ -33,7 +33,7 @@ restow:
 # Compare resolved paths instead: linked is linked, folded or not.
 verify:
 	@fail=0; \
-	for command in python3 jq readlink realpath stat; do \
+	for command in node python3 jq readlink realpath stat; do \
 	  if command -v "$$command" > /dev/null; then :; \
 	  else echo "FAIL: required verifier missing: $$command"; fail=1; fi; \
 	done; \
@@ -52,6 +52,8 @@ verify:
 	  "$$HOME/.agents/skills/spar/SKILL.md=codex/.agents/skills/spar/SKILL.md" \
 	  "$$HOME/.local/bin/spar-codex=codex/.local/bin/spar-codex" \
 	  "$$HOME/.config/opencode/opencode.json=opencode/.config/opencode/opencode.json" \
+	  "$$HOME/.config/opencode/package.json=opencode/.config/opencode/package.json" \
+	  "$$HOME/.config/opencode/package-lock.json=opencode/.config/opencode/package-lock.json" \
 	  "$$HOME/.config/opencode/plugins/reviewed-writes.ts=opencode/.config/opencode/plugins/reviewed-writes.ts" \
 	  "$$HOME/.config/opencode/tui.json=opencode/.config/opencode/tui.json" \
 	  "$$HOME/.config/opencode/AGENTS.md=opencode/.config/opencode/AGENTS.md" \
@@ -103,8 +105,7 @@ verify:
 	  ! grep -Fq 'Commits: only when asked' claude-code/.claude/rules/shared-guidance.md; then \
 	  echo "ok:   phased-work commit checkpoints"; \
 	else echo "FAIL: phased-work commit checkpoints drifted"; fail=1; fi; \
-	if [[ -f opencode/.config/opencode/plugins/reviewed-writes.ts ]] && \
-	  grep -Fq 'unique.size !== 1' opencode/.config/opencode/plugins/reviewed-writes.ts && \
+	if node --experimental-strip-types tests/reviewed-writes.mjs && \
 	  ! grep -Fq 'spar-scratch' opencode/.config/opencode/plugins/reviewed-writes.ts; then \
 	  echo "ok:   opencode one-file patch plugin"; \
 	else echo "FAIL: opencode one-file patch plugin drifted"; fail=1; fi; \

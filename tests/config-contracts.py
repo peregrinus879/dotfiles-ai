@@ -19,6 +19,8 @@ def require(condition: bool, message: str):
 
 claude = load_json("claude-code/.claude/settings.json")
 opencode = load_json("opencode/.config/opencode/opencode.json")
+opencode_package = load_json("opencode/.config/opencode/package.json")
+opencode_lock = load_json("opencode/.config/opencode/package-lock.json")
 load_json("opencode/.config/opencode/tui.json")
 claude_project = load_json(".claude/settings.json")
 opencode_project = load_json("opencode.json")
@@ -125,6 +127,19 @@ for unsafe in ("gh api", "gh api *", "codex *", "claude -p *"):
 require(bash["git push"] == "deny" and bash["git push *"] == "deny", "OpenCode push deny drifted")
 require(opencode["permission"]["webfetch"] == "ask", "OpenCode WebFetch must remain review-gated")
 require(opencode["model"] == "openai/gpt-5.6-sol-fast", "OpenCode Fast model drifted")
+require(
+    opencode_package["dependencies"]["@opencode-ai/plugin"] == "1.18.18",
+    "OpenCode plugin dependency drifted",
+)
+require(
+    opencode_lock["packages"][""]["dependencies"]["@opencode-ai/plugin"]
+    == opencode_package["dependencies"]["@opencode-ai/plugin"],
+    "OpenCode plugin lock drifted",
+)
+require(
+    opencode_lock["packages"]["node_modules/@opencode-ai/plugin"]["version"] == "1.18.18",
+    "OpenCode resolved plugin version drifted",
+)
 require(
     opencode["provider"]["openai"]["models"]["gpt-5.6-sol-fast"]["options"]["reasoningEffort"]
     == "xhigh",

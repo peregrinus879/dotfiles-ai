@@ -95,10 +95,8 @@ prepare_opencode() {
   [[ ! -e $root || -d $root ]] || abort "OpenCode config path is not a directory: $root"
   [[ -d $root ]] || return 0
 
-  queue_link "$root/.gitignore" "opencode/.config/opencode/.gitignore"
   queue_link "$root/AGENTS.md" "opencode/.config/opencode/AGENTS.md"
   queue_link "$root/agents" "opencode/.config/opencode/agents"
-  queue_link "$root/bun.lock" "opencode/.config/opencode/bun.lock"
   queue_link "$root/commands" "opencode/.config/opencode/commands"
   queue_link "$root/node_modules" "opencode/.config/opencode/node_modules"
   queue_link "$root/opencode.json" "opencode/.config/opencode/opencode.json"

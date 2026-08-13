@@ -79,6 +79,8 @@ dotfiles-ai/
             │   ├── commit.md             # wrapper for the commit skill
             │   └── spar.md               # wrapper for the spar skill
             ├── plugins/                  # reviewed-writes enforcement plugin
+            ├── package.json              # release-matched plugin dependency
+            ├── package-lock.json         # reproducible npm dependency graph
             ├── skills/                   # agent skills
             │   ├── commit/               # commit workflow (doc sync, scratch cleanup)
             │   └── spar/                 # cross-model plan sparring (reviewer: spar-claude)
@@ -92,7 +94,7 @@ Codex and OpenCode use GPT-5.6 Sol Fast at xhigh reasoning. On ChatGPT subscript
 
 Auth, session state, and generated or host-specific config remain intentionally excluded. Nested payload ignore files protect fresh clones if a state directory is accidentally folded into the repository.
 
-Two payload-side exceptions exist. Inside `codex/`, Codex writes runtime state into `config.toml` itself (project trust entries, notice keys, MCP additions); those rewrites flow through the stow symlink into the repo working tree and are committed as-is, while a tracked nested `.gitignore` keeps every other runtime file Codex drops next to the stowed links out of Git (tracked deliberately, unlike OpenCode's generated one, so fresh clones reproduce the defense). Inside `opencode/`, OpenCode generates its plugin dependencies next to its config; the package directory holds the canonical copy, kept out of Git by a nested untracked `.gitignore`, and stow links them into `~/.config/opencode` with the rest of the payload. If stow reports conflicts on these files, remove the real copies under `$HOME` and re-stow; never delete the repo-side copies.
+Two payload-side exceptions exist. Inside `codex/`, Codex writes runtime state into `config.toml` itself (project trust entries, notice keys, MCP additions); those rewrites flow through the stow symlink into the repo working tree and are committed as-is, while a tracked nested `.gitignore` keeps every other runtime file Codex drops next to the stowed links out of Git. Inside `opencode/`, the release-matched npm manifest and lockfile are tracked next to the config, while a nested repository-only `.gitignore` keeps generated `node_modules/` out of Git; stow links the package files into `~/.config/opencode` with the rest of the payload. If stow reports conflicts on these files, remove the real copies under `$HOME` and re-stow; never delete the repo-side copies.
 
 Repo-root instruction files exist only to maintain `dotfiles-ai` itself; they are not part of the stowed payload.
 
@@ -220,7 +222,7 @@ After stowing or changing the payloads:
 A repo-root `Makefile` keeps the package list in one place and wraps the routine commands. Run targets from the repo root:
 
 - `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets from Setup
-- `make verify` - symlink resolution (via `readlink -f`, so tree-folding does not false-negative) plus JSON and TOML validity, statusline syntax, reviewer-bridge executable, handoff-validation, and tool-whitelist checks, three-way skill sync, reviewed-writes profiles and agent maps, one-file plugin markers, OpenCode permission-rule order, and stray `opencode.jsonc` checks
+- `make verify` - symlink resolution (via `readlink -f`, so tree-folding does not false-negative) plus JSON and TOML validity, statusline syntax, reviewer-bridge executable, handoff-validation, and tool-whitelist checks, three-way skill sync, reviewed-writes profiles and agent maps, executable one-file plugin parser tests, OpenCode permission-rule order, and stray `opencode.jsonc` checks
 - `make clean` - non-destructive preparation that removes only recognized managed symlinks and creates real state directories
 - `make lint` - ShellCheck over `statusline.sh` and the two spar bridges; `.shellcheckrc` disables the one style-level finding so new issues stand out
 
