@@ -37,6 +37,8 @@ CODEX_COMMON=(
   -c 'shell_environment_policy.inherit="core"'
   -c 'shell_environment_policy.ignore_default_excludes=false'
   -c 'web_search="disabled"'
+  -c 'service_tier="fast"'
+  -c 'features.fast_mode=true'
 )
 
 usage() {

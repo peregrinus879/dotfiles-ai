@@ -1,8 +1,12 @@
 model = "gpt-5.6-sol"
 model_reasoning_effort = "xhigh"
+service_tier = "fast"
 approval_policy = "on-request"
 approvals_reviewer = "user"
 default_permissions = "reviewed-writes"
+
+[features]
+fast_mode = true
 
 [permissions.reviewed-writes]
 description = "Read-only workspace with writable system temporary roots."

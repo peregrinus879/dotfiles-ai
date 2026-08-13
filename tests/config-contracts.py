@@ -60,6 +60,8 @@ filesystem = codex_profile["filesystem"]
 workspace = filesystem[":workspace_roots"]
 require(codex["model"] == "gpt-5.6-sol", "Codex model pin drifted")
 require(codex["model_reasoning_effort"] == "xhigh", "Codex effort drifted")
+require(codex["service_tier"] == "fast", "Codex Fast service tier drifted")
+require(codex["features"]["fast_mode"] is True, "Codex Fast feature drifted")
 require(codex["approval_policy"] == "on-request", "Codex approval policy drifted")
 require(codex["approvals_reviewer"] == "user", "Codex human reviewer drifted")
 require(codex["default_permissions"] == "reviewed-writes", "Codex profile selection drifted")
@@ -122,6 +124,12 @@ for unsafe in ("gh api", "gh api *", "codex *", "claude -p *"):
     require(unsafe not in bash, f"Unsafe OpenCode Bash allow found: {unsafe}")
 require(bash["git push"] == "deny" and bash["git push *"] == "deny", "OpenCode push deny drifted")
 require(opencode["permission"]["webfetch"] == "ask", "OpenCode WebFetch must remain review-gated")
+require(opencode["model"] == "openai/gpt-5.6-sol-fast", "OpenCode Fast model drifted")
+require(
+    opencode["provider"]["openai"]["models"]["gpt-5.6-sol-fast"]["options"]["reasoningEffort"]
+    == "xhigh",
+    "OpenCode Fast xhigh option drifted",
+)
 
 edit_expected = {
     "*": "ask",
