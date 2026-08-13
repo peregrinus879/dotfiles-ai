@@ -11,7 +11,7 @@ Adversarial plan review between the session's tool and its cross-vendor counterp
 
 ## Reviewer incantations
 
-Requires: the `codex` CLI and the stowed `spar-codex` bridge (this repo, codex/.local/bin), which hard-codes the safe flags: ChatGPT-subscription and no-plugins preflights, read-only sandbox, xhigh effort, MCP-disable override, stdin guard, a 180 s stall watchdog under a 1800 s ceiling, fail-fast usage-limit classification, never `--last`. It also creates, validates before every call, and cleans one private `/tmp/spar-<session-id>/` handoff. Tracked permissions auto-approve `Bash(spar-codex *)`; the pinned reviewer can read the handoff without gaining write access.
+Requires: the `codex` CLI and the stowed `spar-codex` bridge (this repo, codex/.local/bin), which hard-codes the safe flags: exact ChatGPT-subscription and no-plugins preflights with `CODEX_API_KEY` required unset; ignored user config and rules; strict config; an inline read-only reviewer profile with sensitive-path denies, handoff reads, network disabled, and a secret-filtered shell environment; xhigh effort; MCP, apps, hooks, web search, multi-agent, remote-plugin, skill-install, and shell-snapshot surfaces disabled; stdin guard; a 180 s stall watchdog under a 1800 s ceiling; fail-fast usage-limit classification; never `--last`. It also creates, validates before every call, scans, and cleans one private `/tmp/spar-<session-id>/` handoff. Tracked permissions auto-approve `Bash(spar-codex *)`; the pinned reviewer can read the handoff without gaining write access.
 
 The reviewer is Codex (model pinned inside the bridge; update it there when the preferred model changes):
 

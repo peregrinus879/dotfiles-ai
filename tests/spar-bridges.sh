@@ -77,6 +77,41 @@ for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin
 done
 
 handoff=$(make_handoff)
+calls="$TMP/codex-flags"
+SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/codex/.local/bin/spar-codex" \
+  new "$handoff" "Review flags." >/dev/null 2>/dev/null
+new_flags=$(<"$calls")
+rm -f "$calls"
+SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/codex/.local/bin/spar-codex" \
+  resume 11111111-1111-4111-8111-111111111111 "$handoff" "Review flags." >/dev/null 2>/dev/null
+resume_flags=$(<"$calls")
+for flag in --ignore-user-config --ignore-rules --strict-config 'default_permissions="spar-reviewer"' \
+  'forced_login_method="chatgpt"' 'model_provider="openai"' 'web_search="disabled"'; do
+  [[ $new_flags == *"$flag"* && $resume_flags == *"$flag"* ]] || fail "Codex new/resume isolation parity missing: $flag"
+done
+[[ $new_flags != *' -s read-only '* && $resume_flags != *'sandbox_mode'* ]] ||
+  fail "legacy Codex sandbox override remains"
+rm -rf -- "$handoff"
+
+handoff=$(make_handoff)
+calls="$TMP/claude-env"
+if SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" ANTHROPIC_AUTH_TOKEN=sentinel \
+  "$ROOT/claude-code/.local/bin/spar-claude" new "$handoff" "Review auth." >/dev/null 2>/dev/null; then
+  fail "Claude bridge accepted alternate auth environment"
+fi
+[[ ! -s $calls ]] || fail "Claude reviewer was invoked after alternate auth rejection"
+rm -rf -- "$handoff"
+
+handoff=$(make_handoff)
+calls="$TMP/codex-env"
+if SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" CODEX_API_KEY=sentinel \
+  "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review auth." >/dev/null 2>/dev/null; then
+  fail "Codex bridge accepted API-key environment"
+fi
+[[ ! -s $calls ]] || fail "Codex reviewer was invoked after API-key rejection"
+rm -rf -- "$handoff"
+
+handoff=$(make_handoff)
 printf 'binary\0content' >"$handoff/payload.bin"
 if printf 'Review.' | "$ROOT/claude-code/.local/bin/spar-payload-scan" "$handoff" >/dev/null 2>&1; then
   fail "binary handoff passed scanner"

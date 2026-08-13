@@ -87,10 +87,18 @@ clean_handoff() {
 }
 
 preflight() {
+  local variable auth
   command -v jq >/dev/null || abort "jq is required and missing"
-  [[ -z ${ANTHROPIC_API_KEY:-} ]] || abort "ANTHROPIC_API_KEY is set; subscription auth only"
-  timeout 30 claude auth status 2>/dev/null |
-    jq -e '.loggedIn == true and .authMethod == "claude.ai"' >/dev/null 2>&1 ||
+  for variable in ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL \
+    ANTHROPIC_PROFILE ANTHROPIC_FEDERATION_RULE_ID ANTHROPIC_ORGANIZATION_ID \
+    CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX \
+    CLAUDE_CODE_USE_FOUNDRY CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST CLAUDE_CONFIG_DIR; do
+    [[ -z ${!variable:-} ]] || abort "$variable is set; claude.ai subscription auth only"
+  done
+  auth=$(timeout 30 claude auth status 2>/dev/null) ||
+    abort "cannot verify Claude authentication"
+  jq -e '.loggedIn == true and .authMethod == "claude.ai" and .apiProvider == "firstParty"' \
+    <<<"$auth" >/dev/null 2>&1 ||
     abort "claude is not on claude.ai subscription auth"
 }
 
