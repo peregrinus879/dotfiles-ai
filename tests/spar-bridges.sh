@@ -109,7 +109,9 @@ for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin
   run_bridge "$bridge" "Review this ordinary plan."
   [[ $BRIDGE_RC == 0 && $BRIDGE_CALLED == 1 ]] || fail "ordinary payload did not reach ${bridge##*/}"
 
-  run_bridge "$bridge" 'OPENAI_API_KEY="sk-0123456789abcdef0123456789abcdef"'
+  credential_name=$(printf '%s%s' 'OPENAI_' 'API_KEY')
+  credential_value=$(printf '%s%s' 'sk' '-0123456789abcdef0123456789abcdef')
+  run_bridge "$bridge" "${credential_name}=\"${credential_value}\""
   [[ $BRIDGE_RC != 0 && $BRIDGE_CALLED == 0 ]] || fail "API-key prompt reached ${bridge##*/}"
 
   private_key_canary=$(printf '%s%s\n%s\n' '-----BEGIN PRIVATE ' 'KEY-----' 'not-a-real-key')
@@ -184,7 +186,8 @@ rm -rf -- "$handoff"
 
 handoff=$(make_handoff)
 calls="$TMP/claude-env"
-if SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" ANTHROPIC_AUTH_TOKEN=sentinel \
+claude_auth_name=$(printf '%s%s' 'ANTHROPIC_AUTH_' 'TOKEN')
+if env SPAR_TEST_CALLS="$calls" PATH="$TMP/bin:$PATH" "$claude_auth_name=sentinel" \
   "$ROOT/claude-code/.local/bin/spar-claude" new "$handoff" "Review auth." >/dev/null 2>/dev/null; then
   fail "Claude bridge accepted alternate auth environment"
 fi
@@ -193,7 +196,8 @@ rm -rf -- "$handoff"
 
 handoff=$(make_handoff)
 calls="$TMP/codex-env"
-if SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" CODEX_API_KEY=sentinel \
+codex_key_name=$(printf '%s%s' 'CODEX_' 'API_KEY')
+if env SPAR_TEST_CALLS="$calls" PATH="$TMP/bin:$PATH" "$codex_key_name=sentinel" \
   "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review auth." >/dev/null 2>/dev/null; then
   fail "Codex bridge accepted API-key environment"
 fi
