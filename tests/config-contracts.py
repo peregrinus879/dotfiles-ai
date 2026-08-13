@@ -48,7 +48,9 @@ require(filesystem[":slash_tmp"] == "write", "Codex /tmp permission drifted")
 require(filesystem["glob_scan_max_depth"] == 64, "Codex glob depth drifted")
 for path in (
     "~/.aws",
+    "~/.claude/.credentials.json",
     "~/.config/gh/hosts.yml",
+    "~/.codex/auth.json",
     "~/.docker/config.json",
     "~/.gnupg",
     "~/.kube",
@@ -62,7 +64,7 @@ for path in (
 require(workspace["."] == "read", "Codex workspace read rule drifted")
 for path in (".env", ".env.*", "secrets", "**/*.key", "**/*.pem", "**/*credentials*"):
     require(workspace[path] == "deny", f"Codex workspace deny drifted: {path}")
-require(workspace[".env.example"] == "read", "Codex template policy drifted")
+require(".env.example" not in workspace, "Codex template exception weakens .env.* deny")
 
 bash = opencode["permission"]["bash"]
 bash_items = list(bash.items())
@@ -96,7 +98,7 @@ require(
 read_rules = opencode["permission"]["read"]
 external_rules = opencode["permission"]["external_directory"]
 require(read_rules["*"] == "allow", "OpenCode read default drifted")
-require(read_rules[".env.example"] == "allow", "OpenCode template policy drifted")
+require(".env.example" not in read_rules, "OpenCode template exception weakens .env.* deny")
 for path in (
     ".env",
     ".env.*",
@@ -109,6 +111,14 @@ for path in (
     require(read_rules[path] == "deny", f"OpenCode read deny drifted: {path}")
 require(external_rules["*"] == "ask", "OpenCode external-directory default drifted")
 require(external_rules["~/.ssh/**"] == "deny", "OpenCode SSH external deny drifted")
+for path in ("~/.claude/.credentials.json", "~/.codex/auth.json"):
+    require(read_rules[path] == "deny", f"OpenCode credential read deny drifted: {path}")
+    require(external_rules[path] == "deny", f"OpenCode credential external deny drifted: {path}")
+
+claude_denies = set(claude["permissions"]["deny"])
+for rule in ("Read(~/.claude/.credentials.json)", "Read(~/.codex/auth.json)"):
+    require(rule in claude_denies, f"Claude credential read deny drifted: {rule}")
+require("Read(./.env.*)" in claude_denies, "Claude .env.* read deny drifted")
 
 require(
     claude_project["permissions"]["allow"] == ["Bash(make lint)", "Bash(make verify)"],

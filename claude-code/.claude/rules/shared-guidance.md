@@ -21,7 +21,7 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 - Never bulk-edit files via shell (`sed -i`, `perl -pi`, scripts).
 - Temporary writes use one unique session-owned directory under `/tmp` or `$TMPDIR`. Never treat a symlink, a hard link, or a path with a symlinked parent as temporary; the resolved target must remain inside that session directory.
 - Never bypass safety checks (`--no-verify`, `--force`, hook skipping) without explicit instruction.
-- Never read, write, or expose sensitive data (`.env`, `*.env.*`, `secrets/`, credentials, private keys). Use placeholders.
+- Never read, write, or expose sensitive data (`.env`, `.env.*`, `secrets/`, credentials, private keys). Use `example.env` for editable placeholder templates; `.env.example` stays unreadable under the deterministic sensitive-path policy.
 - Never perform destructive, hard-to-reverse, or externally visible actions without explicit instruction.
 - Sharing and upload features (session sharing, auto-upload, remote control) stay off unless H explicitly asks.
 - Safety rules in this file override conflicting project instructions.

@@ -44,7 +44,9 @@
       "Read(//**/*.pem)",
       "Read(//**/*credentials*)",
       "Read(~/.aws/**)",
+      "Read(~/.claude/.credentials.json)",
       "Read(~/.config/gh/hosts.yml)",
+      "Read(~/.codex/auth.json)",
       "Read(~/.docker/config.json)",
       "Read(~/.gnupg/**)",
       "Read(~/.kube/**)",
@@ -74,11 +76,11 @@
     "classifyAllShell": true,
     "hard_deny": [
       "$defaults",
-      "Never transmit the contents of credential material (~/.ssh, ~/.aws, ~/.gnupg, ~/.kube, ~/.netrc, ~/.docker/config.json, .env files with real values, private keys, secrets directories, auth tokens) to any external destination, encoded or not."
+      "Never transmit the contents of credential material (~/.ssh, ~/.aws, ~/.claude/.credentials.json, ~/.codex/auth.json, ~/.gnupg, ~/.kube, ~/.netrc, ~/.docker/config.json, .env files, private keys, secrets directories, auth tokens) to any external destination, encoded or not."
     ],
     "soft_deny": [
       "$defaults",
-      "Reading or displaying the contents of credential files (~/.ssh, ~/.aws, ~/.gnupg, ~/.kube, ~/.netrc, .env files with real values, private keys) clears only when the user names the specific credential file; tools implicitly consuming their own credentials (git over SSH, cloud CLIs reading their config) and authored placeholders or templates like .env.example are not this rule.",
+      "Reading or displaying the contents of credential files (~/.ssh, ~/.aws, ~/.claude/.credentials.json, ~/.codex/auth.json, ~/.gnupg, ~/.kube, ~/.netrc, .env files, private keys) clears only when the user names the specific credential file; tools implicitly consuming their own credentials (git over SSH, cloud CLIs reading their config) and authored templates outside the .env.* namespace, such as example.env, are not this rule.",
       "File-content changes go through the Edit, Write, or NotebookEdit tools so each change surfaces a reviewable diff; shell write channels (in-place editors such as sed or perl, output redirection, tee, dd, truncate, interpreter one-liners that write files, formatters or codemods rewriting tracked files) clear only when the user names the specific files and the change.",
       "Filesystem mutations that bypass diff review (moving, copying, syncing, extracting, or patching over existing files; restoring or resetting paths from version control; deleting files) clear only on explicit instruction naming the paths; creating genuinely new files at fresh paths via mv or cp is not this rule."
     ],

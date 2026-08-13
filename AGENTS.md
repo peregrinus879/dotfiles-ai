@@ -27,7 +27,7 @@ This repo stores portable user-level AI assistant configuration for Claude Code,
 - OpenCode plugin dependencies are generated into `opencode/.config/opencode/`, kept out of Git by a nested untracked `.gitignore`, and stowed with the payload; the repo working-tree copy is canonical.
 - Stow tree-folds directories that do not pre-exist at stow time into directory symlinks pointing at the repo. `make clean` keeps runtime-state parents (`~/.claude`, `~/.codex`, `~/.agents/skills`, and `~/.local/bin`) real before stowing, while folding remains the accepted convention for payload-only trees (do not add `--no-folding`).
 - Never weaken the sensitive-path deny rules; keep `~/.ssh` reads and `Bash(gh api *)` out of allowlists in both tools (H runs those via `!`, and only `gh search` is auto-allowed).
-- Sensitive-path Edit denies mirror unambiguous credential material only; `~/.ssh/**` and `./.env.*` stay ask-gated so the explicit-instruction exception for outside-cwd edits and placeholder files like `.env.example` remain workable.
+- Sensitive-path Edit denies mirror unambiguous credential material only; `~/.ssh/**` and `./.env.*` stay ask-gated for the explicit-instruction exception, but deterministic `.env.*` read denies make agent editing impractical. Use `example.env` for editable placeholder templates.
 - `statusline.sh` design conventions, including its intentional strict-mode omission, live in the script's header comment.
 
 ## Post-Change Verification
