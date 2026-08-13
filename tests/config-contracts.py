@@ -127,6 +127,8 @@ for unsafe in ("gh api", "gh api *", "codex *", "claude -p *"):
 require(bash["git push"] == "deny" and bash["git push *"] == "deny", "OpenCode push deny drifted")
 require(opencode["permission"]["webfetch"] == "ask", "OpenCode WebFetch must remain review-gated")
 require(opencode["model"] == "openai/gpt-5.6-sol-fast", "OpenCode Fast model drifted")
+require(opencode["autoupdate"] is False, "OpenCode must not compete with wrapper-managed updates")
+require(set(opencode["provider"]) == {"openai"}, "Unused OpenCode provider configured")
 require(
     opencode_package["dependencies"]["@opencode-ai/plugin"] == "1.18.18",
     "OpenCode plugin dependency drifted",

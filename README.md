@@ -92,6 +92,8 @@ Tracked runtime config is limited to shared behavior. `claude-code/.claude/setti
 
 Codex and OpenCode use GPT-5.6 Sol Fast at xhigh reasoning. On ChatGPT subscription authentication, Fast consumes GPT-5.6 credits at 2.5 times the Standard rate; API-key authentication has separate billing and is not an interchangeable fallback.
 
+OpenCode's in-app updater is disabled because the host installation wrapper owns release selection. Its tracked provider block contains only OpenAI, the provider used by the managed model.
+
 Auth, session state, and generated or host-specific config remain intentionally excluded. Nested payload ignore files protect fresh clones if a state directory is accidentally folded into the repository.
 
 Two payload-side exceptions exist. Inside `codex/`, Codex writes runtime state into `config.toml` itself (project trust entries, notice keys, MCP additions); those rewrites flow through the stow symlink into the repo working tree and are committed as-is, while a tracked nested `.gitignore` keeps every other runtime file Codex drops next to the stowed links out of Git. Inside `opencode/`, the release-matched npm manifest and lockfile are tracked next to the config, while a nested repository-only `.gitignore` keeps generated `node_modules/` out of Git; stow links the package files into `~/.config/opencode` with the rest of the payload. If stow reports conflicts on these files, remove the real copies under `$HOME` and re-stow; never delete the repo-side copies.
