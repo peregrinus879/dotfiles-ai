@@ -28,6 +28,7 @@ make_payload() {
   printf 'tracked\n' >"$repo/codex/.codex/config.toml"
   ln -s ../../../claude-code/.claude/rules/shared-guidance.md "$repo/codex/.codex/AGENTS.md"
   printf 'tracked\n' >"$repo/claude-code/.local/bin/spar-claude"
+  printf 'tracked\n' >"$repo/claude-code/.local/bin/spar-payload-scan"
   printf 'tracked\n' >"$repo/codex/.local/bin/spar-codex"
   printf '{}\n' >"$repo/opencode/.config/opencode/opencode.json"
 }
@@ -58,6 +59,7 @@ case_managed_links() {
   ln -s "$repo/codex/.codex/config.toml" "$home/.codex/config.toml"
   ln -s "$repo/codex/.agents/skills/spar" "$home/.agents/skills/spar"
   ln -s "$repo/claude-code/.local/bin/spar-claude" "$home/.local/bin/spar-claude"
+  ln -s "$repo/claude-code/.local/bin/spar-payload-scan" "$home/.local/bin/spar-payload-scan"
   ln -s "$repo/opencode/.config/opencode/opencode.json" "$home/.config/opencode/opencode.json"
   run_prepare "$home"
   [[ ! -e $home/.claude/settings.json && ! -L $home/.claude/settings.json ]] || fail "managed Claude link remains"

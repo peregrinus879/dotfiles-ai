@@ -22,6 +22,20 @@ usage() {
 
 abort() { echo "SPAR-BRIDGE ABORT: $1" >&2; exit 2; }
 
+resolve_scanner() {
+  local script root
+  script=$(realpath -e -- "${BASH_SOURCE[0]}") || abort "cannot resolve bridge source"
+  root=$(realpath -e -- "$(dirname -- "$script")/../../..") || abort "cannot resolve repository root"
+  SCANNER=$(realpath -e -- "$root/claude-code/.local/bin/spar-payload-scan") ||
+    abort "cannot resolve the pinned payload scanner"
+  [[ -f $SCANNER && ! -L $SCANNER && -x $SCANNER ]] || abort "payload scanner is not executable"
+}
+
+scan_payload() {
+  resolve_scanner
+  printf '%s' "$PROMPT" | "$SCANNER" "$1" || abort "payload failed the outbound content gate"
+}
+
 [[ $CEILING =~ $POSINT_RE && $STALL =~ $POSINT_RE ]] ||
   abort "timeout knobs must be positive integers (CEILING=$CEILING STALL=$STALL); zero disables timeout"
 
@@ -139,11 +153,15 @@ case $mode in
   new)
     [[ $# -eq 3 ]] || usage
     validate_handoff "$2"
-    preflight; stream 2 -s read-only -m "$MODEL" -- "$3" ;;
+    PROMPT=$3
+    scan_payload "$2"
+    preflight; stream 2 -s read-only -m "$MODEL" -- "$PROMPT" ;;
   resume)
     [[ $# -eq 4 ]] || usage
     [[ $2 =~ $UUID_RE ]] || abort "resume session id is not a UUID: $2"
     validate_handoff "$3"
-    preflight; stream 1 resume -c sandbox_mode='"read-only"' -- "$2" "$4" ;;
+    PROMPT=$4
+    scan_payload "$3"
+    preflight; stream 1 resume -c sandbox_mode='"read-only"' -- "$2" "$PROMPT" ;;
   *) usage ;;
 esac

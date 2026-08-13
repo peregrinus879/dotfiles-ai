@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""Fail closed when a spar prompt or handoff contains sensitive material."""
+
+import re
+import sys
+from pathlib import Path
+
+
+PRIVATE_KEY = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")
+OPENAI_KEY = re.compile(r"\bsk-[A-Za-z0-9_-]{16,}\b")
+GITHUB_TOKEN = re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b")
+AWS_KEY = re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")
+SECRET_ASSIGNMENT = re.compile(
+    r"(?im)^\s*(?:export\s+)?[\"']?"
+    r"[A-Z0-9_]*(?:API_KEY|AUTH_TOKEN|ACCESS_TOKEN|CLIENT_SECRET|PASSWORD|PASSWD|PRIVATE_KEY)"
+    r"[A-Z0-9_]*[\"']?\s*[:=]\s*[\"']?([^\s\"',#]{8,})"
+)
+SAFE_VALUE = re.compile(r"(?i)(?:example|placeholder|redacted|changeme|dummy|\$\{|\{env:|^<.*>$)")
+DIFF_PATH = re.compile(r"(?m)^(?:diff --git a/\S+ b/|--- a/|\+\+\+ b/)(\S+)")
+
+
+def reject(label: str, rule: str) -> None:
+    print(f"SPAR-PAYLOAD REJECT: {label}: {rule}", file=sys.stderr)
+    raise SystemExit(2)
+
+
+def sensitive_path(value: str) -> bool:
+    path = value.lower().removeprefix("a/").removeprefix("b/").removeprefix("./")
+    parts = path.split("/")
+    name = parts[-1]
+    return (
+        name == ".env"
+        or name.startswith(".env.")
+        or name.endswith((".key", ".pem"))
+        or "secrets" in parts
+        or "credentials" in name
+        or name == "auth.json"
+    )
+
+
+def scan(label: str, data: bytes) -> None:
+    if b"\0" in data:
+        reject(label, "binary content")
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        reject(label, "non-UTF-8 content")
+
+    for path in DIFF_PATH.findall(text):
+        if sensitive_path(path):
+            reject(label, "sensitive diff path")
+    if PRIVATE_KEY.search(text):
+        reject(label, "private-key envelope")
+    if OPENAI_KEY.search(text):
+        reject(label, "API-key shape")
+    if GITHUB_TOKEN.search(text):
+        reject(label, "GitHub-token shape")
+    if AWS_KEY.search(text):
+        reject(label, "AWS-key shape")
+    for match in SECRET_ASSIGNMENT.finditer(text):
+        if not SAFE_VALUE.search(match.group(1)):
+            reject(label, "credential assignment")
+
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        print("usage: spar-payload-scan <handoff-dir>", file=sys.stderr)
+        raise SystemExit(64)
+
+    root = Path(sys.argv[1])
+    scan("prompt", sys.stdin.buffer.read())
+    try:
+        entries = sorted(root.iterdir())
+    except OSError:
+        reject("handoff", "unreadable directory")
+    for entry in entries:
+        try:
+            data = entry.read_bytes()
+        except OSError:
+            reject(entry.name, "unreadable file")
+        scan(entry.name, data)
+
+
+if __name__ == "__main__":
+    main()

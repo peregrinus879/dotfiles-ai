@@ -75,6 +75,7 @@ prepare_bins() {
     if prepare_real_dir "$HOME/.local/bin" "claude-code/.local/bin"; then
       queue_link "$HOME/.local/bin/spar-claude" "claude-code/.local/bin/spar-claude"
       queue_link "$HOME/.local/bin/spar-codex" "codex/.local/bin/spar-codex"
+      queue_link "$HOME/.local/bin/spar-payload-scan" "claude-code/.local/bin/spar-payload-scan"
     fi
   else
     create_dirs+=("$HOME/.local/bin")

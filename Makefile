@@ -45,6 +45,7 @@ verify:
 	  "$$HOME/.claude/skills/commit/SKILL.md=claude-code/.claude/skills/commit/SKILL.md" \
 	  "$$HOME/.claude/skills/spar/SKILL.md=claude-code/.claude/skills/spar/SKILL.md" \
 	  "$$HOME/.local/bin/spar-claude=claude-code/.local/bin/spar-claude" \
+	  "$$HOME/.local/bin/spar-payload-scan=claude-code/.local/bin/spar-payload-scan" \
 	  "$$HOME/.codex/config.toml=codex/.codex/config.toml" \
 	  "$$HOME/.codex/AGENTS.md=codex/.codex/AGENTS.md" \
 	  "$$HOME/.agents/skills/commit/SKILL.md=codex/.agents/skills/commit/SKILL.md" \
@@ -71,7 +72,9 @@ verify:
 	if bash -n scripts/prepare-stow.sh tests/prepare-stow.sh && bash tests/prepare-stow.sh; then \
 	  echo "ok:   non-destructive stow preparation"; \
 	else echo "FAIL: non-destructive stow preparation"; fail=1; fi; \
-	for b in spar-claude spar-codex; do \
+	if bash -n tests/spar-bridges.sh && bash tests/spar-bridges.sh; then :; \
+	else echo "FAIL: spar bridge payload controls"; fail=1; fi; \
+	for b in spar-claude spar-codex spar-payload-scan; do \
 	  if [[ -x "$$HOME/.local/bin/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
 	done; \
 	if [[ $$(grep -Fc -- '--tools ' claude-code/.local/bin/spar-claude) == 1 ]] && \

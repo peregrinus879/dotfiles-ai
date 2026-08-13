@@ -23,6 +23,19 @@ usage() {
 
 abort() { echo "SPAR-BRIDGE ABORT: $1" >&2; exit 2; }
 
+resolve_scanner() {
+  local script
+  script=$(realpath -e -- "${BASH_SOURCE[0]}") || abort "cannot resolve bridge source"
+  SCANNER=$(realpath -e -- "$(dirname -- "$script")/spar-payload-scan") ||
+    abort "cannot resolve the pinned payload scanner"
+  [[ -f $SCANNER && ! -L $SCANNER && -x $SCANNER ]] || abort "payload scanner is not executable"
+}
+
+scan_payload() {
+  resolve_scanner
+  printf '%s' "$PROMPT" | "$SCANNER" "$1" || abort "payload failed the outbound content gate"
+}
+
 [[ $CEILING =~ $POSINT_RE && $STALL =~ $POSINT_RE ]] ||
   abort "timeout knobs must be positive integers (CEILING=$CEILING STALL=$STALL); zero disables timeout"
 
@@ -136,6 +149,7 @@ case $mode in
     [[ $# -eq 3 ]] || usage
     validate_handoff "$2"
     PROMPT=$3
+    scan_payload "$2"
     sid=$(cat /proc/sys/kernel/random/uuid)
     preflight
     stream 2 --session-id "$sid"
@@ -145,6 +159,7 @@ case $mode in
     [[ $2 =~ $UUID_RE ]] || abort "resume session id is not a UUID: $2"
     validate_handoff "$3"
     PROMPT=$4
+    scan_payload "$3"
     preflight
     stream 1 --resume "$2" ;;
   *) usage ;;
