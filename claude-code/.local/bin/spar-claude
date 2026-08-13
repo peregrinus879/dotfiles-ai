@@ -95,53 +95,77 @@ preflight() {
     CLAUDE_CODE_USE_FOUNDRY CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST CLAUDE_CONFIG_DIR; do
     [[ -z ${!variable:-} ]] || abort "$variable is set; claude.ai subscription auth only"
   done
-  auth=$(timeout 30 claude auth status 2>/dev/null) ||
+  auth=$(timeout --kill-after=2 30 claude auth status 2>/dev/null) ||
     abort "cannot verify Claude authentication"
   jq -e '.loggedIn == true and .authMethod == "claude.ai" and .apiProvider == "firstParty"' \
     <<<"$auth" >/dev/null 2>&1 ||
     abort "claude is not on claude.ai subscription auth"
 }
 
-# Stream claude stream-json events through a stall watchdog; the prompt travels
-# via stdin (never argv). Reply text lands on the chosen fd. Result events are
-# terminal: success extracts .result, errors classify fail-fast.
-# workdir and pid stay script-scoped so the EXIT trap can clean them.
+# Stream claude events through a stall watchdog and require exactly one valid
+# terminal result. The owned process group makes every exit path bounded.
+stop_group() {
+  [[ -n ${pid:-} ]] || return 0
+  kill -TERM -- "-$pid" 2>/dev/null || true
+  sleep 1
+  kill -KILL -- "-$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  pid=""
+}
+
+cleanup_stream() {
+  stop_group
+  [[ -z ${workdir:-} ]] || rm -rf -- "$workdir"
+}
+
 stream() { # $1 reply_fd; rest = claude session flags
-  local reply_fd=$1 line rc=0
+  local reply_fd=$1 line rc=0 child_rc=0 result="" result_count=0
   shift
   workdir=$(mktemp -d) && [[ -d ${workdir:-} ]] || abort "cannot create a private temp directory"
   mkfifo -m 600 "$workdir/fifo" || abort "cannot create the event fifo"
   pid=""
-  trap '{ [[ -z "${pid:-}" ]] || kill "$pid" || true; [[ -z "${workdir:-}" ]] || rm -rf "$workdir" || true; } 2>/dev/null' EXIT INT TERM
-  printf '%s' "$PROMPT" | timeout "$CEILING" claude -p "$@" \
+  trap cleanup_stream EXIT INT TERM
+  setsid timeout --kill-after=2 "$CEILING" claude -p "$@" \
     --permission-mode plan --disallowedTools "Write Edit NotebookEdit Bash" \
     --tools "Read,Glob,Grep" \
     --model "$MODEL" --safe-mode --output-format stream-json \
-    --include-partial-messages --verbose >"$workdir/fifo" 2>/dev/null &
+    --include-partial-messages --verbose >"$workdir/fifo" 2>/dev/null <<<"$PROMPT" &
   pid=$!
   # shellcheck disable=SC2094 # the fifo's writer is the background claude process
   while true; do
     IFS= read -t "$STALL" -r line <&3 || { rc=$?; break; }
-    case $line in
-      *'"type":"result"'*)
-        if jq -e '.is_error == true' <<<"$line" >/dev/null 2>&1; then
-          if grep -qiE 'usage limit|rate limit|quota|too many requests|overloaded|429' <<<"$line"; then
-            echo "SPAR-BRIDGE LIMIT: reviewer hit a usage limit; surface to the user now: $line" >&2
-            exit 3
-          fi
-          echo "SPAR-BRIDGE ERROR: $line" >&2
-          exit 5
-        fi
-        jq -r '.result // empty' <<<"$line" >&"$reply_fd" ;;
-    esac
+    jq -e '.type == "result"' <<<"$line" >/dev/null 2>&1 || continue
+    ((result_count += 1))
+    [[ $result_count == 1 ]] || { echo "SPAR-BRIDGE ERROR: duplicate result event" >&2; exit 5; }
+    if jq -e '.is_error == true' <<<"$line" >/dev/null 2>&1; then
+      if grep -qiE 'usage limit|rate limit|quota|too many requests|overloaded|429' <<<"$line"; then
+        echo "SPAR-BRIDGE LIMIT: reviewer hit a usage limit; surface to the user now: $line" >&2
+        exit 3
+      fi
+      echo "SPAR-BRIDGE ERROR: $line" >&2
+      exit 5
+    fi
+    result=$(jq -er '.result | select(type == "string" and length > 0)' <<<"$line") || {
+      echo "SPAR-BRIDGE ERROR: successful result has no reply" >&2
+      exit 5
+    }
   done 3<"$workdir/fifo"
   if [[ $rc -gt 128 ]]; then # read -t timed out: stall
     echo "SPAR-BRIDGE STALL: no reviewer event for ${STALL}s; killed the call" >&2
     exit 4
   fi
-  wait "$pid" || { rc=$?; [[ $rc == 124 ]] &&
-    echo "SPAR-BRIDGE CEILING: call exceeded ${CEILING}s" >&2; exit "$rc"; }
+  if wait "$pid"; then child_rc=0; else child_rc=$?; fi
   pid=""
+  if [[ $child_rc == 124 ]]; then
+    echo "SPAR-BRIDGE CEILING: call exceeded ${CEILING}s" >&2
+    exit 124
+  fi
+  [[ $child_rc == 0 ]] || { echo "SPAR-BRIDGE ERROR: reviewer exited $child_rc" >&2; exit 5; }
+  [[ $result_count == 1 && -n $result ]] || {
+    echo "SPAR-BRIDGE ERROR: reviewer ended without one successful result" >&2
+    exit 5
+  }
+  printf '%s\n' "$result" >&"$reply_fd"
 }
 
 [[ $# -ge 1 ]] || usage

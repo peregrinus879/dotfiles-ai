@@ -113,19 +113,32 @@ clean_handoff() {
 preflight() {
   command -v jq >/dev/null || abort "jq is required and missing"
   [[ -z ${CODEX_API_KEY:-} ]] || abort "CODEX_API_KEY is set; subscription auth only"
-  [[ $(timeout 30 codex login status 2>&1) == "Logged in using ChatGPT" ]] ||
+  [[ $(timeout --kill-after=2 30 codex login status 2>&1) == "Logged in using ChatGPT" ]] ||
     abort "codex is not on ChatGPT subscription auth"
   local installed
-  installed=$(timeout 30 codex plugin list --json 2>/dev/null | jq -r '.installed | length' 2>/dev/null) || installed=""
+  installed=$(timeout --kill-after=2 30 codex plugin list --json 2>/dev/null | jq -r '.installed | length' 2>/dev/null) || installed=""
   [[ $installed == 0 ]] ||
     abort "cannot verify codex plugins are absent (installed: ${installed:-unknown}); fail closed"
 }
 
-# Stream codex JSON events through a stall watchdog; reply text to the chosen
-# fd, thread id to stdout in new mode. Limit errors exit immediately.
-# Args: reply_fd, then codex-exec flags, then --, then positionals.
-stream() { # fifo and pid stay script-scoped so the EXIT trap can clean them
-  local reply_fd=$1 line rc=0
+# Stream Codex events through a stall watchdog and require exactly one completed
+# turn. The owned process group makes every exit path bounded.
+stop_group() {
+  [[ -n ${pid:-} ]] || return 0
+  kill -TERM -- "-$pid" 2>/dev/null || true
+  sleep 1
+  kill -KILL -- "-$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  pid=""
+}
+
+cleanup_stream() {
+  stop_group
+  [[ -z ${workdir:-} ]] || rm -rf -- "$workdir"
+}
+
+stream() {
+  local reply_fd=$1 line rc=0 child_rc=0 thread_id="" thread_count=0 turn_count=0 reply=""
   shift
   local pre=() post=() seen_sep=0 a
   for a in "$@"; do
@@ -136,34 +149,61 @@ stream() { # fifo and pid stay script-scoped so the EXIT trap can clean them
   mkfifo -m 600 "$workdir/fifo" || abort "cannot create the event fifo"
   fifo="$workdir/fifo"
   pid=""
-  trap '{ [[ -z "${pid:-}" ]] || kill "$pid" || true; [[ -z "${workdir:-}" ]] || rm -rf "$workdir" || true; } 2>/dev/null' EXIT INT TERM
-  timeout "$CEILING" codex exec "${pre[@]}" --json \
+  trap cleanup_stream EXIT INT TERM
+  setsid timeout --kill-after=2 "$CEILING" codex exec "${pre[@]}" --json \
     -c model_reasoning_effort=xhigh -c 'mcp_servers={}' -- "${post[@]}" \
     </dev/null >"$fifo" 2>/dev/null &
   pid=$!
   # shellcheck disable=SC2094 # the fifo's writer is the background codex process
   while true; do
     IFS= read -t "$STALL" -r line <&3 || { rc=$?; break; }
-    case $line in
-      *'"thread.started"'*)
-        [[ $reply_fd == 2 ]] && jq -r '.thread_id // empty' <<<"$line" ;;
-      *'"agent_message"'*)
-        jq -r '.item.text // empty' <<<"$line" >&"$reply_fd" ;;
-      *'"error"'* | *'"turn.failed"'*)
-        if grep -qiE 'usage limit|rate limit|quota|too many requests|429' <<<"$line"; then
+    case $(jq -r '.type // empty' <<<"$line" 2>/dev/null) in
+      thread.started)
+        ((thread_count += 1))
+        [[ $thread_count == 1 ]] || { echo "SPAR-BRIDGE ERROR: duplicate thread event" >&2; exit 5; }
+        thread_id=$(jq -er '.thread_id | select(type == "string")' <<<"$line") || {
+          echo "SPAR-BRIDGE ERROR: malformed thread event" >&2
+          exit 5
+        } ;;
+      item.completed)
+        if [[ $(jq -r '.item.type // empty' <<<"$line") == agent_message ]]; then
+          reply=$(jq -er '.item.text | select(type == "string" and length > 0)' <<<"$line") || true
+        fi ;;
+      error | turn.failed)
+        if grep -qiE 'usage limit|rate limit|quota|too many requests|overloaded|429' <<<"$line"; then
           echo "SPAR-BRIDGE LIMIT: reviewer hit a usage limit; surface to the user now: $line" >&2
           exit 3
         fi
-        echo "SPAR-BRIDGE ERROR: $line" >&2 ;;
+        echo "SPAR-BRIDGE ERROR: $line" >&2
+        exit 5 ;;
+      turn.completed)
+        ((turn_count += 1))
+        [[ $turn_count == 1 ]] || { echo "SPAR-BRIDGE ERROR: duplicate turn completion" >&2; exit 5; } ;;
     esac
   done 3<"$fifo"
   if [[ $rc -gt 128 ]]; then # read -t timed out: stall
     echo "SPAR-BRIDGE STALL: no reviewer event for ${STALL}s; killed the call" >&2
     exit 4
   fi
-  wait "$pid" || { rc=$?; [[ $rc == 124 ]] &&
-    echo "SPAR-BRIDGE CEILING: call exceeded ${CEILING}s" >&2; exit "$rc"; }
+  if wait "$pid"; then child_rc=0; else child_rc=$?; fi
   pid=""
+  if [[ $child_rc == 124 ]]; then
+    echo "SPAR-BRIDGE CEILING: call exceeded ${CEILING}s" >&2
+    exit 124
+  fi
+  [[ $child_rc == 0 ]] || { echo "SPAR-BRIDGE ERROR: reviewer exited $child_rc" >&2; exit 5; }
+  [[ $turn_count == 1 && -n $reply ]] || {
+    echo "SPAR-BRIDGE ERROR: reviewer ended without one completed turn and reply" >&2
+    exit 5
+  }
+  if [[ $reply_fd == 2 ]]; then
+    [[ $thread_count == 1 && $thread_id =~ $UUID_RE ]] || {
+      echo "SPAR-BRIDGE ERROR: new review has no valid thread id" >&2
+      exit 5
+    }
+    printf '%s\n' "$thread_id"
+  fi
+  printf '%s\n' "$reply" >&"$reply_fd"
 }
 
 [[ $# -ge 1 ]] || usage

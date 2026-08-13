@@ -13,7 +13,25 @@ if [[ ${1:-} == auth && ${2:-} == status ]]; then
   exit
 fi
 printf '%s\n' "$*" >>"$SPAR_TEST_CALLS"
-printf '%s\n' '{"type":"result","is_error":false,"result":"review ok"}'
+case ${SPAR_TEST_MODE:-ok} in
+  ok) printf '%s\n' '{"type":"result","is_error":false,"result":"review ok"}' ;;
+  eof) : ;;
+  duplicate)
+    printf '%s\n' '{"type":"result","is_error":false,"result":"review ok"}'
+    printf '%s\n' '{"type":"result","is_error":false,"result":"review twice"}' ;;
+  empty) printf '%s\n' '{"type":"result","is_error":false,"result":""}' ;;
+  failure) printf '%s\n' '{"type":"result","is_error":true,"result":"review failed"}' ;;
+  stall)
+    trap '' TERM
+    (trap '' TERM; while :; do sleep 1; done) &
+    printf '%s\n' "$!" >"$SPAR_TEST_CHILD_PID"
+    while :; do sleep 1; done ;;
+  ceiling)
+    trap '' TERM
+    (trap '' TERM; while :; do sleep 1; done) &
+    printf '%s\n' "$!" >"$SPAR_TEST_CHILD_PID"
+    while :; do printf '%s\n' '{"type":"stream_event"}'; sleep 0.2; done ;;
+esac
 SHIM
 
 cat >"$TMP/bin/codex" <<'SHIM'
@@ -27,9 +45,37 @@ if [[ ${1:-} == plugin && ${2:-} == list ]]; then
   exit
 fi
 printf '%s\n' "$*" >>"$SPAR_TEST_CALLS"
-printf '%s\n' '{"type":"thread.started","thread_id":"11111111-1111-4111-8111-111111111111"}'
-printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"review ok"}}'
-printf '%s\n' '{"type":"turn.completed"}'
+case ${SPAR_TEST_MODE:-ok} in
+  ok)
+    printf '%s\n' '{"type":"thread.started","thread_id":"11111111-1111-4111-8111-111111111111"}'
+    printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"review ok"}}'
+    printf '%s\n' '{"type":"turn.completed"}' ;;
+  eof) printf '%s\n' '{"type":"thread.started","thread_id":"11111111-1111-4111-8111-111111111111"}' ;;
+  duplicate)
+    printf '%s\n' '{"type":"thread.started","thread_id":"11111111-1111-4111-8111-111111111111"}'
+    printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"review ok"}}'
+    printf '%s\n' '{"type":"turn.completed"}'
+    printf '%s\n' '{"type":"turn.completed"}' ;;
+  empty)
+    printf '%s\n' '{"type":"thread.started","thread_id":"11111111-1111-4111-8111-111111111111"}'
+    printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":""}}'
+    printf '%s\n' '{"type":"turn.completed"}' ;;
+  failure) printf '%s\n' '{"type":"turn.failed","error":"review failed"}' ;;
+  malformed)
+    printf '%s\n' '{"type":"thread.started","thread_id":"not-a-uuid"}'
+    printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"review ok"}}'
+    printf '%s\n' '{"type":"turn.completed"}' ;;
+  stall)
+    trap '' TERM
+    (trap '' TERM; while :; do sleep 1; done) &
+    printf '%s\n' "$!" >"$SPAR_TEST_CHILD_PID"
+    while :; do sleep 1; done ;;
+  ceiling)
+    trap '' TERM
+    (trap '' TERM; while :; do sleep 1; done) &
+    printf '%s\n' "$!" >"$SPAR_TEST_CHILD_PID"
+    while :; do printf '%s\n' '{"type":"turn.started"}'; sleep 0.2; done ;;
+esac
 SHIM
 
 chmod 755 "$TMP/bin/claude" "$TMP/bin/codex"
@@ -74,6 +120,47 @@ for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin
 
   run_bridge "$bridge" "Review the handoff." $'Read(~/.codex/auth.json) = deny\n.env.* = deny\n**/*.key = deny\n'
   [[ $BRIDGE_RC == 0 && $BRIDGE_CALLED == 1 ]] || fail "policy text was falsely rejected by ${bridge##*/}"
+done
+
+for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin/spar-codex"; do
+  for mode in eof duplicate empty failure; do
+    handoff=$(make_handoff)
+    calls="$TMP/terminal-${bridge##*/}-$mode"
+    if SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=$mode PATH="$TMP/bin:$PATH" \
+      "$bridge" new "$handoff" "Review terminal events." >/dev/null 2>/dev/null; then
+      fail "${bridge##*/} accepted terminal mode $mode"
+    fi
+    rm -rf -- "$handoff"
+  done
+done
+
+handoff=$(make_handoff)
+calls="$TMP/codex-malformed"
+if SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=malformed PATH="$TMP/bin:$PATH" \
+  "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review terminal events." >/dev/null 2>/dev/null; then
+  fail "spar-codex accepted malformed thread id"
+fi
+rm -rf -- "$handoff"
+
+for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin/spar-codex"; do
+  for mode in stall ceiling; do
+    handoff=$(make_handoff)
+    calls="$TMP/timeout-${bridge##*/}-$mode"
+    child_pid_file="$TMP/child-${bridge##*/}-$mode"
+    start=$(date +%s)
+    if SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=$mode SPAR_TEST_CHILD_PID=$child_pid_file \
+      SPAR_BRIDGE_STALL=1 SPAR_BRIDGE_CEILING=2 PATH="$TMP/bin:$PATH" \
+      "$bridge" new "$handoff" "Review timeout." >/dev/null 2>/dev/null; then
+      fail "${bridge##*/} accepted timeout mode $mode"
+    fi
+    elapsed=$(($(date +%s) - start))
+    [[ $elapsed -le 6 ]] || fail "${bridge##*/} $mode exceeded bounded shutdown"
+    if [[ -s $child_pid_file ]]; then
+      child_pid=$(<"$child_pid_file")
+      if kill -0 "$child_pid" 2>/dev/null; then fail "${bridge##*/} left descendant after $mode"; fi
+    fi
+    rm -rf -- "$handoff"
+  done
 done
 
 handoff=$(make_handoff)
