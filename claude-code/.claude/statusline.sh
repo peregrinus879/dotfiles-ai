@@ -174,7 +174,7 @@ git_cache=""
 if [ "$state_ready" -eq 1 ]; then
   cwd_key=$(state_key "$cwd") && git_cache="$state_root/git-$cwd_key"
 fi
-git_cache_max_age=5
+git_cache_max_age=60
 
 git_cache_stale() {
   [ -n "$git_cache" ] && state_file_safe "$git_cache" || return 0
@@ -190,7 +190,7 @@ if [ -n "$SSH_CONNECTION" ]; then
   host_seg="${bold_yellow}${HOSTNAME%%.*}${reset}  "
 fi
 
-# 2. Directory + Git branch (cached, refreshed every 5s)
+# 2. Directory + Git branch (cached, refreshed every 60s)
 branch=""
 repo_root=""
 if [ -n "$cwd" ] && [ -d "$cwd" ]; then
@@ -226,22 +226,26 @@ fi
 # 3. Model (strip "Claude " prefix if present)
 short_model="${model#Claude }"
 
-# 5. Context window: used (pct%)
+# 4. Context window: used (pct%)
 # used_percentage and ctx_size can be null early in session before first API call.
 ctx_seg=""
-if [ -n "$used_pct" ] && [ "$used_pct" != "null" ] && [ "$ctx_size" -gt 0 ] 2>/dev/null; then
+if [ -n "$used_pct" ] && [ "$used_pct" != "null" ]; then
   used_int=$(printf '%.0f' "$used_pct")
-  used_raw=$((ctx_size * used_int / 100))
-  ctx_seg="  $(pct_color "$used_int")$(fmt_k "$used_raw") (${used_int}%)${reset}"
+  if [ "$ctx_size" -gt 0 ] 2>/dev/null; then
+    used_raw=$((ctx_size * used_int / 100))
+    ctx_seg="  $(pct_color "$used_int")$(fmt_k "$used_raw") (${used_int}%)${reset}"
+  else
+    ctx_seg="  $(pct_color "$used_int")${used_int}%${reset}"
+  fi
 fi
 
-# 6. Rate limits: 5h and 7d (with reset countdown and local reset time)
+# 5. Rate limits: 5h and 7d (with reset countdown and local reset time)
 now=$(date +%s)
 rate_seg=""
 build_rate_seg "5h" "$rate_5h" "$reset_5h" "%H:%M"
 build_rate_seg "7d" "$rate_7d" "$reset_7d" "%a.%H:%M"
 
-# 7. Session cost (tracks only extra usage spend)
+# 6. Session cost (tracks only extra usage spend)
 # State: line 1 = active|frozen, line 2 = baseline, line 3 = prior extra, line 4 = last displayed
 extra_state=""
 if [ "$state_ready" -eq 1 ] && [ -n "$session_id" ]; then

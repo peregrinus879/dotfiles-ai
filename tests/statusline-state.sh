@@ -20,7 +20,8 @@ git_state="$state_root/git-$cwd_key"
 extra_state="$state_root/extra-$session_key"
 
 input=$(printf '{"workspace":{"current_dir":"%s"},"model":{"display_name":"Claude Test"},"rate_limits":{"five_hour":{"used_percentage":100},"seven_day":{"used_percentage":10}},"cost":{"total_cost_usd":1.25},"session_id":"%s"}\n' "$cwd" "$session")
-XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$input" >/dev/null
+first_output=$(XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$input")
+[[ $first_output == *"\$0.00"* ]] || fail "extra-usage baseline did not start at zero"
 
 [[ $(stat -c '%u:%a' -- "$state_root") == "$uid:700" ]] || fail "state root is not owner-only"
 for state in "$git_state" "$extra_state"; do
@@ -34,6 +35,25 @@ before_count=$(printf '%s\n' "$state_root"/extra-* | wc -l)
 XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$without_session" >/dev/null
 after_count=$(printf '%s\n' "$state_root"/extra-* | wc -l)
 [[ $before_count == "$after_count" ]] || fail "missing session id created shared cost state"
+
+missing_size=$(printf '{"workspace":{"current_dir":"%s"},"model":{"display_name":"Claude Test"},"context_window":{"used_percentage":42},"session_id":"missing-size"}\n' "$cwd")
+missing_output=$(XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$missing_size")
+[[ $missing_output == *'42%'* ]] || fail "missing context size did not degrade to percentage"
+
+future=$(( $(date +%s) + 3600 ))
+with_reset=$(printf '{"workspace":{"current_dir":"%s"},"model":{"display_name":"Claude Test"},"rate_limits":{"five_hour":{"used_percentage":20,"resets_at":%s},"seven_day":{"used_percentage":30,"resets_at":%s}},"session_id":"reset-probe"}\n' "$cwd" "$future" "$future")
+reset_output=$(XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$with_reset")
+[[ $reset_output == *'@'* ]] || fail "rate-limit reset timestamps did not render"
+
+active_again=${input/1.25/2.25}
+active_output=$(XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$active_again")
+[[ $active_output == *"\$1.00"* ]] || fail "active extra-usage delta did not render"
+frozen=${active_again/100/99}
+frozen_output=$(XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$frozen")
+[[ $frozen_output == *"\$1.00"* ]] || fail "frozen extra-usage value did not persist"
+reentered=${input/1.25/5.25}
+reentered_output=$(XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$reentered")
+[[ $reentered_output == *"\$1.00"* ]] || fail "extra-usage re-entry did not carry frozen value"
 
 rm -- "$git_state"
 printf 'canary\n' >"$TMP/symlink-canary"
