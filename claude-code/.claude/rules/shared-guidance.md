@@ -35,7 +35,7 @@ For non-trivial tasks (multiple files, multiple steps, or architectural decision
 - **Execute**: one commit at a time; implement and smoke-test one planned commit, run `/commit`, then begin the next. Never accumulate changes from multiple planned commits. A rejected tool call means fix the current commit, not restructure the sequence.
 - **Report**: hashes and titles, deferred items, durable decisions into the project `AGENTS.md`; if the plan was not sparred, offer `/spar` diff-only review first.
 
-Skip the structure for trivial work that creates no tracked changes. Treat a trivial tracked change as one implicit atomic commit: edit, verify, commit, report. No separate plan approval is required.
+Skip the structure for trivial work that creates no tracked changes. A tracked commit outside an approved phased plan requires H's explicit commit authorization; an implementation request alone authorizes editing and verification, not committing.
 
 ## Environment
 

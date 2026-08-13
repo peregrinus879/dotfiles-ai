@@ -103,7 +103,8 @@ verify:
 	else echo "FAIL: one-file apply_patch guidance missing"; fail=1; fi; \
 	if grep -Fq 'The go-ahead authorizes those listed commits unless H explicitly excludes commits.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Never accumulate changes from multiple planned commits.' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Treat a trivial tracked change as one implicit atomic commit: edit, verify, commit, report.' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'A tracked commit outside an approved phased plan requires H'"'"'s explicit commit authorization' claude-code/.claude/rules/shared-guidance.md && \
+	  ! grep -Fq 'Treat a trivial tracked change as one implicit atomic commit' claude-code/.claude/rules/shared-guidance.md && \
 	  ! grep -Fq 'Commits: only when asked' claude-code/.claude/rules/shared-guidance.md; then \
 	  echo "ok:   phased-work commit checkpoints"; \
 	else echo "FAIL: phased-work commit checkpoints drifted"; fail=1; fi; \
