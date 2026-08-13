@@ -125,6 +125,12 @@ verify:
 	  grep -Fqx -- '- An `apply_patch` call must modify exactly one file; never bundle multiple files into one patch.' opencode/.config/opencode/AGENTS.md; then \
 	  echo "ok:   one-file apply_patch guidance"; \
 	else echo "FAIL: one-file apply_patch guidance missing"; fail=1; fi; \
+	if grep -Fq 'The go-ahead authorizes those listed commits unless H explicitly excludes commits.' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Never accumulate changes from multiple planned commits.' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Treat a trivial tracked change as one implicit atomic commit: edit, verify, commit, report.' claude-code/.claude/rules/shared-guidance.md && \
+	  ! grep -Fq 'Commits: only when asked' claude-code/.claude/rules/shared-guidance.md; then \
+	  echo "ok:   phased-work commit checkpoints"; \
+	else echo "FAIL: phased-work commit checkpoints drifted"; fail=1; fi; \
 	if [[ -f opencode/.config/opencode/plugins/reviewed-writes.ts ]] && \
 	  grep -Fq 'unique.size !== 1' opencode/.config/opencode/plugins/reviewed-writes.ts && \
 	  ! grep -Fq 'spar-scratch' opencode/.config/opencode/plugins/reviewed-writes.ts; then \

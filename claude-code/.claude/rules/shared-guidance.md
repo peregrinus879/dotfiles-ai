@@ -31,17 +31,17 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 For non-trivial tasks (multiple files, multiple steps, or architectural decisions):
 
 - **Audit**: read-only diagnostics; findings labeled fact, judgment, or opinion; wait for agreement.
-- **Plan**: atomic commits, one-line purpose and files touched each; offer `/spar` cross-model review of the draft plan; wait for go-ahead.
-- **Execute**: one commit at a time; smoke-test before each; a rejected tool call means fix the current commit, not restructure the sequence.
+- **Plan**: atomic commits, one-line purpose and files touched each; offer `/spar` cross-model review of the draft plan; wait for go-ahead. The go-ahead authorizes those listed commits unless H explicitly excludes commits.
+- **Execute**: one commit at a time; implement and smoke-test one planned commit, run `/commit`, then begin the next. Never accumulate changes from multiple planned commits. A rejected tool call means fix the current commit, not restructure the sequence.
 - **Report**: hashes and titles, deferred items, durable decisions into the project `AGENTS.md`; if the plan was not sparred, offer `/spar` diff-only review first.
 
-Skip the structure for trivial work.
+Skip the structure for trivial work that creates no tracked changes. Treat a trivial tracked change as one implicit atomic commit: edit, verify, commit, report. No separate plan approval is required.
 
 ## Environment
 
 - Hosts: Omarchy (Arch Linux + Hyprland), WSL (Arch Linux), Android (Claude app); terminal-first (tmux, Neovim, Bash).
 - Verify the target machine before changing live config, stow links, packages, services, or `$HOME`; if it is the wrong machine, stop and provide commands for the correct one.
-- Commits: only when asked, via the `/commit` skill. Before committing, verify `git config user.email` resolves to the GitHub no-reply, never a personal inbox; identity lives in the untracked per-host `~/.config/git/config.local`. If it resolves to a personal address, stop and tell H.
+- Before committing, use the `/commit` skill and verify `git config user.email` resolves to the GitHub no-reply, never a personal inbox; identity lives in the untracked per-host `~/.config/git/config.local`. If it resolves to a personal address, stop and tell H.
 - Push: H handles manually (SSH passphrase required). Do not push.
 - The repo is the record: durable decisions, deferred items, and watch items go in the project `AGENTS.md` or docs; assistant-local memory is a single-device cache (H works across devices), pointers at most.
 - Agents writing scratch files use one unique session directory and state its path. Delete it, and any other temporary files the session created, before reporting completion. Untracked files inside the repo follow the `/commit` skill's confirm-before-delete rule.
