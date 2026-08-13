@@ -21,7 +21,7 @@ Local clones live side by side under `~/Projects/repos/dotfiles/`.
 ## Supported Tools
 
 - [Claude Code](https://code.claude.com/docs/en/overview) - AI-powered coding assistant with a terminal CLI
-- [Codex](https://learn.chatgpt.com/docs/codex) - OpenAI's coding agent with a terminal CLI
+- [Codex](https://learn.chatgpt.com/codex) - OpenAI's coding agent with a terminal CLI
 - [OpenCode](https://opencode.ai/docs) - Open source AI coding agent with a terminal-based interface
 
 ## Scope
