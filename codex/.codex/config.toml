@@ -1,7 +1,40 @@
 model = "gpt-5.6-sol"
 model_reasoning_effort = "xhigh"
 approval_policy = "on-request"
-sandbox_mode = "read-only"
+approvals_reviewer = "user"
+default_permissions = "reviewed-writes"
+
+[permissions.reviewed-writes]
+description = "Read-only workspace with writable system temporary roots."
+extends = ":read-only"
+
+[permissions.reviewed-writes.filesystem]
+":tmpdir" = "write"
+":slash_tmp" = "write"
+"~/.aws" = "deny"
+"~/.config/gh/hosts.yml" = "deny"
+"~/.docker/config.json" = "deny"
+"~/.gnupg" = "deny"
+"~/.kube" = "deny"
+"~/.local/share/opencode/auth.json" = "deny"
+"~/.netrc" = "deny"
+"~/.npmrc" = "deny"
+"~/.pypirc" = "deny"
+"~/.ssh" = "deny"
+glob_scan_max_depth = 64
+
+[permissions.reviewed-writes.filesystem.":workspace_roots"]
+"." = "read"
+".env" = "deny"
+".env.*" = "deny"
+".env.example" = "read"
+"secrets" = "deny"
+"**/*.key" = "deny"
+"**/*.pem" = "deny"
+"**/*credentials*" = "deny"
+
+[permissions.reviewed-writes.network]
+enabled = false
 
 [projects."/home/peregrinus/Projects/repos/dotfiles/dotfiles-ai"]
 trust_level = "trusted"

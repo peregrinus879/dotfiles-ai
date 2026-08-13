@@ -79,7 +79,7 @@ dotfiles-ai/
             ├── commands/                 # custom slash commands
             │   ├── commit.md             # wrapper for the commit skill
             │   └── spar.md               # wrapper for the spar skill
-            ├── plugins/                  # plugins
+            ├── plugins/                  # reviewed-writes enforcement plugin
             ├── skills/                   # agent skills
             │   ├── commit/               # commit workflow (doc sync, scratch cleanup)
             │   └── spar/                 # cross-model plan sparring (reviewer: spar-claude)
@@ -87,7 +87,7 @@ dotfiles-ai/
             └── tools/                    # custom tool definitions
 ```
 
-Tracked runtime config is limited to shared behavior. `claude-code/.claude/settings.json`, `codex/.codex/config.toml`, and `opencode/.config/opencode/opencode.json` are the source of truth for each tool's model, effort, permissions, and feature toggles; read them directly rather than a prose mirror here. All three carry the same intent: gate writes behind review (Codex expresses it as a read-only sandbox with on-request approvals), allow a narrow set of read-only inspections, keep sharing off. The OpenCode permission policy applies to every agent, including task-spawned subagents. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
+Tracked runtime config is limited to shared behavior. `claude-code/.claude/settings.json`, `codex/.codex/config.toml`, and `opencode/.config/opencode/opencode.json` are the source of truth for each tool's model, effort, permissions, and feature toggles; read them directly rather than a prose mirror here. All three carry the same reviewed-writes intent: persistent file changes reach human review one file at a time, while session handoffs use private OS temp. Claude Code keeps explicit Edit and Write asks; Codex uses a read-only permission profile with only OS temp writable, human approval review, and network disabled; OpenCode asks globally, denies plan-agent edits, and uses `reviewed-writes.ts` to reject grouped or malformed patches before permission. Codex handoff writes run automatically under its profile, while Claude Code and OpenCode keep handoff file writes ask-gated. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
 
 Machine-local paths (`projects/`, `agent-memory/`), auth/session state, and generated or host-specific config files remain intentionally excluded. The repo root `.gitignore` tracks the documented machine-local paths so accidental local state stays out of Git.
 
@@ -99,7 +99,7 @@ Shared guidance lives in `claude-code/.claude/rules/shared-guidance.md`. Claude 
 
 At the repo root, `AGENTS.md` is the canonical project instruction file and `CLAUDE.md` is a thin compatibility wrapper for Claude Code.
 
-OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps `/commit` and `/spar` wrappers and folds documentation sync and scratch file cleanup into the commit workflow instead of maintaining a separate `/update` command. The spar skill's copies share their protocol wording but each carries only its own tool's reviewer incantations, so a session can never invoke its own model as the reviewer. The reviewer matrix is cross-vendor: Claude Code spars with Codex through the pinned `spar-codex` bridge, and Codex and OpenCode spar with Claude through the pinned `spar-claude` bridge. Codex replaced OpenCode as the Claude-side reviewer for its OS-enforced read-only sandbox, clean session resume, and fail-fast limit reporting; large payloads travel in the in-repo handoff file.
+OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps `/commit` and `/spar` wrappers and folds documentation sync and scratch file cleanup into the commit workflow instead of maintaining a separate `/update` command. The spar skill's copies share their protocol wording but each carries only its own tool's reviewer incantations, so a session can never invoke its own model as the reviewer. The reviewer matrix is cross-vendor: Claude Code spars with Codex through the pinned `spar-codex` bridge, and Codex and OpenCode spar with Claude through the pinned `spar-claude` bridge. Codex replaced OpenCode as the Claude-side reviewer for its OS-enforced read-only sandbox, clean session resume, and fail-fast limit reporting. Each bridge creates one mode-700 `/tmp/spar-<session-id>/` handoff, revalidates the directory and its direct files before every review call, and validates it again before cleanup. The reviewers can read that handoff under their pinned read-only controls without gaining write access.
 
 ## Review Workflow
 
@@ -225,11 +225,11 @@ After stowing or changing the payloads:
 A repo-root `Makefile` keeps the package list in one place and wraps the routine commands. Run targets from the repo root:
 
 - `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets from Setup
-- `make verify` - symlink resolution (via `readlink -f`, so tree-folding does not false-negative) plus JSON and TOML validity, statusline syntax, reviewer-bridge executable and tool-whitelist checks, three-way skill sync, OpenCode permission-rule order, and stray `opencode.jsonc` checks
+- `make verify` - symlink resolution (via `readlink -f`, so tree-folding does not false-negative) plus JSON and TOML validity, statusline syntax, reviewer-bridge executable, handoff-validation, and tool-whitelist checks, three-way skill sync, reviewed-writes profiles and agent maps, one-file plugin markers, OpenCode permission-rule order, and stray `opencode.jsonc` checks
 - `make clean` - the Prepare cleanup steps
 - `make lint` - ShellCheck over `statusline.sh` and the two spar bridges; `.shellcheckrc` disables the one style-level finding so new issues stand out
 
-Periodically, review the current Claude Code docs (settings, memory, skills, hooks), Codex docs (config, AGENTS.md, skills, sandbox, approvals), and OpenCode docs (config, rules, permissions, agents, skills, TUI, sharing) against the tracked config, then run the Verify steps. In Claude Code, `/doctor` automates part of this checkup; it reports findings before fixing anything, so screen its offers (such as switching to auto mode) against the pinned defaults before accepting.
+Periodically, review the current Claude Code docs (settings, memory, skills, hooks), Codex docs (config, AGENTS.md, skills, permission profiles, sandbox, approvals), and OpenCode docs (config, rules, permissions, agents, plugins, skills, TUI, sharing) against the tracked config, then run the Verify steps. Restart OpenCode after any config, agent, skill, or plugin change because those files load at process startup. In Claude Code, `/doctor` automates part of this checkup; it reports findings before fixing anything, so screen its offers (such as switching to auto mode) against the pinned defaults before accepting.
 
 ## License
 

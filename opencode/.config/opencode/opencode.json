@@ -51,11 +51,57 @@
     },
     "edit": {
       "*": "ask",
-      "spar-scratch*/**": "allow"
+      "**/*.key": "deny",
+      "**/*.pem": "deny",
+      ".env": "deny",
+      "secrets/**": "deny",
+      "~/.aws/**": "deny",
+      "~/.gnupg/**": "deny"
     },
-    "external_directory": "ask",
+    "external_directory": {
+      "*": "ask",
+      "~/.aws/**": "deny",
+      "~/.config/gh/hosts.yml": "deny",
+      "~/.docker/config.json": "deny",
+      "~/.gnupg/**": "deny",
+      "~/.kube/**": "deny",
+      "~/.local/share/opencode/auth.json": "deny",
+      "~/.netrc": "deny",
+      "~/.npmrc": "deny",
+      "~/.pypirc": "deny",
+      "~/.ssh/**": "deny"
+    },
+    "read": {
+      "*": "allow",
+      "**/*.key": "deny",
+      "**/*.pem": "deny",
+      "**/*credentials*": "deny",
+      ".env": "deny",
+      ".env.*": "deny",
+      ".env.example": "allow",
+      "secrets/**": "deny",
+      "~/.aws/**": "deny",
+      "~/.config/gh/hosts.yml": "deny",
+      "~/.docker/config.json": "deny",
+      "~/.gnupg/**": "deny",
+      "~/.kube/**": "deny",
+      "~/.local/share/opencode/auth.json": "deny",
+      "~/.netrc": "deny",
+      "~/.npmrc": "deny",
+      "~/.pypirc": "deny",
+      "~/.ssh/**": "deny"
+    },
     "webfetch": "allow",
     "websearch": "allow"
+  },
+  "agent": {
+    "plan": {
+      "permission": {
+        "edit": {
+          "*": "deny"
+        }
+      }
+    }
   },
   "provider": {
     "ollama": {

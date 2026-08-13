@@ -1,8 +1,10 @@
 #!/bin/bash
 # spar-codex - pinned read-only codex reviewer bridge for the spar skill.
 # Flags are hard-coded so no caller can weaken them (AGENTS.md, Known Limitations).
-# Modes: new "<prompt>" (thread id to stdout, reply to stderr)
-#        resume <sid> "<prompt>" (reply to stdout)
+# Modes: init (private handoff directory to stdout)
+#        clean <handoff-dir>
+#        new <handoff-dir> "<prompt>" (thread id to stdout, reply to stderr)
+#        resume <sid> <handoff-dir> "<prompt>" (reply to stdout)
 # Exit codes: 0 ok, 2 preflight failed, 3 usage limit, 4 stall, 64 usage, 124 ceiling.
 set -euo pipefail
 
@@ -10,10 +12,11 @@ MODEL="gpt-5.6-sol"
 CEILING="${SPAR_BRIDGE_CEILING:-1800}" # absolute seconds per call
 STALL="${SPAR_BRIDGE_STALL:-180}"      # kill after this many seconds without a JSON event
 UUID_RE='^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
+HANDOFF_RE='^/tmp/spar-[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
 POSINT_RE='^[1-9][0-9]*$'
 
 usage() {
-  echo 'usage: spar-codex new "<prompt>" | resume <sid> "<prompt>"' >&2
+  echo 'usage: spar-codex init | clean <handoff-dir> | new <handoff-dir> "<prompt>" | resume <sid> <handoff-dir> "<prompt>"' >&2
   exit 64
 }
 
@@ -21,6 +24,53 @@ abort() { echo "SPAR-BRIDGE ABORT: $1" >&2; exit 2; }
 
 [[ $CEILING =~ $POSINT_RE && $STALL =~ $POSINT_RE ]] ||
   abort "timeout knobs must be positive integers (CEILING=$CEILING STALL=$STALL); zero disables timeout"
+
+validate_tmp_root() {
+  if ! command -v realpath >/dev/null || ! command -v stat >/dev/null; then
+    abort "realpath and stat are required for handoff validation"
+  fi
+  [[ ! -L /tmp && -d /tmp && $(realpath -e -- /tmp) == /tmp ]] ||
+    abort "/tmp must be a real directory"
+}
+
+validate_handoff() {
+  local root=$1 entry resolved
+  validate_tmp_root
+  [[ $root =~ $HANDOFF_RE ]] || abort "handoff path must be /tmp/spar-<UUID>: $root"
+  [[ -d $root && ! -L $root ]] || abort "handoff directory is missing or is a symlink: $root"
+  [[ $(realpath -e -- "$root") == "$root" ]] || abort "handoff directory escapes /tmp: $root"
+  [[ $(stat -c '%u' -- "$root") == $(id -u) ]] || abort "handoff directory is not owned by the current user: $root"
+  [[ $(stat -c '%a' -- "$root") == 700 ]] || abort "handoff directory must have mode 700: $root"
+
+  shopt -s nullglob dotglob
+  for entry in "$root"/*; do
+    [[ -f $entry && ! -L $entry ]] || abort "handoff entries must be regular files: $entry"
+    [[ $(stat -c '%u' -- "$entry") == $(id -u) ]] || abort "handoff file is not owned by the current user: $entry"
+    [[ $(stat -c '%h' -- "$entry") == 1 ]] || abort "handoff file has hard links: $entry"
+    resolved=$(realpath -e -- "$entry") || abort "cannot resolve handoff file: $entry"
+    [[ $resolved == "$root/"* ]] || abort "handoff file escapes its session directory: $entry"
+  done
+  shopt -u nullglob dotglob
+}
+
+init_handoff() {
+  local sid root
+  validate_tmp_root
+  sid=$(cat /proc/sys/kernel/random/uuid) || abort "cannot generate a handoff id"
+  root="/tmp/spar-$sid"
+  (umask 077; mkdir -m 700 -- "$root") || abort "cannot create handoff directory: $root"
+  validate_handoff "$root"
+  printf '%s\n' "$root"
+}
+
+clean_handoff() {
+  local root=$1
+  validate_tmp_root
+  [[ $root =~ $HANDOFF_RE ]] || abort "handoff path must be /tmp/spar-<UUID>: $root"
+  [[ -e $root || -L $root ]] || return 0
+  validate_handoff "$root"
+  rm -rf -- "$root"
+}
 
 preflight() {
   command -v jq >/dev/null || abort "jq is required and missing"
@@ -77,13 +127,23 @@ stream() { # fifo and pid stay script-scoped so the EXIT trap can clean them
   pid=""
 }
 
-[[ $# -ge 2 ]] || usage
+[[ $# -ge 1 ]] || usage
 mode=$1
 case $mode in
-  new) preflight; stream 2 -s read-only -m "$MODEL" -- "$2" ;;
+  init)
+    [[ $# -eq 1 ]] || usage
+    init_handoff ;;
+  clean)
+    [[ $# -eq 2 ]] || usage
+    clean_handoff "$2" ;;
+  new)
+    [[ $# -eq 3 ]] || usage
+    validate_handoff "$2"
+    preflight; stream 2 -s read-only -m "$MODEL" -- "$3" ;;
   resume)
-    [[ $# -ge 3 ]] || usage
+    [[ $# -eq 4 ]] || usage
     [[ $2 =~ $UUID_RE ]] || abort "resume session id is not a UUID: $2"
-    preflight; stream 1 resume -c sandbox_mode='"read-only"' -- "$2" "$3" ;;
+    validate_handoff "$3"
+    preflight; stream 1 resume -c sandbox_mode='"read-only"' -- "$2" "$4" ;;
   *) usage ;;
 esac

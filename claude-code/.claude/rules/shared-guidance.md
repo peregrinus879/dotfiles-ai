@@ -16,8 +16,10 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 ## Safety
 
 - Root-required read-only checks: no sudo. Provide the exact command with expected output; H runs it via the `!` prefix.
-- Never edit outside the current working directory. Exceptions require explicit instruction and per-hunk pre-approval, one task at a time.
-- Never bulk-edit files via shell (`sed -i`, `perl -pi`, scripts); use the file edit tools, so each change gets its own approval prompt and diff.
+- Never edit outside the current working directory. Exceptions require explicit instruction and per-hunk pre-approval, one task at a time; session-owned temporary files under `/tmp` or `$TMPDIR` are the only automatic exception.
+- Persistent file-content changes use native edit tools, so each file gets its own approval prompt and diff. An `apply_patch` call modifies exactly one file; never bundle multiple files into one patch.
+- Never bulk-edit files via shell (`sed -i`, `perl -pi`, scripts).
+- Temporary writes use one unique session-owned directory under `/tmp` or `$TMPDIR`. Never treat a symlink, a hard link, or a path with a symlinked parent as temporary; the resolved target must remain inside that session directory.
 - Never bypass safety checks (`--no-verify`, `--force`, hook skipping) without explicit instruction.
 - Never read, write, or expose sensitive data (`.env`, `*.env.*`, `secrets/`, credentials, private keys). Use placeholders.
 - Never perform destructive, hard-to-reverse, or externally visible actions without explicit instruction.
@@ -42,4 +44,4 @@ Skip the structure for trivial work.
 - Commits: only when asked, via the `/commit` skill. Before committing, verify `git config user.email` resolves to the GitHub no-reply, never a personal inbox; identity lives in the untracked per-host `~/.config/git/config.local`. If it resolves to a personal address, stop and tell H.
 - Push: H handles manually (SSH passphrase required). Do not push.
 - The repo is the record: durable decisions, deferred items, and watch items go in the project `AGENTS.md` or docs; assistant-local memory is a single-device cache (H works across devices), pointers at most.
-- Agents writing scratch files use one session scratch directory and state its path. Delete it, and any other temporary files outside the repo, before reporting completion; untracked files inside the repo follow the `/commit` skill's confirm-before-delete rule.
+- Agents writing scratch files use one unique session directory and state its path. Delete it, and any other temporary files the session created, before reporting completion. Untracked files inside the repo follow the `/commit` skill's confirm-before-delete rule.

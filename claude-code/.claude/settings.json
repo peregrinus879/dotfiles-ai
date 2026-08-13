@@ -13,10 +13,8 @@
       "Bash(pacman -Ss *)",
       "Bash(spar-codex *)",
       "Bash(tree *)",
-      "Edit(./spar-scratch*/**)",
       "WebFetch",
-      "WebSearch",
-      "Write(./spar-scratch*/**)"
+      "WebSearch"
     ],
     "deny": [
       "Bash(find * -delete*)",
