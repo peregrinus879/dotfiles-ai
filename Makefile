@@ -105,6 +105,10 @@ verify:
 	  ! grep -Fq 'Commits: only when asked' claude-code/.claude/rules/shared-guidance.md; then \
 	  echo "ok:   phased-work commit checkpoints"; \
 	else echo "FAIL: phased-work commit checkpoints drifted"; fail=1; fi; \
+	if grep -Fq 'do not alter, stage, or temporarily revert the unrelated hunks' claude-code/.claude/skills/commit/SKILL.md && \
+	  ! grep -Fq 'temporarily revert the unrelated hunks with the file edit tools' claude-code/.claude/skills/commit/SKILL.md; then \
+	  echo "ok:   commit workflow preserves unrelated hunks"; \
+	else echo "FAIL: commit workflow can mutate unrelated hunks"; fail=1; fi; \
 	if node --experimental-strip-types tests/reviewed-writes.mjs && \
 	  ! grep -Fq 'spar-scratch' opencode/.config/opencode/plugins/reviewed-writes.ts; then \
 	  echo "ok:   opencode one-file patch plugin"; \

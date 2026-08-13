@@ -36,7 +36,7 @@ Before staging, check for untracked files that look like session scratch or iter
 ## Staging
 
 - Stage specific files by name (`git add <file>`). Do not use `git add -A` or `git add .`.
-- When a file mixes changes from different logical commits, split it non-interactively: temporarily revert the unrelated hunks with the file edit tools, commit, then restore them (interactive `git add -p` is unavailable to the agent).
+- If a file mixes the current commit with unrelated changes, do not alter, stage, or temporarily revert the unrelated hunks. Defer the file or stop and ask the user how to split the work.
 - Never stage sensitive files (.env, credentials, private keys).
 
 ## Rules
