@@ -112,7 +112,8 @@ for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin
   run_bridge "$bridge" 'OPENAI_API_KEY="sk-0123456789abcdef0123456789abcdef"'
   [[ $BRIDGE_RC != 0 && $BRIDGE_CALLED == 0 ]] || fail "API-key prompt reached ${bridge##*/}"
 
-  run_bridge "$bridge" "Review the handoff." $'-----BEGIN PRIVATE KEY-----\nnot-a-real-key\n'
+  private_key_canary=$(printf '%s%s\n%s\n' '-----BEGIN PRIVATE ' 'KEY-----' 'not-a-real-key')
+  run_bridge "$bridge" "Review the handoff." "$private_key_canary"
   [[ $BRIDGE_RC != 0 && $BRIDGE_CALLED == 0 ]] || fail "private-key handoff reached ${bridge##*/}"
 
   run_bridge "$bridge" "Review the handoff." $'diff --git a/.env.production b/.env.production\n--- a/.env.production\n+++ b/.env.production\n'
