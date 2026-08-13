@@ -116,10 +116,12 @@ Both tools support `!`-prefixed Bash commands in the interactive terminal UI.
 ### Prerequisites
 
 - [GNU Stow](https://www.gnu.org/software/stow/)
-- jq (the spar reviewer bridge parses JSON events)
+- jq and Python (verification and reviewer-event parsing)
+- ShellCheck (shell linting)
+- GNU coreutils (`readlink`, `realpath`, and `stat`; included in the Arch base system)
 
 ```bash
-sudo pacman -S --needed stow jq
+sudo pacman -S --needed stow jq python shellcheck
 ```
 
 ### Clone
