@@ -1,7 +1,6 @@
 ---
 name: spar
 description: Cross-model plan sparring with adversarial review rounds to evidence-based convergence, then execution and diff review.
-disable-model-invocation: true
 allowed-tools: Bash(spar-codex *)
 ---
 

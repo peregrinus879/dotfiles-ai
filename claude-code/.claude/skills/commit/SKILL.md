@@ -1,7 +1,6 @@
 ---
 name: commit
 description: Commit workflow with doc sync, scratch cleanup, staging, and conventional commit conventions.
-disable-model-invocation: true
 allowed-tools: Bash(git add *) Bash(git commit *)
 ---
 

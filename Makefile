@@ -112,6 +112,10 @@ verify:
 	  ! grep -Fq 'temporarily revert the unrelated hunks with the file edit tools' claude-code/.claude/skills/commit/SKILL.md; then \
 	  echo "ok:   commit workflow preserves unrelated hunks"; \
 	else echo "FAIL: commit workflow can mutate unrelated hunks"; fail=1; fi; \
+	if ! grep -Fq 'disable-model-invocation' claude-code/.claude/skills/commit/SKILL.md && \
+	  ! grep -Fq 'disable-model-invocation' claude-code/.claude/skills/spar/SKILL.md; then \
+	  echo "ok:   Claude managed skills are model-invocable"; \
+	else echo "FAIL: Claude managed skill invocation gate drifted"; fail=1; fi; \
 	if node --experimental-strip-types tests/reviewed-writes.mjs && \
 	  ! grep -Fq 'spar-scratch' opencode/.config/opencode/plugins/reviewed-writes.ts; then \
 	  echo "ok:   opencode one-file patch plugin"; \
