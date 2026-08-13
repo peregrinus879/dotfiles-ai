@@ -33,7 +33,7 @@ restow:
 # Compare resolved paths instead: linked is linked, folded or not.
 verify:
 	@fail=0; \
-	for command in node python3 jq readlink realpath stat; do \
+	for command in node python3 jq readlink realpath sha256sum stat; do \
 	  if command -v "$$command" > /dev/null; then :; \
 	  else echo "FAIL: required verifier missing: $$command"; fail=1; fi; \
 	done; \
@@ -71,6 +71,8 @@ verify:
 	  fi; \
 	done; \
 	if bash -n claude-code/.claude/statusline.sh; then echo "ok:   bash -n statusline.sh"; else echo "FAIL: bash -n statusline.sh"; fail=1; fi; \
+	if bash -n tests/statusline-state.sh && bash tests/statusline-state.sh; then :; \
+	else echo "FAIL: statusline runtime-state controls"; fail=1; fi; \
 	if bash -n scripts/prepare-stow.sh tests/prepare-stow.sh && bash tests/prepare-stow.sh; then \
 	  echo "ok:   non-destructive stow preparation"; \
 	else echo "FAIL: non-destructive stow preparation"; fail=1; fi; \
@@ -143,5 +145,5 @@ clean:
 	bash scripts/prepare-stow.sh
 
 lint:
-	shellcheck -s bash claude-code/.claude/statusline.sh claude-code/.local/bin/spar-claude codex/.local/bin/spar-codex
+	shellcheck -s bash claude-code/.claude/statusline.sh claude-code/.local/bin/spar-claude codex/.local/bin/spar-codex tests/statusline-state.sh
 	@echo "ok:   shellcheck clean"

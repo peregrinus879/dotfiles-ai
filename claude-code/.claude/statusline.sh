@@ -8,9 +8,12 @@
 # - No redundant indicators when the tool already surfaces the information natively.
 # - Consistent label:value pattern (e.g., 5h:35%, 5h:52m, 7d:24h 0m).
 # - Space separators between segments, not special characters.
+# - Runtime state uses hashed keys in one owner-only directory. Existing state
+#   must be a regular, owner-only, single-link file; updates replace atomically.
 # - Intentionally no Bash strict mode, and [ ] guards throughout: parse failures
 #   degrade to blank segments instead of killing the status line.
 
+umask 077
 input=$(cat)
 
 # --- Parse JSON input (single jq call for performance) ---
@@ -72,6 +75,64 @@ fmt_countdown() {
   fi
 }
 
+# Initialize one private runtime-state directory. A malformed or pre-positioned
+# path disables persistence; the status line still renders without cached state.
+state_ready=0
+state_root=""
+state_uid=$(id -u 2>/dev/null)
+state_base="/tmp"
+if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
+  candidate_base="${XDG_RUNTIME_DIR%/}"
+  candidate_meta=$(stat -c '%u:%a' -- "$candidate_base" 2>/dev/null)
+  candidate_real=$(realpath -e -- "$candidate_base" 2>/dev/null)
+  if [ -d "$candidate_base" ] && [ ! -L "$candidate_base" ] && \
+     [ "$candidate_real" = "$candidate_base" ] && [ "$candidate_meta" = "${state_uid}:700" ]; then
+    state_base="$candidate_base"
+  fi
+fi
+if [ -n "$state_uid" ]; then
+  state_root="$state_base/claude-statusline-$state_uid"
+  if [ ! -e "$state_root" ] && [ ! -L "$state_root" ]; then
+    mkdir -m 700 -- "$state_root" 2>/dev/null
+  fi
+  state_meta=$(stat -c '%u:%a' -- "$state_root" 2>/dev/null)
+  state_real=$(realpath -e -- "$state_root" 2>/dev/null)
+  if [ -d "$state_root" ] && [ ! -L "$state_root" ] && \
+     [ "$state_real" = "$state_root" ] && [ "$state_meta" = "${state_uid}:700" ]; then
+    state_ready=1
+  fi
+fi
+
+state_key() {
+  local digest
+  digest=$(printf '%s' "$1" | sha256sum 2>/dev/null)
+  digest=${digest%% *}
+  case "$digest" in
+    *[!0-9a-f]*|"") return 1 ;;
+    *) printf '%s' "$digest" ;;
+  esac
+}
+
+state_file_safe() {
+  local metadata
+  [ "$state_ready" -eq 1 ] && [ -f "$1" ] && [ ! -L "$1" ] || return 1
+  metadata=$(stat -c '%u:%a:%h' -- "$1" 2>/dev/null)
+  [ "$metadata" = "${state_uid}:600:1" ]
+}
+
+write_state() {
+  local target=$1 temp
+  shift
+  [ "$state_ready" -eq 1 ] || return 1
+  if [ -e "$target" ] || [ -L "$target" ]; then
+    state_file_safe "$target" || return 1
+  fi
+  temp=$(mktemp "$state_root/.state.XXXXXX") || return 1
+  chmod 600 -- "$temp" 2>/dev/null || { rm -f -- "$temp"; return 1; }
+  printf '%s\n' "$@" > "$temp" || { rm -f -- "$temp"; return 1; }
+  mv -fT -- "$temp" "$target" 2>/dev/null || { rm -f -- "$temp"; return 1; }
+}
+
 # Append a rate-limit segment to rate_seg
 # Args: label pct reset_epoch date_fmt
 build_rate_seg() {
@@ -109,10 +170,14 @@ if [ "$extra_usage" -eq 0 ] && [ -n "$rate_7d" ] && [ "$rate_7d" != "null" ]; th
 fi
 
 # --- Git cache (docs: cache expensive operations) ---
-git_cache="/tmp/statusline-git-cache-${cwd//\//_}"
+git_cache=""
+if [ "$state_ready" -eq 1 ]; then
+  cwd_key=$(state_key "$cwd") && git_cache="$state_root/git-$cwd_key"
+fi
 git_cache_max_age=5
 
 git_cache_stale() {
+  [ -n "$git_cache" ] && state_file_safe "$git_cache" || return 0
   [ ! -f "$git_cache" ] || \
   [ $(($(date +%s) - $(stat -c %Y "$git_cache" 2>/dev/null || echo 0))) -gt $git_cache_max_age ]
 }
@@ -133,7 +198,7 @@ if [ -n "$cwd" ] && [ -d "$cwd" ]; then
     branch=$(GIT_OPTIONAL_LOCKS=0 git -C "$cwd" symbolic-ref --short HEAD 2>/dev/null \
              || GIT_OPTIONAL_LOCKS=0 git -C "$cwd" rev-parse --short HEAD 2>/dev/null)
     repo_root=$(GIT_OPTIONAL_LOCKS=0 git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)
-    printf '%s\n%s\n' "$branch" "$repo_root" > "$git_cache"
+    [ -n "$git_cache" ] && write_state "$git_cache" "$branch" "$repo_root"
   else
     { read -r branch; read -r repo_root; } < "$git_cache"
   fi
@@ -178,10 +243,13 @@ build_rate_seg "7d" "$rate_7d" "$reset_7d" "%a.%H:%M"
 
 # 7. Session cost (tracks only extra usage spend)
 # State: line 1 = active|frozen, line 2 = baseline, line 3 = prior extra, line 4 = last displayed
-extra_state="/tmp/statusline-extra-${session_id:-unknown}"
+extra_state=""
+if [ "$state_ready" -eq 1 ] && [ -n "$session_id" ]; then
+  session_key=$(state_key "$session_id") && extra_state="$state_root/extra-$session_key"
+fi
 cost_seg=""
 if [ "$extra_usage" -eq 1 ] 2>/dev/null; then
-  if [ -f "$extra_state" ]; then
+  if [ -n "$extra_state" ] && state_file_safe "$extra_state"; then
     { read -r _st; read -r _bl; read -r _pr; read -r _ld; } < "$extra_state"
     if [ "$_st" = "frozen" ]; then
       # Re-entering extra usage: carry over frozen value, set new baseline
@@ -193,15 +261,15 @@ if [ "$extra_usage" -eq 1 ] 2>/dev/null; then
   fi
   if [ -n "$cost_usd" ] && [ "$cost_usd" != "null" ]; then
     extra_cost=$(jq -n --argjson c "$cost_usd" --argjson b "${_bl:-0}" --argjson p "${_pr:-0}" '$p + $c - $b' 2>/dev/null) || extra_cost=0
-    printf '%s\n' "active" "$_bl" "$_pr" "$extra_cost" > "$extra_state"
+    [ -n "$extra_state" ] && write_state "$extra_state" "active" "$_bl" "$_pr" "$extra_cost"
     cost_seg="  ${yellow}$(printf '$%.2f' "$extra_cost")${reset}"
   fi
 else
-  if [ -f "$extra_state" ]; then
+  if [ -n "$extra_state" ] && state_file_safe "$extra_state"; then
     { read -r _st; read -r _bl; read -r _pr; read -r _ld; } < "$extra_state"
     if [ "$_st" = "active" ]; then
       # Transition to frozen: use last displayed value, not recomputed
-      printf '%s\n' "frozen" "0" "0" "${_ld:-0}" > "$extra_state"
+      write_state "$extra_state" "frozen" "0" "0" "${_ld:-0}"
     fi
     cost_seg="  ${dim}$(printf '$%.2f' "${_ld:-0}")${reset}"
   else

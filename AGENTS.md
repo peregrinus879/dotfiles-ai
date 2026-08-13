@@ -34,6 +34,7 @@ This repo stores portable user-level AI assistant configuration for Claude Code,
 - Never weaken the sensitive-path deny rules; keep `~/.ssh` reads and `Bash(gh api *)` out of allowlists in both tools (H runs those via `!`, and only `gh search` is auto-allowed).
 - Sensitive-path Edit denies mirror unambiguous credential material only; `~/.ssh/**` and `./.env.*` stay ask-gated for the explicit-instruction exception, but deterministic `.env.*` read denies make agent editing impractical. Use `example.env` for editable placeholder templates.
 - `statusline.sh` design conventions, including its intentional strict-mode omission, live in the script's header comment.
+- `statusline.sh` persists hashed state names under one owner-validated mode-700 runtime directory and accepts only owner-only, regular, single-link state files; unsafe metadata disables persistence instead of being followed or repaired.
 
 ## Post-Change Verification
 

@@ -222,7 +222,7 @@ After stowing or changing the payloads:
 A repo-root `Makefile` keeps the package list in one place and wraps the routine commands. Run targets from the repo root:
 
 - `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets from Setup
-- `make verify` - symlink resolution (via `readlink -f`, so tree-folding does not false-negative) plus JSON and TOML validity, statusline syntax, reviewer-bridge executable, handoff-validation, and tool-whitelist checks, three-way skill sync, reviewed-writes profiles and agent maps, executable one-file plugin parser tests, OpenCode permission-rule order, and stray `opencode.jsonc` checks
+- `make verify` - symlink resolution (via `readlink -f`, so tree-folding does not false-negative) plus JSON and TOML validity, statusline syntax and state-file attack fixtures, reviewer-bridge executable, handoff-validation, and tool-whitelist checks, three-way skill sync, reviewed-writes profiles and agent maps, executable one-file plugin parser tests, OpenCode permission-rule order, and stray `opencode.jsonc` checks
 - `make clean` - non-destructive preparation that removes only recognized managed symlinks and creates real state directories
 - `make lint` - ShellCheck over `statusline.sh` and the two spar bridges; `.shellcheckrc` disables the one style-level finding so new issues stand out
 
