@@ -74,6 +74,8 @@ verify:
 	else echo "FAIL: non-destructive stow preparation"; fail=1; fi; \
 	if bash -n tests/spar-bridges.sh && bash tests/spar-bridges.sh; then :; \
 	else echo "FAIL: spar bridge payload controls"; fail=1; fi; \
+	if bash -n tests/project-config-isolation.sh && bash tests/project-config-isolation.sh; then :; \
+	else echo "FAIL: project config isolation"; fail=1; fi; \
 	for b in spar-claude spar-codex spar-payload-scan; do \
 	  if [[ -x "$$HOME/.local/bin/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
 	done; \

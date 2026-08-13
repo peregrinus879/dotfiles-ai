@@ -94,6 +94,8 @@ Two payload-side exceptions exist. Inside `codex/`, Codex writes runtime state i
 
 Repo-root instruction files exist only to maintain `dotfiles-ai` itself; they are not part of the stowed payload.
 
+Normal interactive use assumes H has chosen to trust the repository: project settings and plugins can extend global behavior in both Claude Code and OpenCode. For an untrusted checkout, start Claude Code with `claude --safe-mode --setting-sources user` or OpenCode with `OPENCODE_DISABLE_PROJECT_CONFIG=1 opencode`; these preserve the global controls while suppressing project configuration and plugins.
+
 Shared guidance lives in `claude-code/.claude/rules/shared-guidance.md`. Claude Code loads it natively from `rules/`; Codex loads the same file as its global instructions through the `~/.codex/AGENTS.md` symlink chain (Codex has no import mechanism); OpenCode loads it through the `instructions` field in `opencode.json` using `$HOME`-based path expansion. Guidance is shared when the content and meaning are the same in every managed tool (share policy); tool-specific config, wrappers, and schemas stay separate (separate mechanism).
 
 At the repo root, `AGENTS.md` is the canonical project instruction file and `CLAUDE.md` is a thin compatibility wrapper for Claude Code.
