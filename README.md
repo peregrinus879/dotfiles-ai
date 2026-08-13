@@ -41,7 +41,6 @@ dotfiles-ai/
 ├── README.md                             # human-facing documentation
 ├── .claude/
 │   └── settings.json                     # Claude Code project allowlist for read-only make targets
-├── .gitignore                            # documented machine-local exclusions
 ├── .shellcheckrc                         # ShellCheck disable list for statusline.sh
 ├── opencode.json                         # OpenCode project allowlist for the same targets
 ├── claude-code/                          # stow package -> ~/.claude/, ~/.local/bin/
@@ -89,7 +88,7 @@ dotfiles-ai/
 
 Tracked runtime config is limited to shared behavior. `claude-code/.claude/settings.json`, `codex/.codex/config.toml`, and `opencode/.config/opencode/opencode.json` are the source of truth for each tool's model, effort, permissions, and feature toggles; read them directly rather than a prose mirror here. All three carry the same reviewed-writes intent: persistent file changes reach human review one file at a time, while session handoffs use private OS temp. Claude Code keeps explicit Edit and Write asks; Codex uses a read-only permission profile with only OS temp writable, human approval review, and network disabled; OpenCode asks globally, denies plan-agent edits, and uses `reviewed-writes.ts` to reject grouped or malformed patches before permission. Codex handoff writes run automatically under its profile, while Claude Code and OpenCode keep handoff file writes ask-gated. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
 
-Machine-local paths (`projects/`, `agent-memory/`), auth/session state, and generated or host-specific config files remain intentionally excluded. The repo root `.gitignore` tracks the documented machine-local paths so accidental local state stays out of Git.
+Auth, session state, and generated or host-specific config remain intentionally excluded. Nested payload ignore files protect fresh clones if a state directory is accidentally folded into the repository.
 
 Two payload-side exceptions exist. Inside `codex/`, Codex writes runtime state into `config.toml` itself (project trust entries, notice keys, MCP additions); those rewrites flow through the stow symlink into the repo working tree and are committed as-is, while a tracked nested `.gitignore` keeps every other runtime file Codex drops next to the stowed links out of Git (tracked deliberately, unlike OpenCode's generated one, so fresh clones reproduce the defense). Inside `opencode/`, OpenCode generates its plugin dependencies next to its config; the package directory holds the canonical copy, kept out of Git by a nested untracked `.gitignore`, and stow links them into `~/.config/opencode` with the rest of the payload. If stow reports conflicts on these files, remove the real copies under `$HOME` and re-stow; never delete the repo-side copies.
 
@@ -145,23 +144,13 @@ Checklist before stowing:
 - `dotfiles-ai` was cloned locally
 - Any existing conflicting config files were removed
 
-Remove existing files that would conflict with stow. The first block removes tree-folded directory symlinks left by a previous stow (harmless on a fresh machine). The second block removes the one file Claude Code auto-creates that would conflict on a fresh install:
+Prepare the state directories and remove only symlinks that resolve to this package layout:
 
 ```bash
-# Tree-folded directory symlinks (from a previous stow)
-rm -f ~/.claude/agents ~/.claude/rules ~/.claude/skills
-rm -f ~/.codex/AGENTS.md
-rm -f ~/.agents/skills/commit ~/.agents/skills/spar
-rm -f ~/.config/opencode ~/.config/opencode/agents ~/.config/opencode/commands \
-  ~/.config/opencode/modes ~/.config/opencode/plugins ~/.config/opencode/skills \
-  ~/.config/opencode/themes ~/.config/opencode/tools
-
-# Individual config files
-rm -f ~/.claude/settings.json
-
-# Codex: keep the state directories real so stow never tree-folds them
-mkdir -p ~/.codex ~/.agents/skills
+make clean
 ```
+
+The cleanup preflights every endpoint before changing anything. It refuses regular files, directories at managed leaf endpoints, and symlinks outside the recognized package layout; merge or adopt those conflicts manually. It keeps `~/.claude`, `~/.codex`, `~/.agents/skills`, and `~/.local/bin` as real directories so runtime state cannot land in the repository. OpenCode's config payload may still use Stow's normal per-entry folding convention.
 
 Codex stores per-host project trust inside `config.toml`. If `~/.codex/config.toml` already exists, merge its `[projects]` entries into `codex/.codex/config.toml` before stowing, then remove the real file; do not simply delete it.
 
@@ -226,7 +215,7 @@ A repo-root `Makefile` keeps the package list in one place and wraps the routine
 
 - `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets from Setup
 - `make verify` - symlink resolution (via `readlink -f`, so tree-folding does not false-negative) plus JSON and TOML validity, statusline syntax, reviewer-bridge executable, handoff-validation, and tool-whitelist checks, three-way skill sync, reviewed-writes profiles and agent maps, one-file plugin markers, OpenCode permission-rule order, and stray `opencode.jsonc` checks
-- `make clean` - the Prepare cleanup steps
+- `make clean` - non-destructive preparation that removes only recognized managed symlinks and creates real state directories
 - `make lint` - ShellCheck over `statusline.sh` and the two spar bridges; `.shellcheckrc` disables the one style-level finding so new issues stand out
 
 Periodically, review the current Claude Code docs (settings, memory, skills, hooks), Codex docs (config, AGENTS.md, skills, permission profiles, sandbox, approvals), and OpenCode docs (config, rules, permissions, agents, plugins, skills, TUI, sharing) against the tracked config, then run the Verify steps. Restart OpenCode after any config, agent, skill, or plugin change because those files load at process startup. In Claude Code, `/doctor` automates part of this checkup; it reports findings before fixing anything, so screen its offers (such as switching to auto mode) against the pinned defaults before accepting.

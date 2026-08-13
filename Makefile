@@ -13,7 +13,7 @@ help:
 	@echo "  dry-run   Preview stow actions without making changes"
 	@echo "  restow    Re-stow after repo content changes"
 	@echo "  verify    Check symlinks, JSON validity, statusline syntax, skill sync, and stray configs"
-	@echo "  clean     Remove files that would conflict with stow (README Prepare steps)"
+	@echo "  clean     Safely prepare managed paths for stow"
 	@echo "  lint      ShellCheck over statusline.sh (.shellcheckrc holds the disable list)"
 
 stow:
@@ -61,6 +61,9 @@ verify:
 	  fi; \
 	done; \
 	if bash -n claude-code/.claude/statusline.sh; then echo "ok:   bash -n statusline.sh"; else echo "FAIL: bash -n statusline.sh"; fail=1; fi; \
+	if bash -n scripts/prepare-stow.sh tests/prepare-stow.sh && bash tests/prepare-stow.sh; then \
+	  echo "ok:   non-destructive stow preparation"; \
+	else echo "FAIL: non-destructive stow preparation"; fail=1; fi; \
 	for b in spar-claude spar-codex; do \
 	  if [[ -x "$$HOME/.local/bin/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
 	done; \
@@ -163,13 +166,7 @@ verify:
 	exit $$fail
 
 clean:
-	-rm -f ~/.claude/agents ~/.claude/rules ~/.claude/skills
-	-rm -f ~/.codex/AGENTS.md
-	-rm -f ~/.agents/skills/commit ~/.agents/skills/spar
-	-rm -f ~/.config/opencode ~/.config/opencode/agents ~/.config/opencode/commands \
-	  ~/.config/opencode/modes ~/.config/opencode/plugins ~/.config/opencode/skills \
-	  ~/.config/opencode/themes ~/.config/opencode/tools
-	-rm -f ~/.claude/settings.json
+	bash scripts/prepare-stow.sh
 
 lint:
 	shellcheck -s bash claude-code/.claude/statusline.sh claude-code/.local/bin/spar-claude codex/.local/bin/spar-codex

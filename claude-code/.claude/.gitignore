@@ -1,0 +1,15 @@
+# If ~/.claude is ever folded into this package, ignore runtime additions.
+*
+!.gitignore
+!CLAUDE.md
+!settings.json
+!statusline.sh
+!agents/
+!agents/**
+!rules/
+!rules/**
+!skills/
+!skills/commit/
+!skills/commit/**
+!skills/spar/
+!skills/spar/**
