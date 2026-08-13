@@ -8,6 +8,10 @@ default_permissions = "reviewed-writes"
 [features]
 fast_mode = true
 
+[agents]
+default_subagent_model = "gpt-5.6-sol"
+default_subagent_reasoning_effort = "xhigh"
+
 [permissions.reviewed-writes]
 description = "Read-only workspace with writable system temporary roots."
 extends = ":read-only"
@@ -42,4 +46,7 @@ glob_scan_max_depth = 64
 enabled = false
 
 [projects."/home/peregrinus/Projects/repos/dotfiles/dotfiles-ai"]
+trust_level = "trusted"
+
+[projects."/home/peregrinus/Projects"]
 trust_level = "trusted"

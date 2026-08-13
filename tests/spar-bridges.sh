@@ -176,7 +176,8 @@ SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/codex/.local/bin/spar-codex"
   resume 11111111-1111-4111-8111-111111111111 "$handoff" "Review flags." >/dev/null 2>/dev/null
 resume_flags=$(<"$calls")
 for flag in --ignore-user-config --ignore-rules --strict-config 'default_permissions="spar-reviewer"' \
-  'forced_login_method="chatgpt"' 'model_provider="openai"' 'web_search="disabled"' \
+  'forced_login_method="chatgpt"' 'model_provider="openai"' 'model="gpt-5.6-sol"' \
+  'model_reasoning_effort="xhigh"' 'web_search="disabled"' \
   'service_tier="fast"' 'features.fast_mode=true'; do
   [[ $new_flags == *"$flag"* && $resume_flags == *"$flag"* ]] || fail "Codex new/resume isolation parity missing: $flag"
 done

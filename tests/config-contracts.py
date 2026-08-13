@@ -64,6 +64,11 @@ require(codex["model"] == "gpt-5.6-sol", "Codex model pin drifted")
 require(codex["model_reasoning_effort"] == "xhigh", "Codex effort drifted")
 require(codex["service_tier"] == "fast", "Codex Fast service tier drifted")
 require(codex["features"]["fast_mode"] is True, "Codex Fast feature drifted")
+require(codex["agents"]["default_subagent_model"] == "gpt-5.6-sol", "Codex subagent model drifted")
+require(
+    codex["agents"]["default_subagent_reasoning_effort"] == "xhigh",
+    "Codex subagent effort drifted",
+)
 require(codex["approval_policy"] == "on-request", "Codex approval policy drifted")
 require(codex["approvals_reviewer"] == "user", "Codex human reviewer drifted")
 require(codex["default_permissions"] == "reviewed-writes", "Codex profile selection drifted")

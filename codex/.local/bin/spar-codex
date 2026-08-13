@@ -21,6 +21,8 @@ CODEX_COMMON=(
   --strict-config
   -c 'forced_login_method="chatgpt"'
   -c 'model_provider="openai"'
+  -c "model=\"$MODEL\""
+  -c 'model_reasoning_effort="xhigh"'
   -c 'approval_policy="never"'
   -c 'approvals_reviewer="user"'
   -c 'default_permissions="spar-reviewer"'
@@ -152,8 +154,7 @@ stream() {
   fifo="$workdir/fifo"
   pid=""
   trap cleanup_stream EXIT INT TERM
-  setsid timeout --kill-after=2 "$CEILING" codex exec "${pre[@]}" --json \
-    -c model_reasoning_effort=xhigh -c 'mcp_servers={}' -- "${post[@]}" \
+  setsid timeout --kill-after=2 "$CEILING" codex exec "${pre[@]}" --json -- "${post[@]}" \
     </dev/null >"$fifo" 2>/dev/null &
   pid=$!
   # shellcheck disable=SC2094 # the fifo's writer is the background codex process
@@ -222,7 +223,7 @@ case $mode in
     validate_handoff "$2"
     PROMPT=$3
     scan_payload "$2"
-    preflight; stream 2 "${CODEX_COMMON[@]}" -m "$MODEL" -- "$PROMPT" ;;
+    preflight; stream 2 "${CODEX_COMMON[@]}" -- "$PROMPT" ;;
   resume)
     [[ $# -eq 4 ]] || usage
     [[ $2 =~ $UUID_RE ]] || abort "resume session id is not a UUID: $2"
