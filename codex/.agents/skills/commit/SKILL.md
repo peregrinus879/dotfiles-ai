@@ -12,7 +12,7 @@ description: Commit workflow with doc sync, scratch cleanup, staging, and conven
 
 [optional body]
 
-Co-Authored-By: {provider} {current model} <noreply@provider.com>
+Co-Authored-By: OpenAI {current model} <noreply@openai.com>
 ```
 
 Use conventional commit types (`feat`, `fix`, `docs`, `refactor`, `style`, `test`, `chore`).
