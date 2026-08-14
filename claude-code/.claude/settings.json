@@ -10,14 +10,7 @@
       "Bash(pacman -Si *)",
       "Bash(pacman -Ss *)",
       "Bash(spar-codex *)",
-      "Bash(tree *)",
-      "WebFetch(domain:github.com)",
-      "WebFetch(domain:code.claude.com)",
-      "WebFetch(domain:learn.chatgpt.com)",
-      "WebFetch(domain:opencode.ai)",
-      "WebFetch(domain:www.gnu.org)",
-      "WebFetch(domain:arxiv.org)",
-      "WebSearch"
+      "Bash(tree *)"
     ],
     "deny": [
       "Bash(find * -delete*)",
@@ -98,7 +91,7 @@
   },
   "model": "claude-fable-5",
   "disableWorkflows": false,
-  "workflowSizeGuideline": "unrestricted",
+  "workflowSizeGuideline": "large",
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh",

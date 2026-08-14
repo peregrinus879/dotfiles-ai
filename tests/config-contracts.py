@@ -28,7 +28,9 @@ with (ROOT / "codex/.codex/config.toml").open("rb") as handle:
     codex = tomllib.load(handle)
 
 require(claude["model"] == "claude-fable-5", "Claude model pin drifted")
+require(claude["effortLevel"] == "xhigh", "Claude effort drifted")
 require(claude["permissions"]["defaultMode"] == "auto", "Claude default mode drifted")
+require(claude["workflowSizeGuideline"] == "large", "Claude workflow guidance drifted")
 require(
     {"Edit", "Write"}.issubset(claude["permissions"]["ask"]),
     "Claude persistent edit asks drifted",
@@ -44,13 +46,6 @@ require(
         "Bash(pacman -Ss *)",
         "Bash(spar-codex *)",
         "Bash(tree *)",
-        "WebFetch(domain:github.com)",
-        "WebFetch(domain:code.claude.com)",
-        "WebFetch(domain:learn.chatgpt.com)",
-        "WebFetch(domain:opencode.ai)",
-        "WebFetch(domain:www.gnu.org)",
-        "WebFetch(domain:arxiv.org)",
-        "WebSearch",
     ],
     "Claude automatic allowlist drifted",
 )
@@ -63,6 +58,7 @@ workspace = filesystem[":workspace_roots"]
 require(codex["model"] == "gpt-5.6-sol", "Codex model pin drifted")
 require(codex["model_reasoning_effort"] == "xhigh", "Codex effort drifted")
 require(codex["service_tier"] == "fast", "Codex Fast service tier drifted")
+require(codex["web_search"] == "live", "Codex primary web search drifted")
 require(codex["features"]["fast_mode"] is True, "Codex Fast feature drifted")
 require(codex["agents"]["default_subagent_model"] == "gpt-5.6-sol", "Codex subagent model drifted")
 require(
@@ -133,10 +129,13 @@ require(
 for unsafe in ("gh api", "gh api *", "codex *", "claude -p *"):
     require(unsafe not in bash, f"Unsafe OpenCode Bash allow found: {unsafe}")
 require(bash["git push"] == "deny" and bash["git push *"] == "deny", "OpenCode push deny drifted")
-require(opencode["permission"]["webfetch"] == "ask", "OpenCode WebFetch must remain review-gated")
+require(opencode["permission"]["webfetch"] == "allow", "OpenCode WebFetch auto-read drifted")
+require(opencode["permission"]["websearch"] == "allow", "OpenCode WebSearch drifted")
 require(opencode["model"] == "openai/gpt-5.6-sol-fast", "OpenCode Fast model drifted")
+require(opencode["share"] == "disabled", "OpenCode sharing drifted")
 require(opencode["autoupdate"] is False, "OpenCode must not compete with wrapper-managed updates")
 require(set(opencode["provider"]) == {"openai"}, "Unused OpenCode provider configured")
+require(opencode["enabled_providers"] == ["openai"], "OpenCode enabled-provider gate drifted")
 require(
     opencode_package["dependencies"]["@opencode-ai/plugin"] == "1.18.18",
     "OpenCode plugin dependency drifted",
