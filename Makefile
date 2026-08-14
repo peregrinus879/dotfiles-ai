@@ -130,6 +130,14 @@ verify:
 	  ! grep -Fq 'spar-scratch' opencode/.config/opencode/skills/spar/SKILL.md; then \
 	  echo "ok:   spar skills use private OS temp handoffs"; \
 	else echo "FAIL: spar scratch protocol drifted"; fail=1; fi; \
+	if grep -Fq 'beginning with a target brief' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq '`Evidence Pack` section' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'literal captured output' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'You review offline' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'exact decision requested' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'Raw reviewer transcripts are never required' claude-code/.claude/skills/spar/SKILL.md; then \
+	  echo "ok:   spar target, evidence, and ruling packets"; \
+	else echo "FAIL: spar review context protocol drifted"; fail=1; fi; \
 	if [[ -e "$$HOME/.config/opencode/opencode.jsonc" ]]; then \
 	  echo "FAIL: stray ~/.config/opencode/opencode.jsonc shadows the stowed config"; fail=1; \
 	else echo "ok:   no stray opencode.jsonc"; fi; \
