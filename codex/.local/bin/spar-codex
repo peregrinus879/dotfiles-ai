@@ -1,6 +1,6 @@
 #!/bin/bash
 # spar-codex - pinned read-only codex reviewer bridge for the spar skill.
-# Flags are hard-coded so no caller can weaken them (AGENTS.md, Known Limitations).
+# Flags are hard-coded so no caller can weaken them (AGENTS.md and docs/maintenance.md).
 # Modes: init (private handoff directory to stdout)
 #        clean <handoff-dir>
 #        new <handoff-dir> "<prompt>" (thread id to stdout, reply to stderr)

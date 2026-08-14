@@ -39,6 +39,8 @@ dotfiles-ai/
 ├── LICENSE                               # MIT license
 ├── Makefile                              # stow, verification, and cleanup automation
 ├── README.md                             # human-facing documentation
+├── docs/
+│   └── maintenance.md                    # on-demand limitations, probes, and deferred work
 ├── scripts/
 │   └── prepare-stow.sh                   # non-destructive Stow preparation
 ├── tests/                                # security and configuration fixtures
@@ -108,13 +110,13 @@ Auth, session state, and generated or host-specific config remain intentionally 
 
 Three payload-side exceptions exist. Claude Code writes app-managed keys and key ordering into its tracked `settings.json`; commit those rewrites as-is. Codex writes project trust, notice keys, and MCP additions into its tracked `config.toml`; preserve and commit those rewrites, while its nested `.gitignore` excludes other runtime files. OpenCode tracks the release-matched npm manifest and lockfile next to its config, while a repository-only `.gitignore` excludes generated `node_modules/`. If Stow reports a real-file conflict, compare and merge any needed local content before removing it; confirmed generated `node_modules/` can be removed and regenerated from the tracked manifests.
 
-Repo-root instruction files exist only to maintain `dotfiles-ai` itself; they are not part of the stowed payload.
+Repo-root instruction files exist only to maintain `dotfiles-ai` itself; they are not part of the stowed payload. `AGENTS.md` keeps the always-loaded operational invariants concise, while `docs/maintenance.md` preserves versioned probes, limitations, deferred work, and watch items for on-demand use.
 
 Normal interactive use assumes H has chosen to trust the repository: project settings and plugins can extend global behavior in both Claude Code and OpenCode. For an untrusted checkout, `claude --safe-mode --setting-sources user` disables Claude Code customizations while retaining user settings such as permissions. `OPENCODE_DISABLE_PROJECT_CONFIG=1 opencode` suppresses OpenCode project config and plugins while retaining the global config and `reviewed-writes.ts`.
 
 Shared guidance lives in `claude-code/.claude/rules/shared-guidance.md`. Claude Code loads it natively from `rules/`; Codex loads the same file as its global instructions through the `~/.codex/AGENTS.md` symlink chain (Codex has no import mechanism); OpenCode loads it through the `instructions` field in `opencode.json` using `$HOME`-based path expansion. Guidance is shared when the content and meaning are the same in every managed tool (share policy); tool-specific config, wrappers, and schemas stay separate (separate mechanism).
 
-At the repo root, `AGENTS.md` is the canonical project instruction file and `CLAUDE.md` is a thin compatibility wrapper for Claude Code.
+At the repo root, `AGENTS.md` is the canonical project instruction file and `CLAUDE.md` is a thin compatibility wrapper for Claude Code. Read `docs/maintenance.md` before upgrades, permission or reviewer-bridge changes, cross-host validation, `/doctor`, or deferred work.
 
 OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps `/commit` and `/spar` wrappers and folds documentation sync and scratch file cleanup into the commit workflow instead of maintaining a separate `/update` command. Commit boundaries never alter, stage, or temporarily revert unrelated hunks; a mixed file is deferred or escalated to H. The spar skill copies share protocol wording but each carries only its own tool's reviewer incantations. Claude Code spars with Codex through `spar-codex`; Codex and OpenCode spar with Claude through `spar-claude`. Before authentication or network access, each bridge scans the prompt and complete handoff, rejects alternate authentication and ambient reviewer customization, and validates one private mode-700 `/tmp/spar-<session-id>/` directory. New and resumed `spar-codex` calls use the same strict inline read-only permission profile; `spar-claude` exposes only `Read`, `Glob`, and `Grep`. A call succeeds only after one valid terminal event with a nonempty reply, and a new Codex call also requires a valid thread ID. Each bridge owns the reviewer process group so stall and ceiling exits terminate TERM-ignoring descendants before returning.
 
