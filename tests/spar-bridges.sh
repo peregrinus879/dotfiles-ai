@@ -8,6 +8,8 @@ mkdir -p "$TMP/bin"
 
 cat >"$TMP/bin/claude" <<'SHIM'
 #!/usr/bin/env bash
+[[ ${CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:-} == 1 ]] || exit 91
+[[ ${DISABLE_AUTOUPDATER:-} == 1 ]] || exit 92
 if [[ ${1:-} == auth && ${2:-} == status ]]; then
   printf '%s\n' '{"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty"}'
   exit
@@ -183,6 +185,19 @@ for flag in --ignore-user-config --ignore-rules --strict-config 'default_permiss
 done
 [[ $new_flags != *' -s read-only '* && $resume_flags != *'sandbox_mode'* ]] ||
   fail "legacy Codex sandbox override remains"
+rm -rf -- "$handoff"
+
+handoff=$(make_handoff)
+calls="$TMP/claude-flags"
+SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
+  new "$handoff" "Review flags." >/dev/null 2>/dev/null
+new_flags=$(<"$calls")
+rm -f "$calls"
+SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
+  resume 11111111-1111-4111-8111-111111111111 "$handoff" "Review flags." >/dev/null 2>/dev/null
+resume_flags=$(<"$calls")
+[[ $new_flags == *'--effort xhigh'* && $resume_flags == *'--effort xhigh'* ]] ||
+  fail "Claude new/resume xhigh effort pin missing"
 rm -rf -- "$handoff"
 
 handoff=$(make_handoff)

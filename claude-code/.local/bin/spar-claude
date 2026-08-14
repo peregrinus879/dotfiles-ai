@@ -10,6 +10,8 @@
 set -euo pipefail
 
 MODEL="claude-fable-5"
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+export DISABLE_AUTOUPDATER=1
 CEILING="${SPAR_BRIDGE_CEILING:-1800}" # absolute seconds per call
 STALL="${SPAR_BRIDGE_STALL:-180}"      # kill after this many seconds without a stream event
 UUID_RE='^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
@@ -128,7 +130,7 @@ stream() { # $1 reply_fd; rest = claude session flags
   setsid timeout --kill-after=2 "$CEILING" claude -p "$@" \
     --permission-mode plan --disallowedTools "Write Edit NotebookEdit Bash" \
     --tools "Read,Glob,Grep" \
-    --model "$MODEL" --safe-mode --output-format stream-json \
+    --model "$MODEL" --effort xhigh --safe-mode --output-format stream-json \
     --include-partial-messages --verbose >"$workdir/fifo" 2>/dev/null <<<"$PROMPT" &
   pid=$!
   # shellcheck disable=SC2094 # the fifo's writer is the background claude process

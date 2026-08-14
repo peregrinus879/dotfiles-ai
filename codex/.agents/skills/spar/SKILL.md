@@ -17,7 +17,7 @@ The reviewer is Claude Code (model pinned inside the bridge; update it there whe
 - First round: `sid=$(spar-claude new "$handoff" "<prompt>")`; the reply text arrives on stderr, the session id on stdout; state the literal session id in the user presentation.
 - Later rounds: `spar-claude resume "$sid" "$handoff" "<pointer prompt>"`; the reply is stdout. The cold read takes a fresh id from `new`.
 - Bridge exit codes: 2 preflight, 3 usage limit, 4 stall, 5 reviewer error, 124 ceiling; all follow the bridge-failure and limit rules.
-- The tracked reviewed-writes profile launches the bridge without an approval stop, but its network-disabled sandbox currently prevents the Claude subprocess from reaching its API; use the bridge only after that command-specific escalation path is resolved.
+- The tracked reviewed-writes profile cannot automate this bridge safely: its credential and network denies prevent Claude subscription auth, while current additional-permission precedence and Linux parent-deny behavior cannot reopen only the OAuth credential plus resumable session state. Run `spar-claude` manually outside Codex and relay the review, or revisit after Codex permission semantics improve; do not weaken the profile.
 - Interactive handoff for the user: `claude -r "$sid"`.
 
 ## Protocol
