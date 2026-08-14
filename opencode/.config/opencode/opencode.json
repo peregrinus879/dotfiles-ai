@@ -4,6 +4,9 @@
   "autoupdate": false,
   "model": "openai/gpt-5.6-sol-fast",
   "enabled_providers": ["openai"],
+  "skills": {
+    "paths": ["~/.claude/skills/omarchy"]
+  },
   "permission": {
     "bash": {
       "*": "ask",

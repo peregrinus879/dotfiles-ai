@@ -137,6 +137,18 @@ require(opencode["autoupdate"] is False, "OpenCode must not compete with wrapper
 require(set(opencode["provider"]) == {"openai"}, "Unused OpenCode provider configured")
 require(opencode["enabled_providers"] == ["openai"], "OpenCode enabled-provider gate drifted")
 require(
+    opencode["skills"]["paths"] == ["~/.claude/skills/omarchy"],
+    "OpenCode explicit skill paths drifted",
+)
+require(
+    all(
+        name not in path
+        for path in opencode["skills"]["paths"]
+        for name in ("commit", "spar")
+    ),
+    "OpenCode re-imports colliding external workflow skills",
+)
+require(
     opencode_package["dependencies"]["@opencode-ai/plugin"] == "1.18.18",
     "OpenCode plugin dependency drifted",
 )
