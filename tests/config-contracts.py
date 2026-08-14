@@ -136,6 +136,7 @@ require(opencode["share"] == "disabled", "OpenCode sharing drifted")
 require(opencode["autoupdate"] is False, "OpenCode must not compete with wrapper-managed updates")
 require(set(opencode["provider"]) == {"openai"}, "Unused OpenCode provider configured")
 require(opencode["enabled_providers"] == ["openai"], "OpenCode enabled-provider gate drifted")
+require(opencode_package["private"] is True, "OpenCode plugin package must remain private")
 require(
     opencode["skills"]["paths"] == ["~/.claude/skills/omarchy"],
     "OpenCode explicit skill paths drifted",
