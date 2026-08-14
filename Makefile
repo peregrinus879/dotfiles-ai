@@ -3,6 +3,10 @@
 
 SHELL := /bin/bash
 PACKAGES := claude-code codex opencode
+SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
+  claude-code/.local/bin/spar-claude \
+  codex/.local/bin/spar-codex \
+  $(wildcard scripts/*.sh tests/*.sh)
 
 .PHONY: help stow unstow dry-run restow verify clean lint
 
@@ -14,7 +18,7 @@ help:
 	@echo "  restow    Re-stow after repo content changes"
 	@echo "  verify    Check symlinks, JSON validity, statusline syntax, skill sync, and stray configs"
 	@echo "  clean     Safely prepare managed paths for stow"
-	@echo "  lint      ShellCheck over statusline.sh (.shellcheckrc holds the disable list)"
+	@echo "  lint      ShellCheck over all managed Bash scripts"
 
 stow:
 	stow -v -t ~ $(PACKAGES)
@@ -158,5 +162,5 @@ clean:
 	bash scripts/prepare-stow.sh
 
 lint:
-	shellcheck -s bash claude-code/.claude/statusline.sh claude-code/.local/bin/spar-claude codex/.local/bin/spar-codex tests/statusline-state.sh
+	shellcheck -s bash $(SHELLCHECK_FILES)
 	@echo "ok:   shellcheck clean"

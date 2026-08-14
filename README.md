@@ -52,7 +52,7 @@ dotfiles-ai/
 │   └── statusline-state.sh
 ├── .claude/
 │   └── settings.json                     # inert Claude Code project config
-├── .shellcheckrc                         # ShellCheck disable list for statusline.sh
+├── .shellcheckrc                         # ShellCheck disable list for managed Bash scripts
 ├── opencode.json                         # inert OpenCode project config
 ├── claude-code/                          # stow package -> ~/.claude/, ~/.local/bin/
 │   ├── .claude/
@@ -249,7 +249,7 @@ A repo-root `Makefile` keeps the package list in one place and wraps the routine
 - `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets from Setup
 - `make verify` - fail-closed dependency checks; symlink resolution; JSON, TOML, model, Fast, provider, updater, and npm-lock contracts; non-destructive Stow fixtures; statusline state-file attack fixtures; bridge payload, authentication, isolation, new/resume, terminal-event, timeout, and descendant-cleanup tests; project-config isolation; three-way skill sync; commit-boundary contracts; executable one-file plugin parser tests; OpenCode permission ordering; and stray-config checks
 - `make clean` - non-destructive preparation that removes only recognized managed symlinks and creates real state directories
-- `make lint` - ShellCheck over `statusline.sh`, its security fixture, and the two spar bridges; `.shellcheckrc` disables the one style-level finding so new issues stand out
+- `make lint` - ShellCheck over `statusline.sh`, both spar bridges, and every script and shell test; `.shellcheckrc` disables the one style-level finding so new issues stand out
 
 Periodically, review the current Claude Code docs (settings, memory, skills, hooks), Codex docs (config, AGENTS.md, skills, permission profiles, sandbox, approvals), and OpenCode docs (config, rules, permissions, agents, plugins, skills, TUI, sharing) against the tracked config, then run the Verify steps. Restart OpenCode after any config, agent, skill, or plugin change because those files load at process startup. In Claude Code, `/doctor` automates part of this checkup; it reports findings before fixing anything, so screen its offers (such as switching to auto mode) against the pinned defaults before accepting.
 
