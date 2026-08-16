@@ -4,6 +4,14 @@ set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT
+OPENCODE_TEST_ENV=(
+  env
+  -u OPENCODE_DISABLE_CLAUDE_CODE
+  -u OPENCODE_DISABLE_CLAUDE_CODE_SKILLS
+  -u OPENCODE_DISABLE_EXTERNAL_SKILLS
+  -u OPENCODE_DISABLE_PROJECT_CONFIG
+  -u OPENCODE_PURE
+)
 mkdir -p "$TMP/home/.config/opencode/plugins" \
   "$TMP/home/.config/opencode/skills/commit" "$TMP/home/.config/opencode/skills/spar" \
   "$TMP/home/.claude/skills/omarchy" "$TMP/home/.claude/skills/external-claude-probe" \
@@ -56,7 +64,8 @@ export const ProjectProbe = async () => {
 }
 PLUGIN
 
-enabled=$(cd "$TMP/project" && HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
+enabled=$(cd "$TMP/project" && "${OPENCODE_TEST_ENV[@]}" \
+  HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
   OPENCODE_CONFIG_DIR="$TMP/home/.config/opencode" \
   opencode debug config 2>&1 || true)
 [[ $enabled == *'PROJECT_PLUGIN_LOADED'* || $enabled == *'"project-probe": "allow"'* ]] || {
@@ -64,7 +73,8 @@ enabled=$(cd "$TMP/project" && HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.conf
   exit 1
 }
 
-skills_enabled=$(cd "$TMP/project" && HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
+skills_enabled=$(cd "$TMP/project" && "${OPENCODE_TEST_ENV[@]}" \
+  HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
   OPENCODE_CONFIG_DIR="$TMP/home/.config/opencode" opencode debug skill 2>&1)
 [[ $skills_enabled == *"$TMP/home/.claude/skills/external-claude-probe/SKILL.md"* && \
   $skills_enabled == *"$TMP/home/.agents/skills/external-agent-probe/SKILL.md"* ]] || {
@@ -72,7 +82,8 @@ skills_enabled=$(cd "$TMP/project" && HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/hom
   exit 1
 }
 
-disabled=$(cd "$TMP/project" && HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
+disabled=$(cd "$TMP/project" && "${OPENCODE_TEST_ENV[@]}" \
+  HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
   OPENCODE_CONFIG_DIR="$TMP/home/.config/opencode" \
   OPENCODE_DISABLE_PROJECT_CONFIG=1 opencode debug config 2>&1)
 [[ $disabled != *'PROJECT_PLUGIN_LOADED'* && $disabled != *'"project-probe": "allow"'* ]] || {
@@ -84,7 +95,8 @@ disabled=$(cd "$TMP/project" && HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.con
   exit 1
 }
 
-skills_disabled=$(cd "$TMP/project" && HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
+skills_disabled=$(cd "$TMP/project" && "${OPENCODE_TEST_ENV[@]}" \
+  HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
   OPENCODE_CONFIG_DIR="$TMP/home/.config/opencode" \
   OPENCODE_DISABLE_EXTERNAL_SKILLS=1 opencode debug skill 2>&1)
 for managed in \
@@ -102,7 +114,8 @@ done
   exit 1
 }
 
-if ! (cd "$TMP/project" && HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
+if ! (cd "$TMP/project" && "${OPENCODE_TEST_ENV[@]}" \
+  HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
   OPENCODE_CONFIG_DIR="$TMP/home/.config/opencode" \
   OPENCODE_DISABLE_EXTERNAL_SKILLS=1 \
   OPENCODE_CONFIG_CONTENT='{"skills":{"paths":["~/missing-opencode-skill"]}}' \
