@@ -28,7 +28,7 @@ Local clones live side by side under `~/Projects/repos/dotfiles/`.
 
 This repo tracks shared cross-tool AI assistant guidance and portable tracked config for Claude Code, Codex, and OpenCode.
 
-It intentionally excludes auth and session state, machine-local files, and generated host-specific config. The repo root keeps the canonical `AGENTS.md`, a thin `CLAUDE.md` compatibility wrapper, and inert per-tool project config placeholders with no command grants.
+It intentionally excludes auth and session state, machine-local files, and generated host-specific config except for the documented app-managed rewrites inside tracked runtime config. The repo root keeps the canonical `AGENTS.md`, a thin `CLAUDE.md` compatibility wrapper, and inert per-tool project config placeholders with no command grants.
 
 ## Structure
 
@@ -108,9 +108,9 @@ Codex, OpenCode, and `spar-codex` use GPT-5.6 Sol Fast at xhigh reasoning. Codex
 
 OpenCode's in-app updater is disabled because the host installation wrapper owns release selection. Its enabled-provider gate and tracked provider block contain only OpenAI, the provider used by the managed model.
 
-Auth, session state, and generated or host-specific config remain intentionally excluded. Nested payload ignore files protect fresh clones if a state directory is accidentally folded into the repository.
+Auth, session state, and generated or host-specific config remain intentionally excluded. The app-managed rewrite exception below applies only inside the tracked Claude and Codex runtime files. Nested payload ignore files protect fresh clones if a state directory is accidentally folded into the repository.
 
-Three payload-side exceptions exist. Claude Code writes app-managed keys and key ordering into its tracked `settings.json`; commit those rewrites as-is. Codex writes project trust, notice keys, and MCP additions into its tracked `config.toml`; preserve and commit those rewrites, while its nested `.gitignore` excludes other runtime files. OpenCode tracks the release-matched npm manifest and lockfile next to its config, while a repository-only `.gitignore` excludes generated `node_modules/`. If Stow reports a real-file conflict, compare and merge any needed local content before removing it; confirmed generated `node_modules/` can be removed and regenerated from the tracked manifests.
+Three payload-side exceptions exist. Claude Code writes app-managed keys and key ordering into its tracked `settings.json`; commit those rewrites as-is. Codex and the ChatGPT desktop app write project trust, notice keys, marketplace and plugin state, MCP/runtime entries, and desktop preferences into the tracked `config.toml`; preserve and commit those rewrites, while its nested `.gitignore` excludes other runtime files. Generated runtime paths must be revalidated on each host. OpenCode tracks the release-matched npm manifest and lockfile next to its config, while a repository-only `.gitignore` excludes generated `node_modules/`. If Stow reports a real-file conflict, compare and merge any needed local content before removing it; confirmed generated `node_modules/` can be removed and regenerated from the tracked manifests.
 
 Repo-root instruction files exist only to maintain `dotfiles-ai` itself; they are not part of the stowed payload. `AGENTS.md` keeps the always-loaded operational invariants concise, while `docs/maintenance.md` preserves versioned probes, limitations, deferred work, and watch items for on-demand use.
 
