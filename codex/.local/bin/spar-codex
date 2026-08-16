@@ -15,6 +15,10 @@ UUID_RE='^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
 HANDOFF_RE='^/tmp/spar-[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
 POSINT_RE='^[1-9][0-9]*$'
 REVIEWER_PROFILE='permissions.spar-reviewer={description="Read-only spar reviewer",extends=":read-only",filesystem={":tmpdir"="read",":slash_tmp"="read","~/.aws"="deny","~/.claude/.credentials.json"="deny","~/.codex/auth.json"="deny","~/.config/gh/hosts.yml"="deny","~/.docker/config.json"="deny","~/.gnupg"="deny","~/.kube"="deny","~/.local/share/opencode/auth.json"="deny","~/.netrc"="deny","~/.npmrc"="deny","~/.pypirc"="deny","~/.ssh"="deny",glob_scan_max_depth=64,":workspace_roots"={"."="read",".env"="deny",".env.*"="deny","secrets"="deny","**/*.key"="deny","**/*.pem"="deny","**/*credentials*"="deny"}},network={enabled=false}}'
+PLUGIN_DISABLE_OVERRIDES=(
+  -c 'features.plugins=false'
+  -c 'features.remote_plugin=false'
+)
 CODEX_COMMON=(
   --ignore-user-config
   --ignore-rules
@@ -33,7 +37,7 @@ CODEX_COMMON=(
   -c 'features.apps=false'
   -c 'features.hooks=false'
   -c 'features.multi_agent=false'
-  -c 'features.remote_plugin=false'
+  "${PLUGIN_DISABLE_OVERRIDES[@]}"
   -c 'features.skill_mcp_dependency_install=false'
   -c 'features.shell_snapshot=false'
   -c 'shell_environment_policy.inherit="core"'
@@ -120,9 +124,10 @@ preflight() {
   [[ $(timeout --kill-after=2 30 codex login status 2>&1) == "Logged in using ChatGPT" ]] ||
     abort "codex is not on ChatGPT subscription auth"
   local installed
-  installed=$(timeout --kill-after=2 30 codex plugin list --json 2>/dev/null | jq -r '.installed | length' 2>/dev/null) || installed=""
+  installed=$(timeout --kill-after=2 30 codex plugin list --json "${PLUGIN_DISABLE_OVERRIDES[@]}" 2>/dev/null |
+    jq -r '.installed | length' 2>/dev/null) || installed=""
   [[ $installed == 0 ]] ||
-    abort "cannot verify codex plugins are absent (installed: ${installed:-unknown}); fail closed"
+    abort "cannot verify codex plugins are disabled (effective installed: ${installed:-unknown}); fail closed"
 }
 
 # Stream Codex events through a stall watchdog and require exactly one completed
