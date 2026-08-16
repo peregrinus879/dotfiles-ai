@@ -10,14 +10,14 @@ Adversarial plan review between the session's tool and its cross-vendor counterp
 
 ## Reviewer incantations
 
-Requires: the `codex` CLI and the stowed `spar-codex` bridge (this repo, codex/.local/bin), which hard-codes the safe flags: exact ChatGPT-subscription and effective-plugin-disable preflights with `CODEX_API_KEY` required unset; ignored user config and rules; strict config; an inline read-only reviewer profile with sensitive-path denies, handoff reads, network disabled, and a secret-filtered shell environment; xhigh effort; MCP, apps, local and remote plugins, hooks, web search, multi-agent, skill-install, and shell-snapshot surfaces disabled; stdin guard; a 180 s stall watchdog under a 1800 s ceiling; fail-fast usage-limit classification; never `--last`. It also creates, validates before every call, scans, and cleans one private `/tmp/spar-<session-id>/` handoff. Tracked permissions auto-approve `Bash(spar-codex *)`; the pinned reviewer can read the handoff without gaining write access.
+Requires: the `codex` CLI and the stowed `spar-codex` bridge (this repo, codex/.local/bin), which hard-codes the safe flags: exact ChatGPT-subscription and effective-plugin-disable preflights with `CODEX_API_KEY` required unset; ignored user config and rules; strict config; an inline read-only reviewer profile with sensitive-path denies, handoff reads, network disabled, and a secret-filtered shell environment; xhigh effort; MCP, apps, local and remote plugins, hooks, web search, multi-agent, skill-install, and shell-snapshot surfaces disabled; stdin guard; a 180 s stall watchdog under a 1800 s ceiling; fail-fast usage-limit classification; bounded payload-scanned stderr diagnostics; failed-new thread reporting; never `--last`. It also creates, validates before every call, scans, and cleans one private `/tmp/spar-<session-id>/` handoff. Tracked permissions auto-approve `Bash(spar-codex *)`; the pinned reviewer can read the handoff without gaining write access.
 
 The reviewer is Codex (model pinned inside the bridge; update it there when the preferred model changes):
 
 - Handoff: run `spar-codex init`, record its output as `HANDOFF`, and use only that exact path for the run.
-- First round: `SID=$(spar-codex new "$HANDOFF" "<prompt>")`; the reply text arrives on stderr, the thread id on stdout.
+- First round: `SID=$(spar-codex new "$HANDOFF" "<prompt>")`; the reply text arrives on stderr, the thread id on stdout. If the fresh thread starts but the call later fails, record the `SPAR-BRIDGE THREAD` id from stderr for recovery or inspection.
 - Later rounds: `spar-codex resume "$SID" "$HANDOFF" "<pointer prompt>"`; the reply is stdout. The cold read takes a fresh id from `new`.
-- Bridge exit codes: 2 preflight, 3 usage limit, 4 stall, 124 ceiling; all follow the bridge-failure and limit rules.
+- Bridge exit codes: 2 preflight, 3 usage limit, 4 stall, 5 reviewer error, 124 ceiling; all follow the bridge-failure and limit rules.
 - Interactive handoff for the user: `codex resume "$SID"`.
 
 ## Protocol

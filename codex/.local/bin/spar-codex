@@ -5,7 +5,7 @@
 #        clean <handoff-dir>
 #        new <handoff-dir> "<prompt>" (thread id to stdout, reply to stderr)
 #        resume <sid> <handoff-dir> "<prompt>" (reply to stdout)
-# Exit codes: 0 ok, 2 preflight failed, 3 usage limit, 4 stall, 64 usage, 124 ceiling.
+# Exit codes: 0 ok, 2 preflight failed, 3 usage limit, 4 stall, 5 reviewer error, 64 usage, 124 ceiling.
 set -euo pipefail
 
 MODEL="gpt-5.6-sol"
@@ -14,6 +14,7 @@ STALL="${SPAR_BRIDGE_STALL:-180}"      # kill after this many seconds without a 
 UUID_RE='^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
 HANDOFF_RE='^/tmp/spar-[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
 POSINT_RE='^[1-9][0-9]*$'
+DIAGNOSTIC_MAX_BYTES=8192
 REVIEWER_PROFILE='permissions.spar-reviewer={description="Read-only spar reviewer",extends=":read-only",filesystem={":tmpdir"="read",":slash_tmp"="read","~/.aws"="deny","~/.claude/.credentials.json"="deny","~/.codex/auth.json"="deny","~/.config/gh/hosts.yml"="deny","~/.docker/config.json"="deny","~/.gnupg"="deny","~/.kube"="deny","~/.local/share/opencode/auth.json"="deny","~/.netrc"="deny","~/.npmrc"="deny","~/.pypirc"="deny","~/.ssh"="deny",glob_scan_max_depth=64,":workspace_roots"={"."="read",".env"="deny",".env.*"="deny","secrets"="deny","**/*.key"="deny","**/*.pem"="deny","**/*credentials*"="deny"}},network={enabled=false}}'
 PLUGIN_DISABLE_OVERRIDES=(
   -c 'features.plugins=false'
@@ -143,11 +144,67 @@ stop_group() {
 
 cleanup_stream() {
   stop_group
+  if [[ -n ${stderr_pid:-} ]]; then
+    kill -TERM "$stderr_pid" 2>/dev/null || true
+    wait "$stderr_pid" 2>/dev/null || true
+    stderr_pid=""
+  fi
   [[ -z ${workdir:-} ]] || rm -rf -- "$workdir"
+}
+
+capture_stderr() {
+  local stderr_file=$1 truncated_file=$2 size
+  umask 077
+  tail -c $((DIAGNOSTIC_MAX_BYTES + 1)) >"$stderr_file"
+  size=$(stat -c '%s' -- "$stderr_file") || size=""
+  if [[ $size =~ ^[0-9]+$ ]] && ((size > DIAGNOSTIC_MAX_BYTES)); then
+    : >"$truncated_file"
+  fi
+}
+
+report_failed_thread() {
+  local reply_fd=$1 thread_id=$2
+  if [[ $reply_fd == 2 && $thread_id =~ $UUID_RE ]]; then
+    echo "SPAR-BRIDGE THREAD: reviewer thread started before failure: $thread_id" >&2
+  fi
+}
+
+exit_with_stderr() {
+  local reply_fd=$1 thread_id=$2 child_rc=$3 stderr_file=$4 truncated_file=$5 diagnostic limit=0
+  report_failed_thread "$reply_fd" "$thread_id"
+  [[ -s $stderr_file ]] || {
+    echo "SPAR-BRIDGE ERROR: reviewer exited $child_rc without stderr" >&2
+    exit 5
+  }
+  grep -qiE 'usage limit|rate limit|quota|too many requests|overloaded|429' "$stderr_file" && limit=1
+  if [[ ! -e $truncated_file ]]; then
+    diagnostic=$(<"$stderr_file")
+    if printf '%s' "$diagnostic" | "$SCANNER" "$HANDOFF" >/dev/null 2>&1; then
+      if [[ $limit == 1 ]]; then
+        echo "SPAR-BRIDGE LIMIT: reviewer hit a usage limit; surface to the user now: $diagnostic" >&2
+        exit 3
+      fi
+      echo "SPAR-BRIDGE ERROR: reviewer exited $child_rc: $diagnostic" >&2
+      exit 5
+    fi
+    if [[ $limit == 1 ]]; then
+      echo "SPAR-BRIDGE LIMIT: reviewer hit a usage limit; diagnostic withheld by content gate" >&2
+      exit 3
+    fi
+    echo "SPAR-BRIDGE ERROR: reviewer exited $child_rc; stderr withheld by content gate" >&2
+    exit 5
+  fi
+  if [[ $limit == 1 ]]; then
+    echo "SPAR-BRIDGE LIMIT: reviewer hit a usage limit; diagnostic exceeds ${DIAGNOSTIC_MAX_BYTES}-byte relay bound" >&2
+    exit 3
+  fi
+  echo "SPAR-BRIDGE ERROR: reviewer exited $child_rc; stderr exceeds ${DIAGNOSTIC_MAX_BYTES}-byte relay bound" >&2
+  exit 5
 }
 
 stream() {
   local reply_fd=$1 line rc=0 child_rc=0 thread_id="" thread_count=0 turn_count=0 reply=""
+  local stderr_fifo stderr_file stderr_truncated
   shift
   local pre=() post=() seen_sep=0 a
   for a in "$@"; do
@@ -155,12 +212,19 @@ stream() {
     if [[ $seen_sep == 0 ]]; then pre+=("$a"); else post+=("$a"); fi
   done
   workdir=$(mktemp -d) && [[ -d ${workdir:-} ]] || abort "cannot create a private temp directory"
-  mkfifo -m 600 "$workdir/fifo" || abort "cannot create the event fifo"
-  fifo="$workdir/fifo"
   pid=""
+  stderr_pid=""
   trap cleanup_stream EXIT INT TERM
+  mkfifo -m 600 "$workdir/fifo" || abort "cannot create the event fifo"
+  stderr_fifo="$workdir/stderr-fifo"
+  mkfifo -m 600 "$stderr_fifo" || abort "cannot create the reviewer stderr fifo"
+  stderr_file="$workdir/stderr"
+  stderr_truncated="$workdir/stderr-truncated"
+  capture_stderr "$stderr_file" "$stderr_truncated" <"$stderr_fifo" &
+  stderr_pid=$!
+  fifo="$workdir/fifo"
   setsid timeout --kill-after=2 "$CEILING" codex exec "${pre[@]}" --json -- "${post[@]}" \
-    </dev/null >"$fifo" 2>/dev/null &
+    </dev/null >"$fifo" 2>"$stderr_fifo" &
   pid=$!
   # shellcheck disable=SC2094 # the fifo's writer is the background codex process
   while true; do
@@ -168,7 +232,11 @@ stream() {
     case $(jq -r '.type // empty' <<<"$line" 2>/dev/null) in
       thread.started)
         ((thread_count += 1))
-        [[ $thread_count == 1 ]] || { echo "SPAR-BRIDGE ERROR: duplicate thread event" >&2; exit 5; }
+        [[ $thread_count == 1 ]] || {
+          report_failed_thread "$reply_fd" "$thread_id"
+          echo "SPAR-BRIDGE ERROR: duplicate thread event" >&2
+          exit 5
+        }
         thread_id=$(jq -er '.thread_id | select(type == "string")' <<<"$line") || {
           echo "SPAR-BRIDGE ERROR: malformed thread event" >&2
           exit 5
@@ -178,6 +246,7 @@ stream() {
           reply=$(jq -er '.item.text | select(type == "string" and length > 0)' <<<"$line") || true
         fi ;;
       error | turn.failed)
+        report_failed_thread "$reply_fd" "$thread_id"
         if grep -qiE 'usage limit|rate limit|quota|too many requests|overloaded|429' <<<"$line"; then
           echo "SPAR-BRIDGE LIMIT: reviewer hit a usage limit; surface to the user now: $line" >&2
           exit 3
@@ -190,17 +259,22 @@ stream() {
     esac
   done 3<"$fifo"
   if [[ $rc -gt 128 ]]; then # read -t timed out: stall
+    report_failed_thread "$reply_fd" "$thread_id"
     echo "SPAR-BRIDGE STALL: no reviewer event for ${STALL}s; killed the call" >&2
     exit 4
   fi
   if wait "$pid"; then child_rc=0; else child_rc=$?; fi
   pid=""
+  if [[ -n $stderr_pid ]]; then wait "$stderr_pid" 2>/dev/null || true; stderr_pid=""; fi
   if [[ $child_rc == 124 ]]; then
+    report_failed_thread "$reply_fd" "$thread_id"
     echo "SPAR-BRIDGE CEILING: call exceeded ${CEILING}s" >&2
     exit 124
   fi
-  [[ $child_rc == 0 ]] || { echo "SPAR-BRIDGE ERROR: reviewer exited $child_rc" >&2; exit 5; }
+  [[ $child_rc == 0 ]] ||
+    exit_with_stderr "$reply_fd" "$thread_id" "$child_rc" "$stderr_file" "$stderr_truncated"
   [[ $turn_count == 1 && -n $reply ]] || {
+    report_failed_thread "$reply_fd" "$thread_id"
     echo "SPAR-BRIDGE ERROR: reviewer ended without one completed turn and reply" >&2
     exit 5
   }
@@ -225,16 +299,18 @@ case $mode in
     clean_handoff "$2" ;;
   new)
     [[ $# -eq 3 ]] || usage
-    validate_handoff "$2"
+    HANDOFF=$2
+    validate_handoff "$HANDOFF"
     PROMPT=$3
-    scan_payload "$2"
+    scan_payload "$HANDOFF"
     preflight; stream 2 "${CODEX_COMMON[@]}" -- "$PROMPT" ;;
   resume)
     [[ $# -eq 4 ]] || usage
     [[ $2 =~ $UUID_RE ]] || abort "resume session id is not a UUID: $2"
-    validate_handoff "$3"
+    HANDOFF=$3
+    validate_handoff "$HANDOFF"
     PROMPT=$4
-    scan_payload "$3"
+    scan_payload "$HANDOFF"
     preflight; stream 1 resume "${CODEX_COMMON[@]}" -- "$2" "$PROMPT" ;;
   *) usage ;;
 esac

@@ -71,6 +71,22 @@ case ${SPAR_TEST_MODE:-ok} in
     printf '%s\n' '{"type":"thread.started","thread_id":"not-a-uuid"}'
     printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"review ok"}}'
     printf '%s\n' '{"type":"turn.completed"}' ;;
+  stderr-failure)
+    printf '%s\n' '{"type":"thread.started","thread_id":"11111111-1111-4111-8111-111111111111"}'
+    printf '%s\n' 'transport handshake failed' >&2
+    exit 1 ;;
+  stderr-limit)
+    printf '%s\n' '{"type":"thread.started","thread_id":"11111111-1111-4111-8111-111111111111"}'
+    printf '%s\n' 'rate limit reached; resets at 12:34 UTC' >&2
+    exit 1 ;;
+  stderr-sensitive)
+    printf '%s\n' '{"type":"thread.started","thread_id":"11111111-1111-4111-8111-111111111111"}'
+    printf 'OPENAI_API_KEY=%s\n' "$SPAR_TEST_SECRET" >&2
+    exit 1 ;;
+  stderr-oversized)
+    printf '%s\n' '{"type":"thread.started","thread_id":"11111111-1111-4111-8111-111111111111"}'
+    printf '%09000d' 0 >&2
+    exit 1 ;;
   stall)
     trap '' TERM
     (trap '' TERM; while :; do sleep 1; done) &
@@ -159,6 +175,47 @@ if SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=malformed PATH="$TMP/bin:$PATH" \
   "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review terminal events." >/dev/null 2>/dev/null; then
   fail "spar-codex accepted malformed thread id"
 fi
+rm -rf -- "$handoff"
+
+handoff=$(make_handoff)
+calls="$TMP/codex-stderr-failure"
+rc=0
+diagnostic=$(SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=stderr-failure PATH="$TMP/bin:$PATH" \
+  "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review diagnostics." 2>&1) || rc=$?
+[[ $rc == 5 && $diagnostic == *'transport handshake failed'* ]] ||
+  fail "spar-codex did not relay safe reviewer stderr"
+[[ $diagnostic == *'SPAR-BRIDGE THREAD: reviewer thread started before failure: 11111111-1111-4111-8111-111111111111'* ]] ||
+  fail "spar-codex did not preserve a failed-new thread id"
+rm -rf -- "$handoff"
+
+handoff=$(make_handoff)
+calls="$TMP/codex-stderr-limit"
+rc=0
+diagnostic=$(SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=stderr-limit PATH="$TMP/bin:$PATH" \
+  "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review diagnostics." 2>&1) || rc=$?
+[[ $rc == 3 && $diagnostic == *'rate limit reached; resets at 12:34 UTC'* ]] ||
+  fail "spar-codex did not classify a stderr-only usage limit"
+rm -rf -- "$handoff"
+
+handoff=$(make_handoff)
+calls="$TMP/codex-stderr-sensitive"
+diagnostic_secret=$(printf '%s%s' 'sk' '-0123456789abcdef0123456789abcdef')
+rc=0
+diagnostic=$(SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=stderr-sensitive \
+  SPAR_TEST_SECRET=$diagnostic_secret PATH="$TMP/bin:$PATH" \
+  "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review diagnostics." 2>&1) || rc=$?
+[[ $rc == 5 && $diagnostic == *'stderr withheld by content gate'* ]] ||
+  fail "spar-codex did not withhold sensitive reviewer stderr"
+[[ $diagnostic != *"$diagnostic_secret"* ]] || fail "spar-codex relayed sensitive reviewer stderr"
+rm -rf -- "$handoff"
+
+handoff=$(make_handoff)
+calls="$TMP/codex-stderr-oversized"
+rc=0
+diagnostic=$(SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=stderr-oversized PATH="$TMP/bin:$PATH" \
+  "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review diagnostics." 2>&1) || rc=$?
+[[ $rc == 5 && $diagnostic == *'stderr exceeds 8192-byte relay bound'* ]] ||
+  fail "spar-codex did not bound oversized reviewer stderr"
 rm -rf -- "$handoff"
 
 for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin/spar-codex"; do
