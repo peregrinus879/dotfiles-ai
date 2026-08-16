@@ -10,7 +10,7 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 - Do not use em dashes (—). Use commas, periods, semicolons, or restructure the sentence.
 - No filler: no action narration or non-substantive hedging.
 - In code documentation, state what exists; avoid absence statements.
-- Comments and doc notes state only present constraints; no version-history or transition narration. A version number appears only as a workaround's removal trigger, dying with the workaround, or as a dated maintenance-ledger probe anchoring re-verification. Provenance belongs in commit messages.
+- Comments and doc notes state only present constraints; no version-history or transition narration. A release or version identifier may scope a present fact, never frame a change; otherwise a version appears only as a workaround's removal trigger, dying with the workaround, or as a dated maintenance-ledger probe anchoring re-verification. Provenance belongs in commit messages.
 - Flag deviations from the project's style or linter config rather than silently matching; do not introduce a new formatter or linter unasked.
 - Do not delegate synthesis or final decisions to subagents.
 
