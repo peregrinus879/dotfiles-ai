@@ -152,16 +152,6 @@ cleanup_stream() {
   [[ -z ${workdir:-} ]] || rm -rf -- "$workdir"
 }
 
-capture_stderr() {
-  local stderr_file=$1 truncated_file=$2 size
-  umask 077
-  tail -c $((DIAGNOSTIC_MAX_BYTES + 1)) >"$stderr_file"
-  size=$(stat -c '%s' -- "$stderr_file") || size=""
-  if [[ $size =~ ^[0-9]+$ ]] && ((size > DIAGNOSTIC_MAX_BYTES)); then
-    : >"$truncated_file"
-  fi
-}
-
 report_failed_thread() {
   local reply_fd=$1 thread_id=$2
   if [[ $reply_fd == 2 && $thread_id =~ $UUID_RE ]]; then
@@ -170,14 +160,15 @@ report_failed_thread() {
 }
 
 exit_with_stderr() {
-  local reply_fd=$1 thread_id=$2 child_rc=$3 stderr_file=$4 truncated_file=$5 diagnostic limit=0
+  local reply_fd=$1 thread_id=$2 child_rc=$3 stderr_file=$4 diagnostic limit=0 size="" withheld_reason
   report_failed_thread "$reply_fd" "$thread_id"
   [[ -s $stderr_file ]] || {
     echo "SPAR-BRIDGE ERROR: reviewer exited $child_rc without stderr" >&2
     exit 5
   }
   grep -qiE 'usage limit|rate limit|quota|too many requests|overloaded|429' "$stderr_file" && limit=1
-  if [[ ! -e $truncated_file ]]; then
+  size=$(stat -c '%s' -- "$stderr_file") || size=""
+  if [[ $size =~ ^[0-9]+$ ]] && ((size <= DIAGNOSTIC_MAX_BYTES)); then
     diagnostic=$(<"$stderr_file")
     if printf '%s' "$diagnostic" | "$SCANNER" "$HANDOFF" >/dev/null 2>&1; then
       if [[ $limit == 1 ]]; then
@@ -194,17 +185,22 @@ exit_with_stderr() {
     echo "SPAR-BRIDGE ERROR: reviewer exited $child_rc; stderr withheld by content gate" >&2
     exit 5
   fi
+  if [[ $size =~ ^[0-9]+$ ]]; then
+    withheld_reason="stderr exceeds ${DIAGNOSTIC_MAX_BYTES}-byte relay bound"
+  else
+    withheld_reason="stderr size could not be verified"
+  fi
   if [[ $limit == 1 ]]; then
-    echo "SPAR-BRIDGE LIMIT: reviewer hit a usage limit; diagnostic exceeds ${DIAGNOSTIC_MAX_BYTES}-byte relay bound" >&2
+    echo "SPAR-BRIDGE LIMIT: reviewer hit a usage limit; $withheld_reason" >&2
     exit 3
   fi
-  echo "SPAR-BRIDGE ERROR: reviewer exited $child_rc; stderr exceeds ${DIAGNOSTIC_MAX_BYTES}-byte relay bound" >&2
+  echo "SPAR-BRIDGE ERROR: reviewer exited $child_rc; $withheld_reason" >&2
   exit 5
 }
 
 stream() {
   local reply_fd=$1 line rc=0 child_rc=0 thread_id="" thread_count=0 turn_count=0 reply=""
-  local stderr_fifo stderr_file stderr_truncated
+  local stderr_fifo stderr_file
   shift
   local pre=() post=() seen_sep=0 a
   for a in "$@"; do
@@ -219,8 +215,7 @@ stream() {
   stderr_fifo="$workdir/stderr-fifo"
   mkfifo -m 600 "$stderr_fifo" || abort "cannot create the reviewer stderr fifo"
   stderr_file="$workdir/stderr"
-  stderr_truncated="$workdir/stderr-truncated"
-  capture_stderr "$stderr_file" "$stderr_truncated" <"$stderr_fifo" &
+  (umask 077; exec tail -c $((DIAGNOSTIC_MAX_BYTES + 1)) >"$stderr_file") <"$stderr_fifo" &
   stderr_pid=$!
   fifo="$workdir/fifo"
   setsid timeout --kill-after=2 "$CEILING" codex exec "${pre[@]}" --json -- "${post[@]}" \
@@ -264,6 +259,8 @@ stream() {
     exit 4
   fi
   if wait "$pid"; then child_rc=0; else child_rc=$?; fi
+  # A reviewer descendant may outlive its leader while retaining stderr.
+  kill -KILL -- "-$pid" 2>/dev/null || true
   pid=""
   if [[ -n $stderr_pid ]]; then wait "$stderr_pid" 2>/dev/null || true; stderr_pid=""; fi
   if [[ $child_rc == 124 ]]; then
@@ -272,7 +269,7 @@ stream() {
     exit 124
   fi
   [[ $child_rc == 0 ]] ||
-    exit_with_stderr "$reply_fd" "$thread_id" "$child_rc" "$stderr_file" "$stderr_truncated"
+    exit_with_stderr "$reply_fd" "$thread_id" "$child_rc" "$stderr_file"
   [[ $turn_count == 1 && -n $reply ]] || {
     report_failed_thread "$reply_fd" "$thread_id"
     echo "SPAR-BRIDGE ERROR: reviewer ended without one completed turn and reply" >&2

@@ -75,6 +75,15 @@ case ${SPAR_TEST_MODE:-ok} in
     printf '%s\n' '{"type":"thread.started","thread_id":"11111111-1111-4111-8111-111111111111"}'
     printf '%s\n' 'transport handshake failed' >&2
     exit 1 ;;
+  stderr-empty)
+    printf '%s\n' '{"type":"thread.started","thread_id":"11111111-1111-4111-8111-111111111111"}'
+    exit 1 ;;
+  stderr-held-open)
+    printf '%s\n' '{"type":"thread.started","thread_id":"11111111-1111-4111-8111-111111111111"}'
+    (trap '' TERM; sleep 30) >/dev/null &
+    printf '%s\n' "$!" >"$SPAR_TEST_CHILD_PID"
+    printf '%s\n' 'transport failed with a lingering stderr holder' >&2
+    exit 1 ;;
   stderr-limit)
     printf '%s\n' '{"type":"thread.started","thread_id":"11111111-1111-4111-8111-111111111111"}'
     printf '%s\n' 'rate limit reached; resets at 12:34 UTC' >&2
@@ -186,6 +195,34 @@ diagnostic=$(SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=stderr-failure PATH="$TMP/bin
   fail "spar-codex did not relay safe reviewer stderr"
 [[ $diagnostic == *'SPAR-BRIDGE THREAD: reviewer thread started before failure: 11111111-1111-4111-8111-111111111111'* ]] ||
   fail "spar-codex did not preserve a failed-new thread id"
+rm -rf -- "$handoff"
+
+handoff=$(make_handoff)
+calls="$TMP/codex-stderr-empty"
+rc=0
+diagnostic=$(SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=stderr-empty PATH="$TMP/bin:$PATH" \
+  "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review diagnostics." 2>&1) || rc=$?
+[[ $rc == 5 && $diagnostic == *'reviewer exited 1 without stderr'* ]] ||
+  fail "spar-codex did not classify an empty reviewer stderr failure"
+rm -rf -- "$handoff"
+
+handoff=$(make_handoff)
+calls="$TMP/codex-stderr-held-open"
+child_pid_file="$TMP/codex-stderr-held-open-child"
+rc=0
+diagnostic=$(SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=stderr-held-open \
+  SPAR_TEST_CHILD_PID=$child_pid_file PATH="$TMP/bin:$PATH" \
+  timeout --kill-after=1 5 "$ROOT/codex/.local/bin/spar-codex" \
+  new "$handoff" "Review diagnostics." 2>&1) || rc=$?
+[[ $rc == 5 && $diagnostic == *'transport failed with a lingering stderr holder'* ]] ||
+  fail "spar-codex did not bound cleanup of a reviewer descendant holding stderr"
+if [[ -s $child_pid_file ]]; then
+  child_pid=$(<"$child_pid_file")
+  if kill -0 "$child_pid" 2>/dev/null; then
+    kill -KILL "$child_pid" 2>/dev/null || true
+    fail "spar-codex left a reviewer descendant holding stderr"
+  fi
+fi
 rm -rf -- "$handoff"
 
 handoff=$(make_handoff)
