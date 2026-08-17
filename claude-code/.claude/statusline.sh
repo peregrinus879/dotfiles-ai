@@ -32,6 +32,11 @@ readarray -t _f <<< "$(echo "$input" | jq -r '
 for i in "${!_f[@]}"; do _f[$i]="${_f[$i]%$'\r'}"; done
 cwd="${_f[0]}" model="${_f[1]}" used_pct="${_f[2]}" ctx_size="${_f[3]}"
 rate_5h="${_f[4]}" rate_7d="${_f[5]}" cost_usd="${_f[6]}"
+
+# Round the rate percentages once; empty stands for absent or null.
+rate_5h_int="" rate_7d_int=""
+[ -n "$rate_5h" ] && [ "$rate_5h" != "null" ] && rate_5h_int=$(printf '%.0f' "$rate_5h" 2>/dev/null)
+[ -n "$rate_7d" ] && [ "$rate_7d" != "null" ] && rate_7d_int=$(printf '%.0f' "$rate_7d" 2>/dev/null)
 reset_5h="${_f[7]}" reset_7d="${_f[8]}" session_id="${_f[9]}"
 
 # --- ANSI colors ---
@@ -58,7 +63,7 @@ pct_color() {
 # Format tokens: 200000 -> 200k
 fmt_k() {
   local n=${1:-0}
-  if [ -z "$n" ] || [ "$n" = "null" ] || [ "$n" -eq 0 ] 2>/dev/null; then echo ""; return; fi
+  if [ "$n" = "null" ] || [ "$n" -eq 0 ] 2>/dev/null; then echo ""; return; fi
   echo "$((n / 1000))k"
 }
 
@@ -81,26 +86,26 @@ state_ready=0
 state_root=""
 state_uid=$(id -u 2>/dev/null)
 state_base="/tmp"
-if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
-  candidate_base="${XDG_RUNTIME_DIR%/}"
-  candidate_meta=$(stat -c '%u:%a' -- "$candidate_base" 2>/dev/null)
-  candidate_real=$(realpath -e -- "$candidate_base" 2>/dev/null)
-  if [ -d "$candidate_base" ] && [ ! -L "$candidate_base" ] && \
-     [ "$candidate_real" = "$candidate_base" ] && [ "$candidate_meta" = "${state_uid}:700" ]; then
-    state_base="$candidate_base"
-  fi
+
+# dir_private <path>: a real, non-symlink directory resolving to itself and
+# owned by this uid with mode exactly 700.
+dir_private() {
+  local dir=$1 meta real
+  meta=$(stat -c '%u:%a' -- "$dir" 2>/dev/null)
+  real=$(realpath -e -- "$dir" 2>/dev/null)
+  [ -d "$dir" ] && [ ! -L "$dir" ] && \
+    [ "$real" = "$dir" ] && [ "$meta" = "${state_uid}:700" ]
+}
+
+if [ -n "${XDG_RUNTIME_DIR:-}" ] && dir_private "${XDG_RUNTIME_DIR%/}"; then
+  state_base="${XDG_RUNTIME_DIR%/}"
 fi
 if [ -n "$state_uid" ]; then
   state_root="$state_base/claude-statusline-$state_uid"
   if [ ! -e "$state_root" ] && [ ! -L "$state_root" ]; then
     mkdir -m 700 -- "$state_root" 2>/dev/null
   fi
-  state_meta=$(stat -c '%u:%a' -- "$state_root" 2>/dev/null)
-  state_real=$(realpath -e -- "$state_root" 2>/dev/null)
-  if [ -d "$state_root" ] && [ ! -L "$state_root" ] && \
-     [ "$state_real" = "$state_root" ] && [ "$state_meta" = "${state_uid}:700" ]; then
-    state_ready=1
-  fi
+  dir_private "$state_root" && state_ready=1
 fi
 
 state_key() {
@@ -139,8 +144,7 @@ build_rate_seg() {
   local label=$1 pct=$2 epoch=$3 dfmt=$4
   local color value rtime_part=""
 
-  [ -z "$pct" ] || [ "$pct" = "null" ] && return
-  pct=$(printf '%.0f' "$pct")
+  [ -z "$pct" ] && return
   color=$(pct_color "$pct")
 
   if [ "$pct" -ge 100 ] 2>/dev/null && [ "${epoch:-0}" -gt 0 ] 2>/dev/null; then
@@ -162,12 +166,8 @@ build_rate_seg() {
 
 # --- Detect extra usage (5h OR 7d at 100%) ---
 extra_usage=0
-if [ -n "$rate_5h" ] && [ "$rate_5h" != "null" ]; then
-  [ "$(printf '%.0f' "$rate_5h")" -ge 100 ] 2>/dev/null && extra_usage=1
-fi
-if [ "$extra_usage" -eq 0 ] && [ -n "$rate_7d" ] && [ "$rate_7d" != "null" ]; then
-  [ "$(printf '%.0f' "$rate_7d")" -ge 100 ] 2>/dev/null && extra_usage=1
-fi
+[ "$rate_5h_int" -ge 100 ] 2>/dev/null && extra_usage=1
+[ "$extra_usage" -eq 0 ] && [ "$rate_7d_int" -ge 100 ] 2>/dev/null && extra_usage=1
 
 # --- Git cache (docs: cache expensive operations) ---
 git_cache=""
@@ -175,11 +175,12 @@ if [ "$state_ready" -eq 1 ]; then
   cwd_key=$(state_key "$cwd") && git_cache="$state_root/git-$cwd_key"
 fi
 git_cache_max_age=60
+now=$(date +%s)
 
 git_cache_stale() {
   [ -n "$git_cache" ] && state_file_safe "$git_cache" || return 0
   [ ! -f "$git_cache" ] || \
-  [ $(($(date +%s) - $(stat -c %Y "$git_cache" 2>/dev/null || echo 0))) -gt $git_cache_max_age ]
+  [ $((now - $(stat -c %Y "$git_cache" 2>/dev/null || echo 0))) -gt $git_cache_max_age ]
 }
 
 # --- Segments ---
@@ -240,10 +241,9 @@ if [ -n "$used_pct" ] && [ "$used_pct" != "null" ]; then
 fi
 
 # 5. Rate limits: 5h and 7d (with reset countdown and local reset time)
-now=$(date +%s)
 rate_seg=""
-build_rate_seg "5h" "$rate_5h" "$reset_5h" "%H:%M"
-build_rate_seg "7d" "$rate_7d" "$reset_7d" "%a.%H:%M"
+build_rate_seg "5h" "$rate_5h_int" "$reset_5h" "%H:%M"
+build_rate_seg "7d" "$rate_7d_int" "$reset_7d" "%a.%H:%M"
 
 # 6. Session cost (tracks only extra usage spend)
 # State: line 1 = active|frozen, line 2 = baseline, line 3 = prior extra, line 4 = last displayed
@@ -251,10 +251,15 @@ extra_state=""
 if [ "$state_ready" -eq 1 ] && [ -n "$session_id" ]; then
   session_key=$(state_key "$session_id") && extra_state="$state_root/extra-$session_key"
 fi
+_st="" _bl="" _pr="" _ld=""
+extra_state_ok=0
+if [ -n "$extra_state" ] && state_file_safe "$extra_state"; then
+  { read -r _st; read -r _bl; read -r _pr; read -r _ld; } < "$extra_state"
+  extra_state_ok=1
+fi
 cost_seg=""
 if [ "$extra_usage" -eq 1 ] 2>/dev/null; then
-  if [ -n "$extra_state" ] && state_file_safe "$extra_state"; then
-    { read -r _st; read -r _bl; read -r _pr; read -r _ld; } < "$extra_state"
+  if [ "$extra_state_ok" -eq 1 ]; then
     if [ "$_st" = "frozen" ]; then
       # Re-entering extra usage: carry over frozen value, set new baseline
       _pr="${_ld:-0}"
@@ -269,8 +274,7 @@ if [ "$extra_usage" -eq 1 ] 2>/dev/null; then
     cost_seg="  ${yellow}$(printf '$%.2f' "$extra_cost")${reset}"
   fi
 else
-  if [ -n "$extra_state" ] && state_file_safe "$extra_state"; then
-    { read -r _st; read -r _bl; read -r _pr; read -r _ld; } < "$extra_state"
+  if [ "$extra_state_ok" -eq 1 ]; then
     if [ "$_st" = "active" ]; then
       # Transition to frozen: use last displayed value, not recomputed
       write_state "$extra_state" "frozen" "0" "0" "${_ld:-0}"

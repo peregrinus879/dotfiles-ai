@@ -27,9 +27,9 @@ gate_error() {
   exit 2
 }
 
-command -v jq >/dev/null 2>&1 || gate_error "jq is required and missing"
-command -v realpath >/dev/null 2>&1 || gate_error "realpath is required and missing"
-command -v stat >/dev/null 2>&1 || gate_error "stat is required and missing"
+for dependency in jq realpath stat; do
+  command -v "$dependency" >/dev/null 2>&1 || gate_error "$dependency is required and missing"
+done
 input=$(cat 2>/dev/null) || gate_error "cannot read hook input"
 tool=$(jq -r '.tool_name // empty' <<<"$input" 2>/dev/null) || gate_error "cannot parse hook input"
 case $tool in
@@ -38,7 +38,7 @@ case $tool in
 esac
 target=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"$input" 2>/dev/null) ||
   gate_error "cannot parse the tool input path"
-[[ -n $target && $target == /var/tmp/spar-* ]] || emit ask "per-file review"
+[[ $target == /var/tmp/spar-* ]] || emit ask "per-file review"
 
 parent=${target%/*}
 name=${target##*/}
