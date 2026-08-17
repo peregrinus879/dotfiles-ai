@@ -22,7 +22,7 @@ Use conventional commit types (`feat`, `fix`, `docs`, `refactor`, `style`, `test
 
 Before staging, sync existing project documentation with the pending changes:
 
-- Identify documentation (README.md, CLAUDE.md, or similar) whose commands, paths, workflows, or file listings the changes affect, and update it before staging.
+- Identify documentation (README.md, CLAUDE.md, or similar) whose commands, paths, workflows, or file listings the changes affect, and update it.
 - Update only what the current change requires; do not expand scope.
 - Do not create new documentation files unless explicitly requested.
 
