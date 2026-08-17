@@ -77,7 +77,7 @@ init_handoff() {
   validate_tmp_root
   sid=$(cat /proc/sys/kernel/random/uuid) || abort "cannot generate a handoff id"
   root="/var/tmp/spar-$sid"
-  (umask 077; mkdir -m 700 -- "$root") || abort "cannot create handoff directory: $root"
+  mkdir -m 700 -- "$root" || abort "cannot create handoff directory: $root"
   validate_handoff "$root"
   printf '%s\n' "$root"
 }
@@ -163,10 +163,10 @@ cleanup_stream() {
 stream() { # $1 reply_fd; rest = claude session flags
   local reply_fd=$1 line rc=0 child_rc=0 result="" result_count=0
   shift
-  workdir=$(mktemp -d) && [[ -d ${workdir:-} ]] || abort "cannot create a private temp directory"
-  mkfifo -m 600 "$workdir/fifo" || abort "cannot create the event fifo"
+  workdir=$(mktemp -d) || abort "cannot create a private temp directory"
   pid=""
   trap cleanup_stream EXIT INT TERM
+  mkfifo -m 600 "$workdir/fifo" || abort "cannot create the event fifo"
   setsid timeout --kill-after=2 "$CEILING" claude -p "$@" \
     --permission-mode plan --disallowedTools "Write Edit NotebookEdit Bash" \
     --tools "Read,Glob,Grep" \
@@ -232,7 +232,7 @@ case $mode in
     flush_handoff "$2"
     PROMPT=$3
     scan_payload "$2"
-    sid=$(cat /proc/sys/kernel/random/uuid)
+    sid=$(cat /proc/sys/kernel/random/uuid) || abort "cannot generate a reviewer session id"
     preflight
     append_manifest "$2" "$role" allocated "$sid"
     stream 2 --session-id "$sid"

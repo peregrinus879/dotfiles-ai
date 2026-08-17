@@ -285,7 +285,7 @@ rm -f "$calls"
 SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/codex/.local/bin/spar-codex" \
   resume 11111111-1111-4111-8111-111111111111 "$handoff" "Review flags." >/dev/null 2>/dev/null
 resume_flags=$(<"$calls")
-for flag in --ignore-user-config --ignore-rules --strict-config 'default_permissions="spar-reviewer"' \
+for flag in --ignore-user-config --ignore-rules --strict-config --json 'default_permissions="spar-reviewer"' \
   'forced_login_method="chatgpt"' 'model_provider="openai"' 'model="gpt-5.6-sol"' \
   'model_reasoning_effort="xhigh"' 'web_search="disabled"' 'network={enabled=false}' \
   'features.plugins=false' 'features.remote_plugin=false' 'service_tier="fast"' \
@@ -419,5 +419,33 @@ for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin
   [[ $out == *"invalid	$h2"* ]] || fail "${bridge##*/} status did not report the invalid handoff"
 done
 rm -rf -- "$h1" "$h2"
+
+# Failure contracts: a failing mkfifo aborts exit 2 with the private workdir
+# cleaned (the trap is installed before mkfifo), and a failing uuid read in
+# new surfaces the bridge's abort message, not cat's raw status.
+mkdir -p "$TMP/failbin"
+printf '#!/usr/bin/env bash\nexit 1\n' >"$TMP/failbin/mkfifo"
+chmod 755 "$TMP/failbin/mkfifo"
+handoff=$(make_handoff)
+workdirs="$TMP/leak-observe"
+mkdir -p "$workdirs"
+rc=0
+TMPDIR=$workdirs SPAR_TEST_CALLS="$TMP/failcalls" PATH="$TMP/failbin:$TMP/bin:$PATH" \
+  "$ROOT/claude-code/.local/bin/spar-claude" new "$handoff" "Review failure." >/dev/null 2>&1 || rc=$?
+[[ $rc == 2 ]] || fail "spar-claude mkfifo failure did not abort with exit 2"
+[[ -z $(ls -A "$workdirs") ]] || fail "spar-claude leaked its private workdir on mkfifo failure"
+rm -f "$TMP/failbin/mkfifo"
+rm -rf -- "$handoff"
+
+printf '#!/usr/bin/env bash\nexit 1\n' >"$TMP/failbin/cat"
+chmod 755 "$TMP/failbin/cat"
+handoff=$(make_handoff)
+rc=0
+diagnostic=$(SPAR_TEST_CALLS="$TMP/failcalls" PATH="$TMP/failbin:$TMP/bin:$PATH" \
+  "$ROOT/claude-code/.local/bin/spar-claude" new "$handoff" "Review failure." 2>&1) || rc=$?
+[[ $rc == 2 && $diagnostic == *'cannot generate a reviewer session id'* ]] ||
+  fail "spar-claude uuid failure did not surface the bridge abort"
+rm -f "$TMP/failbin/cat"
+rm -rf -- "$handoff"
 
 printf 'ok: spar bridges block sensitive outbound payloads before reviewer invocation\n'

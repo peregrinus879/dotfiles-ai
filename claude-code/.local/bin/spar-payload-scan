@@ -25,7 +25,7 @@ def reject(label: str, rule: str) -> None:
 
 
 def sensitive_path(value: str) -> bool:
-    path = value.lower().removeprefix("a/").removeprefix("b/").removeprefix("./")
+    path = value.lower()
     parts = path.split("/")
     name = parts[-1]
     return (

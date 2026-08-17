@@ -17,6 +17,7 @@ STALL="${SPAR_BRIDGE_STALL:-180}"      # kill after this many seconds without a 
 UUID_RE='^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
 HANDOFF_RE='^/var/tmp/spar-[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
 POSINT_RE='^[1-9][0-9]*$'
+LIMIT_RE='usage limit|rate limit|quota|too many requests|overloaded|429'
 DIAGNOSTIC_MAX_BYTES=8192
 
 # The reviewer reads exactly one validated handoff directory, so the profile is
@@ -53,6 +54,7 @@ CODEX_COMMON=(
   -c 'web_search="disabled"'
   -c 'service_tier="fast"'
   -c 'features.fast_mode=true'
+  --json
 )
 
 usage() {
@@ -112,7 +114,7 @@ init_handoff() {
   validate_tmp_root
   sid=$(cat /proc/sys/kernel/random/uuid) || abort "cannot generate a handoff id"
   root="/var/tmp/spar-$sid"
-  (umask 077; mkdir -m 700 -- "$root") || abort "cannot create handoff directory: $root"
+  mkdir -m 700 -- "$root" || abort "cannot create handoff directory: $root"
   validate_handoff "$root"
   printf '%s\n' "$root"
 }
@@ -210,9 +212,13 @@ exit_with_stderr() {
     echo "SPAR-BRIDGE ERROR: reviewer exited $child_rc without stderr" >&2
     exit 5
   }
-  grep -qiE 'usage limit|rate limit|quota|too many requests|overloaded|429' "$stderr_file" && limit=1
+  grep -qiE "$LIMIT_RE" "$stderr_file" && limit=1
   size=$(stat -c '%s' -- "$stderr_file") || size=""
-  if [[ $size =~ ^[0-9]+$ ]] && ((size <= DIAGNOSTIC_MAX_BYTES)); then
+  if [[ ! $size =~ ^[0-9]+$ ]]; then
+    withheld_reason="stderr size could not be verified"
+  elif ((size > DIAGNOSTIC_MAX_BYTES)); then
+    withheld_reason="stderr exceeds ${DIAGNOSTIC_MAX_BYTES}-byte relay bound"
+  else
     diagnostic=$(<"$stderr_file")
     if printf '%s' "$diagnostic" | "$SCANNER" "$HANDOFF" >/dev/null 2>&1; then
       if [[ $limit == 1 ]]; then
@@ -229,11 +235,6 @@ exit_with_stderr() {
     echo "SPAR-BRIDGE ERROR: reviewer exited $child_rc; stderr withheld by content gate" >&2
     exit 5
   fi
-  if [[ $size =~ ^[0-9]+$ ]]; then
-    withheld_reason="stderr exceeds ${DIAGNOSTIC_MAX_BYTES}-byte relay bound"
-  else
-    withheld_reason="stderr size could not be verified"
-  fi
   if [[ $limit == 1 ]]; then
     echo "SPAR-BRIDGE LIMIT: reviewer hit a usage limit; $withheld_reason" >&2
     exit 3
@@ -246,12 +247,7 @@ stream() {
   local reply_fd=$1 line rc=0 child_rc=0 thread_id="" thread_count=0 turn_count=0 reply=""
   local stderr_fifo stderr_file
   shift
-  local pre=() post=() seen_sep=0 a
-  for a in "$@"; do
-    if [[ $a == "--" && $seen_sep == 0 ]]; then seen_sep=1; continue; fi
-    if [[ $seen_sep == 0 ]]; then pre+=("$a"); else post+=("$a"); fi
-  done
-  workdir=$(mktemp -d) && [[ -d ${workdir:-} ]] || abort "cannot create a private temp directory"
+  workdir=$(mktemp -d) || abort "cannot create a private temp directory"
   pid=""
   stderr_pid=""
   trap cleanup_stream EXIT INT TERM
@@ -262,7 +258,7 @@ stream() {
   (umask 077; exec tail -c $((DIAGNOSTIC_MAX_BYTES + 1)) >"$stderr_file") <"$stderr_fifo" &
   stderr_pid=$!
   fifo="$workdir/fifo"
-  setsid timeout --kill-after=2 "$CEILING" codex exec "${pre[@]}" --json -- "${post[@]}" \
+  setsid timeout --kill-after=2 "$CEILING" codex exec "$@" \
     </dev/null >"$fifo" 2>"$stderr_fifo" &
   pid=$!
   # shellcheck disable=SC2094 # the fifo's writer is the background codex process
@@ -289,7 +285,7 @@ stream() {
         fi ;;
       error | turn.failed)
         report_failed_thread "$reply_fd" "$thread_id"
-        if grep -qiE 'usage limit|rate limit|quota|too many requests|overloaded|429' <<<"$line"; then
+        if grep -qiE "$LIMIT_RE" <<<"$line"; then
           echo "SPAR-BRIDGE LIMIT: reviewer hit a usage limit; surface to the user now: $line" >&2
           exit 3
         fi
