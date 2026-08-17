@@ -23,7 +23,7 @@ readarray -t _f <<< "$(echo "$input" | jq -r '
   (.workspace.current_dir // .cwd // ""),
   (.model.display_name // ""),
   (.context_window.used_percentage // ""),
-  (.context_window.context_window_size // 0),
+  (.context_window.total_input_tokens // 0),
   (.rate_limits.five_hour.used_percentage // ""),
   (.rate_limits.seven_day.used_percentage // ""),
   (.cost.total_cost_usd // ""),
@@ -32,7 +32,7 @@ readarray -t _f <<< "$(echo "$input" | jq -r '
   (.session_id // "")
 ')"
 for i in "${!_f[@]}"; do _f[$i]="${_f[$i]%$'\r'}"; done
-cwd="${_f[0]}" model="${_f[1]}" used_pct="${_f[2]}" ctx_size="${_f[3]}"
+cwd="${_f[0]}" model="${_f[1]}" used_pct="${_f[2]}" ctx_tokens="${_f[3]}"
 rate_5h="${_f[4]}" rate_7d="${_f[5]}" cost_usd="${_f[6]}"
 
 # Round the rate percentages once; empty stands for absent or null.
@@ -231,17 +231,13 @@ branch_seg="${branch:+${italic_cyan}${branch}${reset}}"
 short_model="${model#Claude }"
 model_seg="${short_model:+${dim}${short_model}${reset}}"
 
-# Context window: used (pct%)
-# used_percentage and ctx_size can be null early in session before first API call.
+# Context window: ctx:pct%(tokens); tokens come exact from the payload
+# used_percentage can be null early in session before first API call.
 ctx_seg=""
 if [ -n "$used_pct" ]; then
   used_int=$(printf '%.0f' "$used_pct" 2>/dev/null)
-  if [ "$ctx_size" -gt 0 ] 2>/dev/null; then
-    used_raw=$((ctx_size * used_int / 100))
-    ctx_seg="$(pct_color "$used_int")$(fmt_k "$used_raw") (${used_int}%)${reset}"
-  else
-    ctx_seg="$(pct_color "$used_int")${used_int}%${reset}"
-  fi
+  ctx_tok=$(fmt_k "$ctx_tokens")
+  ctx_seg="${dim}ctx:${reset}$(pct_color "$used_int")${used_int}%${reset}${ctx_tok:+${dim}(${ctx_tok})${reset}}"
 fi
 
 # Rate limits: 5h and 7d (with reset countdown and local reset time)
