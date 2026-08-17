@@ -8,6 +8,8 @@
 # - No redundant indicators when the tool already surfaces the information natively.
 # - Consistent label:value pattern (e.g., 5h:35%, 5h:52m, 7d:24h 0m).
 # - Space separators between segments, not special characters.
+# - Colors pin the Omarchy gruvbox palette as truecolor, so rendering does not
+#   depend on the terminal's ANSI palette; re-pin when the theme changes.
 # - Runtime state uses hashed keys in one owner-only directory. Existing state
 #   must be a regular, owner-only, single-link file; updates replace atomically.
 # - Intentionally no Bash strict mode, and [ ] guards throughout: parse failures
@@ -39,14 +41,14 @@ rate_5h_int="" rate_7d_int=""
 [ -n "$rate_7d" ] && [ "$rate_7d" != "null" ] && rate_7d_int=$(printf '%.0f' "$rate_7d" 2>/dev/null)
 reset_5h="${_f[7]}" reset_7d="${_f[8]}" session_id="${_f[9]}"
 
-# --- ANSI colors ---
-dim='\033[2m'
-bold_cyan='\033[1;36m'
-italic_cyan='\033[3;36m'
-yellow='\033[33m'
-bold_yellow='\033[1;33m'
-green='\033[32m'
-red='\033[31m'
+# --- Colors: Omarchy gruvbox palette (themes/gruvbox/colors.toml), truecolor ---
+dim='\033[38;2;124;111;100m'          # dark_foreground #7c6f64
+bold_cyan='\033[1;38;2;137;180;130m'  # cyan #89b482
+italic_cyan='\033[3;38;2;137;180;130m'
+yellow='\033[38;2;216;166;87m'        # yellow #d8a657
+bold_yellow='\033[1;38;2;216;166;87m'
+green='\033[38;2;169;182;101m'        # green #a9b665
+red='\033[38;2;234;105;98m'           # red #ea6962
 reset='\033[0m'
 
 # --- Helpers ---
