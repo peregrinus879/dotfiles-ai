@@ -307,6 +307,8 @@ SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-
 resume_flags=$(<"$calls")
 [[ $new_flags == *'--effort xhigh'* && $resume_flags == *'--effort xhigh'* ]] ||
   fail "Claude new/resume xhigh effort pin missing"
+[[ $new_flags == *'--tools Read,Glob,Grep'* && $resume_flags == *'--tools Read,Glob,Grep'* ]] ||
+  fail "Claude new/resume read-only tool whitelist missing"
 rm -rf -- "$handoff"
 
 handoff=$(make_handoff)

@@ -17,7 +17,7 @@ help:
 	@echo "  unstow    Remove all package symlinks"
 	@echo "  dry-run   Preview stow actions without making changes"
 	@echo "  restow    Re-stow after repo content changes"
-	@echo "  verify    Check symlinks, JSON validity, statusline syntax, skill sync, and stray configs"
+	@echo "  verify    Run the full verification suite (authoritative list: README Verify and Maintenance)"
 	@echo "  clean     Safely prepare managed paths for stow"
 	@echo "  lint      ShellCheck over all managed Bash scripts"
 
@@ -36,11 +36,14 @@ restow:
 # Stow may tree-fold a parent directory (e.g. ~/.config/opencode) into a
 # single directory symlink, so per-file "test -L" checks false-negative.
 # Compare resolved paths instead: linked is linked, folded or not.
+# Pin layering: structured config contracts live in tests/config-contracts.py;
+# prose, script, and skill content pins live here as greps. Negative
+# (tombstone) greps carry a dated ledger entry and retire after two years
+# unless re-justified there.
 verify:
 	@fail=0; \
 	for command in node python3 jq readlink realpath sha256sum stat; do \
-	  if command -v "$$command" > /dev/null; then :; \
-	  else echo "FAIL: required verifier missing: $$command"; fail=1; fi; \
+	  command -v "$$command" > /dev/null || { echo "FAIL: required verifier missing: $$command"; fail=1; }; \
 	done; \
 	[[ $$fail == 0 ]] || exit $$fail; \
 	for pair in "$$HOME/.claude/CLAUDE.md=claude-code/.claude/CLAUDE.md" \
@@ -68,8 +71,8 @@ verify:
 	  "$$HOME/.config/opencode/skills/commit/SKILL.md=opencode/.config/opencode/skills/commit/SKILL.md" \
 	  "$$HOME/.config/opencode/skills/spar/SKILL.md=opencode/.config/opencode/skills/spar/SKILL.md"; do \
 	  target="$${pair%%=*}"; src="$${pair##*=}"; \
-	  target_resolved=$$(readlink -f -- "$$target") || target_resolved=""; \
-	  src_resolved=$$(readlink -f -- "$$src") || src_resolved=""; \
+	  target_resolved=$$(readlink -f -- "$$target"); \
+	  src_resolved=$$(readlink -f -- "$$src"); \
 	  if [[ -n $$target_resolved && -n $$src_resolved && $$target_resolved == "$$src_resolved" ]]; then \
 	    echo "ok:   $$target resolves into the repo"; \
 	  else \
@@ -77,15 +80,12 @@ verify:
 	  fi; \
 	done; \
 	if bash -n claude-code/.claude/statusline.sh; then echo "ok:   bash -n statusline.sh"; else echo "FAIL: bash -n statusline.sh"; fail=1; fi; \
-	if bash -n tests/statusline-state.sh && bash tests/statusline-state.sh; then :; \
-	else echo "FAIL: statusline runtime-state controls"; fail=1; fi; \
+	bash -n tests/statusline-state.sh && bash tests/statusline-state.sh || { echo "FAIL: statusline runtime-state controls"; fail=1; }; \
 	if bash -n scripts/prepare-stow.sh tests/prepare-stow.sh && bash tests/prepare-stow.sh; then \
 	  echo "ok:   non-destructive stow preparation"; \
 	else echo "FAIL: non-destructive stow preparation"; fail=1; fi; \
-	if bash -n tests/spar-bridges.sh && bash tests/spar-bridges.sh; then :; \
-	else echo "FAIL: spar bridge payload controls"; fail=1; fi; \
-	if bash -n tests/project-config-isolation.sh && bash tests/project-config-isolation.sh; then :; \
-	else echo "FAIL: project config isolation"; fail=1; fi; \
+	bash -n tests/spar-bridges.sh && bash tests/spar-bridges.sh || { echo "FAIL: spar bridge payload controls"; fail=1; }; \
+	bash -n tests/project-config-isolation.sh && bash tests/project-config-isolation.sh || { echo "FAIL: project config isolation"; fail=1; }; \
 	for b in spar-claude spar-codex spar-payload-scan; do \
 	  if [[ -x "$$HOME/.local/bin/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
 	done; \
@@ -102,8 +102,7 @@ verify:
 	    echo "ok:   $${b##*/} private handoff lifecycle"; \
 	  else echo "FAIL: $${b##*/} private handoff lifecycle drifted"; fail=1; fi; \
 	done; \
-	if python3 tests/config-contracts.py; then :; \
-	else echo "FAIL: config syntax or security contract drifted"; fail=1; fi; \
+	python3 tests/config-contracts.py || { echo "FAIL: config syntax or security contract drifted"; fail=1; }; \
 	if grep -Fqx -- '- Persistent file-content changes use native edit tools, so each file gets its own approval prompt and diff. An `apply_patch` call modifies exactly one file; never bundle multiple files into one patch.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fqx -- '- An `apply_patch` call must modify exactly one file; never bundle multiple files into one patch.' opencode/.config/opencode/AGENTS.md; then \
 	  echo "ok:   one-file apply_patch guidance"; \
@@ -157,13 +156,20 @@ verify:
 	  synced=1; \
 	  for copy in "codex/.agents/skills/$$s/SKILL.md" "opencode/.config/opencode/skills/$$s/SKILL.md"; do \
 	    diff -q \
-	      <(awk '/^## Reviewer incantations$$/{skip=1; next} /^## /{skip=0} !skip' "claude-code/.claude/skills/$$s/SKILL.md" | grep -v -e 'disable-model-invocation' -e 'allowed-tools' -e 'Co-Authored-By') \
+	      <(awk '/^## Reviewer incantations$$/{skip=1; next} /^## /{skip=0} !skip' "claude-code/.claude/skills/$$s/SKILL.md" | grep -v -e 'allowed-tools' -e 'Co-Authored-By') \
 	      <(awk '/^## Reviewer incantations$$/{skip=1; next} /^## /{skip=0} !skip' "$$copy" | grep -v -e 'Co-Authored-By') > /dev/null || synced=0; \
 	  done; \
 	  if [[ $$synced == 1 ]]; then \
 	    echo "ok:   $$s skill copies in sync (shared sections)"; \
 	  else echo "FAIL: $$s skill copies drifted (allowed diffs: tool frontmatter keys, Co-Authored-By, Reviewer incantations section)"; fail=1; fi; \
 	done; \
+	tripwire=$$(sed -n 's/.*version tripwire source: //p' docs/maintenance.md | head -1); \
+	if [[ -n $$tripwire ]] && command -v mise > /dev/null; then \
+	  current=$$(mise ls --current 2>/dev/null | awk '$$1=="claude"||$$1=="codex"||$$1=="opencode"{printf "%s=%s ", $$1, $$2}'); \
+	  if [[ -n $$current && $$current != "$$tripwire " ]]; then \
+	    echo "WARN: installed versions ($$current) differ from the ledger probe triple ($$tripwire); permission probes may be stale (docs/maintenance.md)"; \
+	  fi; \
+	fi; \
 	exit $$fail
 
 clean:
