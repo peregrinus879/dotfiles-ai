@@ -10,7 +10,8 @@
 # - Consistent "label: pct% (remaining)" pattern: ctx: 42% (116k),
 #   5h: 38% (02:11), 7d: 24% (05:06:38). The dim bracket holds what remains:
 #   context tokens, or the countdown (hh:mm, dd:hh:mm) to the window reset.
-# - Space separators between segments, not special characters.
+# - Three-space separators between segments, not special characters; single
+#   spaces bind label, value, and bracket within a segment.
 # - Colors pin the Omarchy gruvbox palette as truecolor, so rendering does not
 #   depend on the terminal's ANSI palette; re-pin when the theme changes.
 # - Color roles: dim = labels, brackets, metadata; bold = identity (directory,
@@ -289,6 +290,6 @@ fi
 # --- Output ---
 line=""
 for seg in "$host_seg" "$dir_seg" "$branch_seg" "$model_seg" "$ctx_seg" "$rate5_seg" "$rate7_seg" "$cost_seg"; do
-  [ -n "$seg" ] && line+="${line:+  }${seg}"
+  [ -n "$seg" ] && line+="${line:+   }${seg}"
 done
 printf '%b\n' "$line"
