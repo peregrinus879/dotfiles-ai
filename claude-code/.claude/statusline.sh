@@ -4,7 +4,8 @@
 #
 # Design conventions:
 # - Every segment must earn its place. No burn rate ($/hr); show extra-usage
-#   spend only, cumulative. No duration segment.
+#   spend only, cumulative, hidden until extra usage first occurs. No duration
+#   segment.
 # - No redundant indicators when the tool already surfaces the information natively.
 # - Consistent label:value pattern (e.g., 5h:35%, 5h:52m, 7d:24h 0m).
 # - Space separators between segments, not special characters.
@@ -244,7 +245,7 @@ fi
 rate5_seg=$(build_rate_seg "5h" "$rate_5h_int" "$reset_5h" "%H:%M")
 rate7_seg=$(build_rate_seg "7d" "$rate_7d_int" "$reset_7d" "%a.%H:%M")
 
-# Session cost (tracks only extra usage spend)
+# Extra-usage cost (hidden until overage first occurs)
 # State: line 1 = active|frozen, line 2 = baseline, line 3 = prior extra, line 4 = last displayed
 extra_state=""
 if [ "$state_ready" -eq 1 ] && [ -n "$session_id" ]; then
@@ -270,7 +271,7 @@ if [ "$extra_usage" -eq 1 ] 2>/dev/null; then
   if [ -n "$cost_usd" ]; then
     extra_cost=$(jq -n --argjson c "$cost_usd" --argjson b "${_bl:-0}" --argjson p "${_pr:-0}" '[$p + $c - $b, 0] | max' 2>/dev/null) || extra_cost=0
     [ -n "$extra_state" ] && write_state "$extra_state" "active" "$_bl" "$_pr" "$extra_cost"
-    cost_seg="${yellow}$(printf '$%.2f' "$extra_cost")${reset}"
+    cost_seg="${dim}extra:${reset}${yellow}$(printf '$%.2f' "$extra_cost")${reset}"
   fi
 else
   if [ "$extra_state_ok" -eq 1 ]; then
@@ -278,9 +279,7 @@ else
       # Transition to frozen: use last displayed value, not recomputed
       write_state "$extra_state" "frozen" "0" "0" "${_ld:-0}"
     fi
-    cost_seg="${dim}$(printf '$%.2f' "${_ld:-0}")${reset}"
-  else
-    cost_seg="${dim}\$0.00${reset}"
+    cost_seg="${dim}extra:$(printf '$%.2f' "${_ld:-0}")${reset}"
   fi
 fi
 
