@@ -9,8 +9,7 @@
       "Bash(pacman -Q*)",
       "Bash(pacman -Si *)",
       "Bash(pacman -Ss *)",
-      "Bash(spar-codex *)",
-      "Bash(tree *)"
+      "Bash(spar-codex *)"
     ],
     "deny": [
       "Bash(find * -delete*)",

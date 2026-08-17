@@ -28,8 +28,6 @@
       "pacman -Ss *": "allow",
       "pwd": "allow",
       "spar-claude *": "allow",
-      "tree": "allow",
-      "tree *": "allow",
       "* >*": "ask",
       "* >>*": "ask",
       "* | tee*": "ask",

@@ -63,10 +63,16 @@ require(
         "Bash(pacman -Si *)",
         "Bash(pacman -Ss *)",
         "Bash(spar-codex *)",
-        "Bash(tree *)",
     ],
     "Claude automatic allowlist drifted",
 )
+for rule in (
+    "Bash(tree * --output *)",
+    "Bash(tree * -o *)",
+    "Bash(tree --output*)",
+    "Bash(tree -o *)",
+):
+    require(rule in claude["permissions"]["deny"], f"Claude tree output deny drifted: {rule}")
 for rule in ("Bash(git push)", "Bash(git push *)"):
     require(rule in claude["permissions"]["deny"], f"Claude push deny drifted: {rule}")
 require(
@@ -175,11 +181,11 @@ require(
         "pacman -Ss *",
         "pwd",
         "spar-claude *",
-        "tree",
-        "tree *",
     ],
     "OpenCode metadata-only allowlist drifted",
 )
+for command in ("tree -o *", "tree --output*", "tree * -o *", "tree * --output *"):
+    require(bash[command] == "deny", f"OpenCode tree output deny drifted: {command}")
 for unsafe in ("gh api", "gh api *", "codex *", "claude -p *"):
     require(unsafe not in bash, f"Unsafe OpenCode Bash allow found: {unsafe}")
 require(bash["git push"] == "deny" and bash["git push *"] == "deny", "OpenCode push deny drifted")
