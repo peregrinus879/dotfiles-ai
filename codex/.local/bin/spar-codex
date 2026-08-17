@@ -4,7 +4,9 @@
 # Modes: init (private handoff directory to stdout)
 #        clean <handoff-dir>
 #        flush <handoff-dir> (validate, then sync the handoff filesystem)
-#        new <handoff-dir> "<prompt>" (thread id to stdout, reply to stderr)
+#        status (list validated handoffs with task title and reviewer manifest)
+#        new <handoff-dir> "<prompt>" [primary|cold] (thread id to stdout, reply
+#          to stderr; appends role and state lines to the reviewer-id manifest)
 #        resume <sid> <handoff-dir> "<prompt>" (reply to stdout)
 # Exit codes: 0 ok, 2 preflight failed, 3 usage limit, 4 stall, 5 reviewer error, 64 usage, 124 ceiling.
 set -euo pipefail
@@ -54,7 +56,7 @@ CODEX_COMMON=(
 )
 
 usage() {
-  echo 'usage: spar-codex init | clean <handoff-dir> | flush <handoff-dir> | new <handoff-dir> "<prompt>" | resume <sid> <handoff-dir> "<prompt>"' >&2
+  echo 'usage: spar-codex init | clean <handoff-dir> | flush <handoff-dir> | status | new <handoff-dir> "<prompt>" [primary|cold] | resume <sid> <handoff-dir> "<prompt>"' >&2
   exit 64
 }
 
@@ -128,6 +130,37 @@ flush_handoff() {
   local root=$1
   validate_handoff "$root"
   sync -f -- "$root" || abort "cannot flush the handoff filesystem: $root"
+}
+
+append_manifest() { # handoff-dir role state id
+  local root=$1
+  (umask 077; printf '%s\t%s\t%s\t%s\n' "$(date -Is)" "$2" "$3" "$4" >>"$root/reviewer-id") ||
+    abort "cannot append the reviewer manifest: $root"
+  sync -f -- "$root" || abort "cannot flush the reviewer manifest: $root"
+}
+
+status_handoffs() {
+  local root title
+  validate_tmp_root
+  shopt -s nullglob
+  for root in /var/tmp/spar-*; do
+    if ! (validate_handoff "$root") >/dev/null 2>&1; then
+      printf 'invalid\t%s\n' "$root"
+      continue
+    fi
+    printf 'handoff\t%s\t%s\n' "$root" "$(stat -c '%y' -- "$root")"
+    title=""
+    if [[ -f $root/spar-plan.md ]]; then IFS= read -r title <"$root/spar-plan.md" || true
+    elif [[ -f $root/spar-diff.md ]]; then IFS= read -r title <"$root/spar-diff.md" || true
+    fi
+    printf 'title\t%s\n' "${title:-<none>}"
+    if [[ -f $root/reviewer-id ]]; then
+      awk '{printf "manifest\t%s\n", $0}' "$root/reviewer-id"
+    else
+      printf 'manifest\t<none>\n'
+    fi
+  done
+  shopt -u nullglob
 }
 
 preflight() {
@@ -246,7 +279,10 @@ stream() {
         thread_id=$(jq -er '.thread_id | select(type == "string")' <<<"$line") || {
           echo "SPAR-BRIDGE ERROR: malformed thread event" >&2
           exit 5
-        } ;;
+        }
+        if [[ $reply_fd == 2 && $thread_id =~ $UUID_RE ]]; then
+          append_manifest "$HANDOFF" "$ROLE" started "$thread_id"
+        fi ;;
       item.completed)
         if [[ $(jq -r '.item.type // empty' <<<"$line") == agent_message ]]; then
           reply=$(jq -er '.item.text | select(type == "string" and length > 0)' <<<"$line") || true
@@ -291,6 +327,7 @@ stream() {
       echo "SPAR-BRIDGE ERROR: new review has no valid thread id" >&2
       exit 5
     }
+    LAST_THREAD_ID=$thread_id
     printf '%s\n' "$thread_id"
   fi
   printf '%s\n' "$reply" >&"$reply_fd"
@@ -308,14 +345,20 @@ case $mode in
   flush)
     [[ $# -eq 2 ]] || usage
     flush_handoff "$2" ;;
+  status)
+    [[ $# -eq 1 ]] || usage
+    status_handoffs ;;
   new)
-    [[ $# -eq 3 ]] || usage
+    [[ $# -eq 3 || $# -eq 4 ]] || usage
     HANDOFF=$2
+    ROLE=${4:-primary}
+    [[ $ROLE == primary || $ROLE == cold ]] || abort "reviewer role must be primary or cold: $ROLE"
     flush_handoff "$HANDOFF"
     PROMPT=$3
     scan_payload "$HANDOFF"
     build_reviewer_profile
-    preflight; stream 2 "${CODEX_COMMON[@]}" -c "$REVIEWER_PROFILE" -- "$PROMPT" ;;
+    preflight; stream 2 "${CODEX_COMMON[@]}" -c "$REVIEWER_PROFILE" -- "$PROMPT"
+    append_manifest "$HANDOFF" "$ROLE" completed "$LAST_THREAD_ID" ;;
   resume)
     [[ $# -eq 4 ]] || usage
     [[ $2 =~ $UUID_RE ]] || abort "resume session id is not a UUID: $2"

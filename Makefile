@@ -128,8 +128,13 @@ verify:
 	if grep -Fq '/var/tmp/spar-<session-id>/' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq '/var/tmp/spar-<session-id>/' codex/.agents/skills/spar/SKILL.md && \
 	  grep -Fq '/var/tmp/spar-<session-id>/' opencode/.config/opencode/skills/spar/SKILL.md && \
+	  grep -Fq 'reviewer-id' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'reviewer-id' codex/.agents/skills/spar/SKILL.md && \
+	  grep -Fq 'reviewer-id' opencode/.config/opencode/skills/spar/SKILL.md && \
 	  grep -Fq 'reviewer bridge'\''s `init` mode' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'reviewer bridge'\''s `clean` mode' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'bridge'\''s `flush` mode' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'bridge'\''s `status` mode' claude-code/.claude/skills/spar/SKILL.md && \
 	  ! grep -Fq 'spar-scratch' claude-code/.claude/skills/spar/SKILL.md && \
 	  ! grep -Fq 'spar-scratch' codex/.agents/skills/spar/SKILL.md && \
 	  ! grep -Fq 'spar-scratch' opencode/.config/opencode/skills/spar/SKILL.md; then \

@@ -352,4 +352,72 @@ for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin
   fi
 done
 
+# Reviewer manifest lifecycle: role and state lines at earliest availability.
+handoff=$(make_handoff)
+calls="$TMP/manifest-claude"
+SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
+  new "$handoff" "Review manifest." >/dev/null 2>/dev/null || fail "spar-claude manifest run failed"
+grep -q $'\tprimary\tallocated\t' "$handoff/reviewer-id" || fail "spar-claude manifest missing allocated"
+grep -q $'\tprimary\tcompleted\t' "$handoff/reviewer-id" || fail "spar-claude manifest missing completed"
+SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
+  new "$handoff" "Review manifest." cold >/dev/null 2>/dev/null || fail "spar-claude cold-role run failed"
+[[ $(grep -c . "$handoff/reviewer-id") == 4 ]] || fail "spar-claude manifest is not append-only"
+grep -q $'\tcold\tcompleted\t' "$handoff/reviewer-id" || fail "spar-claude cold role missing"
+if SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
+  new "$handoff" "Review manifest." wrongrole >/dev/null 2>/dev/null; then
+  fail "spar-claude accepted an invalid reviewer role"
+fi
+rm -rf -- "$handoff"
+
+handoff=$(make_handoff)
+calls="$TMP/manifest-codex"
+SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/codex/.local/bin/spar-codex" \
+  new "$handoff" "Review manifest." >/dev/null 2>/dev/null || fail "spar-codex manifest run failed"
+grep -q $'\tprimary\tstarted\t' "$handoff/reviewer-id" || fail "spar-codex manifest missing started"
+grep -q $'\tprimary\tcompleted\t' "$handoff/reviewer-id" || fail "spar-codex manifest missing completed"
+if SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/codex/.local/bin/spar-codex" \
+  new "$handoff" "Review manifest." wrongrole >/dev/null 2>/dev/null; then
+  fail "spar-codex accepted an invalid reviewer role"
+fi
+rm -rf -- "$handoff"
+
+# Post-start failure still records the thread id before the failure surfaces.
+handoff=$(make_handoff)
+calls="$TMP/manifest-codex-failure"
+SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=stderr-failure PATH="$TMP/bin:$PATH" \
+  "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review manifest." >/dev/null 2>/dev/null || true
+grep -q $'\tprimary\tstarted\t11111111-1111-4111-8111-111111111111' "$handoff/reviewer-id" ||
+  fail "spar-codex failure path did not persist the started thread id"
+if grep -q $'\tcompleted\t' "$handoff/reviewer-id"; then
+  fail "spar-codex failure path recorded a completed state"
+fi
+rm -rf -- "$handoff"
+
+handoff=$(make_handoff)
+calls="$TMP/manifest-claude-failure"
+SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=eof PATH="$TMP/bin:$PATH" \
+  "$ROOT/claude-code/.local/bin/spar-claude" new "$handoff" "Review manifest." >/dev/null 2>/dev/null || true
+grep -q $'\tprimary\tallocated\t' "$handoff/reviewer-id" ||
+  fail "spar-claude failure path did not persist the allocated session id"
+if grep -q $'\tcompleted\t' "$handoff/reviewer-id"; then
+  fail "spar-claude failure path recorded a completed state"
+fi
+rm -rf -- "$handoff"
+
+# Status discovery lists valid handoffs with title and manifest, and reports
+# invalid entries individually without using them.
+h1=$(make_handoff)
+printf '# Task Alpha probe\n' >"$h1/spar-plan.md"
+printf '2026-08-17T00:00:00+00:00\tprimary\tcompleted\t11111111-1111-4111-8111-111111111111\n' >"$h1/reviewer-id"
+h2=$(make_handoff)
+chmod 755 "$h2"
+for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin/spar-codex"; do
+  out=$("$bridge" status 2>/dev/null) || fail "${bridge##*/} status failed"
+  [[ $out == *"handoff	$h1"* ]] || fail "${bridge##*/} status missed a valid handoff"
+  [[ $out == *'# Task Alpha probe'* ]] || fail "${bridge##*/} status missed the task title"
+  [[ $out == *'11111111-1111-4111-8111-111111111111'* ]] || fail "${bridge##*/} status missed the manifest"
+  [[ $out == *"invalid	$h2"* ]] || fail "${bridge##*/} status did not report the invalid handoff"
+done
+rm -rf -- "$h1" "$h2"
+
 printf 'ok: spar bridges block sensitive outbound payloads before reviewer invocation\n'
