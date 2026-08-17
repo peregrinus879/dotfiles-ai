@@ -206,12 +206,18 @@ if [ -n "$cwd" ] && [ -d "$cwd" ]; then
   fi
 fi
 
-# Directory: repo root + relative path inside git repos, last 2 components outside
+# Directory: repo root + relative path inside git repos, last 2 components
+# outside; either way a deep tail collapses to …/ plus its last 2 components
 if [ -n "$repo_root" ]; then
   repo_name="${repo_root##*/}"
   rel_path="${cwd#"$repo_root"}"
   rel_path="${rel_path#/}"
   if [ -n "$rel_path" ]; then
+    IFS='/' read -ra parts <<< "$rel_path"
+    n=${#parts[@]}
+    if [ "$n" -gt 2 ]; then
+      rel_path="…/${parts[$((n-2))]}/${parts[$((n-1))]}"
+    fi
     short_cwd="${repo_name}/${rel_path}"
   else
     short_cwd="$repo_name"
@@ -224,6 +230,7 @@ else
     short_cwd="…/${parts[$((n-2))]}/${parts[$((n-1))]}"
   fi
 fi
+[ "${#branch}" -gt 24 ] && branch="${branch:0:23}…"
 dir_seg="${short_cwd:+${bold_cyan}${short_cwd}${reset}}"
 branch_seg="${branch:+${italic_cyan}${branch}${reset}}"
 
