@@ -118,7 +118,7 @@ fail() {
 
 make_handoff() {
   local root
-  root="/tmp/spar-$(cat /proc/sys/kernel/random/uuid)"
+  root="/var/tmp/spar-$(cat /proc/sys/kernel/random/uuid)"
   mkdir -m 700 -- "$root"
   printf '%s\n' "$root"
 }
@@ -335,5 +335,21 @@ if printf 'Review.' | "$ROOT/claude-code/.local/bin/spar-payload-scan" "$handoff
   fail "binary handoff passed scanner"
 fi
 rm -rf -- "$handoff"
+
+for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin/spar-codex"; do
+  handoff=$(make_handoff)
+  printf 'content\n' >"$handoff/spar-plan.md"
+  "$bridge" flush "$handoff" >/dev/null 2>&1 || fail "${bridge##*/} flush rejected a valid handoff"
+  rm -rf -- "$handoff"
+  if "$bridge" flush "/tmp/spar-$(cat /proc/sys/kernel/random/uuid)" >/dev/null 2>&1; then
+    fail "${bridge##*/} flush accepted a legacy /tmp handoff path"
+  fi
+  if "$bridge" flush "/var/tmp/spar-not-a-uuid" >/dev/null 2>&1; then
+    fail "${bridge##*/} flush accepted a malformed handoff name"
+  fi
+  if "$bridge" flush "/var/tmp/spar-$(cat /proc/sys/kernel/random/uuid)" >/dev/null 2>&1; then
+    fail "${bridge##*/} flush accepted a missing handoff directory"
+  fi
+done
 
 printf 'ok: spar bridges block sensitive outbound payloads before reviewer invocation\n'

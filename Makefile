@@ -92,9 +92,10 @@ verify:
 	  echo "ok:   spar-claude read-only tool whitelist"; \
 	else echo "FAIL: spar-claude read-only tool whitelist missing"; fail=1; fi; \
 	for b in claude-code/.local/bin/spar-claude codex/.local/bin/spar-codex; do \
-	  if grep -Fq 'HANDOFF_RE=' "$$b" && grep -Fq 'validate_handoff()' "$$b" && \
+	  if grep -Fq "HANDOFF_RE='^/var/tmp/spar-" "$$b" && grep -Fq 'validate_handoff()' "$$b" && \
 	    grep -Fq 'stat -c '\''%h'\''' "$$b" && grep -Fq 'stat -c '\''%a'\''' "$$b" && \
 	    grep -Fq 'realpath -e --' "$$b" && grep -Fq 'clean_handoff()' "$$b" && \
+	    grep -Fq 'flush_handoff()' "$$b" && grep -Fq 'sync -f --' "$$b" && \
 	    grep -Fq '[[ -e $$root || -L $$root ]] || return 0' "$$b"; then \
 	    echo "ok:   $${b##*/} private handoff lifecycle"; \
 	  else echo "FAIL: $${b##*/} private handoff lifecycle drifted"; fail=1; fi; \
@@ -124,9 +125,9 @@ verify:
 	  ! grep -Fq 'spar-scratch' opencode/.config/opencode/plugins/reviewed-writes.ts; then \
 	  echo "ok:   opencode one-file patch plugin"; \
 	else echo "FAIL: opencode one-file patch plugin drifted"; fail=1; fi; \
-	if grep -Fq '/tmp/spar-<session-id>/' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq '/tmp/spar-<session-id>/' codex/.agents/skills/spar/SKILL.md && \
-	  grep -Fq '/tmp/spar-<session-id>/' opencode/.config/opencode/skills/spar/SKILL.md && \
+	if grep -Fq '/var/tmp/spar-<session-id>/' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq '/var/tmp/spar-<session-id>/' codex/.agents/skills/spar/SKILL.md && \
+	  grep -Fq '/var/tmp/spar-<session-id>/' opencode/.config/opencode/skills/spar/SKILL.md && \
 	  grep -Fq 'reviewer bridge'\''s `init` mode' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'reviewer bridge'\''s `clean` mode' claude-code/.claude/skills/spar/SKILL.md && \
 	  ! grep -Fq 'spar-scratch' claude-code/.claude/skills/spar/SKILL.md && \

@@ -3,6 +3,7 @@
 # Flags are hard-coded so no caller can weaken them (AGENTS.md and docs/maintenance.md).
 # Modes: init (private handoff directory to stdout)
 #        clean <handoff-dir>
+#        flush <handoff-dir> (validate, then sync the handoff filesystem)
 #        new <handoff-dir> "<prompt>" (session id to stdout, reply to stderr)
 #        resume <sid> <handoff-dir> "<prompt>" (reply to stdout)
 # Exit codes: 0 ok, 2 preflight failed, 3 usage limit, 4 stall, 5 reviewer error,
@@ -15,11 +16,11 @@ export DISABLE_AUTOUPDATER=1
 CEILING="${SPAR_BRIDGE_CEILING:-1800}" # absolute seconds per call
 STALL="${SPAR_BRIDGE_STALL:-180}"      # kill after this many seconds without a stream event
 UUID_RE='^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
-HANDOFF_RE='^/tmp/spar-[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
+HANDOFF_RE='^/var/tmp/spar-[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
 POSINT_RE='^[1-9][0-9]*$'
 
 usage() {
-  echo 'usage: spar-claude init | clean <handoff-dir> | new <handoff-dir> "<prompt>" | resume <sid> <handoff-dir> "<prompt>"' >&2
+  echo 'usage: spar-claude init | clean <handoff-dir> | flush <handoff-dir> | new <handoff-dir> "<prompt>" | resume <sid> <handoff-dir> "<prompt>"' >&2
   exit 64
 }
 
@@ -45,16 +46,16 @@ validate_tmp_root() {
   if ! command -v realpath >/dev/null || ! command -v stat >/dev/null; then
     abort "realpath and stat are required for handoff validation"
   fi
-  [[ ! -L /tmp && -d /tmp && $(realpath -e -- /tmp) == /tmp ]] ||
-    abort "/tmp must be a real directory"
+  [[ ! -L /var/tmp && -d /var/tmp && $(realpath -e -- /var/tmp) == /var/tmp ]] ||
+    abort "/var/tmp must be a real directory"
 }
 
 validate_handoff() {
   local root=$1 entry resolved
   validate_tmp_root
-  [[ $root =~ $HANDOFF_RE ]] || abort "handoff path must be /tmp/spar-<UUID>: $root"
+  [[ $root =~ $HANDOFF_RE ]] || abort "handoff path must be /var/tmp/spar-<UUID>: $root"
   [[ -d $root && ! -L $root ]] || abort "handoff directory is missing or is a symlink: $root"
-  [[ $(realpath -e -- "$root") == "$root" ]] || abort "handoff directory escapes /tmp: $root"
+  [[ $(realpath -e -- "$root") == "$root" ]] || abort "handoff directory escapes /var/tmp: $root"
   [[ $(stat -c '%u' -- "$root") == $(id -u) ]] || abort "handoff directory is not owned by the current user: $root"
   [[ $(stat -c '%a' -- "$root") == 700 ]] || abort "handoff directory must have mode 700: $root"
 
@@ -73,7 +74,7 @@ init_handoff() {
   local sid root
   validate_tmp_root
   sid=$(cat /proc/sys/kernel/random/uuid) || abort "cannot generate a handoff id"
-  root="/tmp/spar-$sid"
+  root="/var/tmp/spar-$sid"
   (umask 077; mkdir -m 700 -- "$root") || abort "cannot create handoff directory: $root"
   validate_handoff "$root"
   printf '%s\n' "$root"
@@ -82,10 +83,16 @@ init_handoff() {
 clean_handoff() {
   local root=$1
   validate_tmp_root
-  [[ $root =~ $HANDOFF_RE ]] || abort "handoff path must be /tmp/spar-<UUID>: $root"
+  [[ $root =~ $HANDOFF_RE ]] || abort "handoff path must be /var/tmp/spar-<UUID>: $root"
   [[ -e $root || -L $root ]] || return 0
   validate_handoff "$root"
   rm -rf -- "$root"
+}
+
+flush_handoff() {
+  local root=$1
+  validate_handoff "$root"
+  sync -f -- "$root" || abort "cannot flush the handoff filesystem: $root"
 }
 
 preflight() {
@@ -179,9 +186,12 @@ case $mode in
   clean)
     [[ $# -eq 2 ]] || usage
     clean_handoff "$2" ;;
+  flush)
+    [[ $# -eq 2 ]] || usage
+    flush_handoff "$2" ;;
   new)
     [[ $# -eq 3 ]] || usage
-    validate_handoff "$2"
+    flush_handoff "$2"
     PROMPT=$3
     scan_payload "$2"
     sid=$(cat /proc/sys/kernel/random/uuid)
@@ -191,7 +201,7 @@ case $mode in
   resume)
     [[ $# -eq 4 ]] || usage
     [[ $2 =~ $UUID_RE ]] || abort "resume session id is not a UUID: $2"
-    validate_handoff "$3"
+    flush_handoff "$3"
     PROMPT=$4
     scan_payload "$3"
     preflight

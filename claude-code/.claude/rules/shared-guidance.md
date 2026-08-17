@@ -17,10 +17,10 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 ## Safety
 
 - Root-required read-only checks: no sudo. Provide the exact command with expected output; H runs it via the `!` prefix.
-- Never edit outside the current working directory. Exceptions require explicit instruction and per-hunk pre-approval, one task at a time; session-owned temporary files under `/tmp` or `$TMPDIR` are the only automatic exception.
+- Never edit outside the current working directory. Exceptions require explicit instruction and per-hunk pre-approval, one task at a time; session-owned temporary files under `/tmp` or `$TMPDIR` and bridge-owned spar handoff directories under `/var/tmp/spar-<session-id>` are the only automatic exceptions.
 - Persistent file-content changes use native edit tools, so each file gets its own approval prompt and diff. An `apply_patch` call modifies exactly one file; never bundle multiple files into one patch.
 - Never bulk-edit files via shell (`sed -i`, `perl -pi`, scripts).
-- Temporary writes use one unique session-owned directory under `/tmp` or `$TMPDIR`. Never treat a symlink, a hard link, or a path with a symlinked parent as temporary; the resolved target must remain inside that session directory.
+- Temporary writes use one unique session-owned directory under `/tmp` or `$TMPDIR`. Spar handoff directories under `/var/tmp/spar-<session-id>` are the bridge-owned exception: the reviewer bridge creates, validates, flushes, and cleans them. Never treat a symlink, a hard link, or a path with a symlinked parent as temporary; the resolved target must remain inside that session directory.
 - Never bypass safety checks (`--no-verify`, `--force`, hook skipping) without explicit instruction.
 - Never read, write, or expose sensitive data (`.env`, `.env.*`, `secrets/`, credentials, private keys). Use `example.env` for editable placeholder templates; `.env.example` stays unreadable under the deterministic sensitive-path policy.
 - Never perform destructive, hard-to-reverse, or externally visible actions without explicit instruction.
