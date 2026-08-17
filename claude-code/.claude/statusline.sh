@@ -49,15 +49,17 @@ rate_5h_int="" rate_7d_int=""
 [ -n "$rate_7d" ] && rate_7d_int=$(printf '%.0f' "$rate_7d" 2>/dev/null)
 reset_5h="${_f[8]}" reset_7d="${_f[9]}" session_id="${_f[10]}"
 
-# --- Colors: Omarchy gruvbox palette (themes/gruvbox/colors.toml), truecolor ---
-dim='\033[38;2;124;111;100m'          # dark_foreground #7c6f64
-bold_cyan='\033[1;38;2;137;180;130m'  # cyan #89b482
-italic_cyan='\033[3;38;2;137;180;130m'
-yellow='\033[38;2;216;166;87m'        # yellow #d8a657
-bold_yellow='\033[1;38;2;216;166;87m'
-green='\033[38;2;169;182;101m'        # green #a9b665
-red='\033[38;2;234;105;98m'           # red #ea6962
-reset='\033[0m'
+# --- Colors: Omarchy gruvbox palette (themes/gruvbox/colors.toml), truecolor.
+# Real escape bytes, so the final printf can use %s and payload-derived text
+# prints literally instead of having its backslash sequences interpreted. ---
+dim=$'\033[38;2;124;111;100m'          # dark_foreground #7c6f64
+bold_cyan=$'\033[1;38;2;137;180;130m'  # cyan #89b482
+italic_cyan=$'\033[3;38;2;137;180;130m'
+yellow=$'\033[38;2;216;166;87m'        # yellow #d8a657
+bold_yellow=$'\033[1;38;2;216;166;87m'
+green=$'\033[38;2;169;182;101m'        # green #a9b665
+red=$'\033[38;2;234;105;98m'           # red #ea6962
+reset=$'\033[0m'
 
 # --- Helpers ---
 
@@ -293,4 +295,4 @@ line=""
 for seg in "$host_seg" "$dir_seg" "$branch_seg" "$model_seg" "$ctx_seg" "$rate5_seg" "$rate7_seg" "$cost_seg"; do
   [ -n "$seg" ] && line+="${line:+   }${seg}"
 done
-printf '%b\n' "$line"
+printf '%s\n' "$line"
