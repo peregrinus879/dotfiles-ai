@@ -15,8 +15,8 @@
 # - Colors pin the Omarchy gruvbox palette as truecolor, so rendering does not
 #   depend on the terminal's ANSI palette; re-pin when the theme changes.
 # - Color roles: dim = labels, brackets, metadata; bold = identity (directory,
-#   SSH host); green/yellow/red = severity thresholds; yellow also marks
-#   accruing extra spend.
+#   SSH host); italic = the Git branch; green/yellow/red = severity thresholds;
+#   yellow also marks accruing extra spend.
 # - Runtime state uses hashed keys in one owner-only directory. Existing state
 #   must be a regular, owner-only, single-link file; updates replace atomically.
 # - Intentionally no Bash strict mode, and [ ] guards throughout: parse failures
@@ -240,7 +240,7 @@ branch_seg="${branch:+${italic_cyan}${branch}${reset}}"
 short_model="${model#Claude }"
 model_seg="${short_model:+${dim}${short_model}${reset}}"
 
-# Context window: ctx:pct%(remaining tokens)
+# Context window: "ctx: pct% (remaining tokens)"
 # used_percentage can be null early in session before first API call.
 ctx_seg=""
 if [ -n "$used_pct" ]; then
