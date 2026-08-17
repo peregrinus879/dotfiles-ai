@@ -175,7 +175,6 @@ require(
         "git status",
         "ls",
         "opencode --version",
-        "pacman -Q",
         "pacman -Q*",
         "pacman -Si *",
         "pacman -Ss *",
@@ -275,6 +274,10 @@ for path in (
     require(read_rules[path] == "deny", f"OpenCode read deny drifted: {path}")
 require(external_rules["*"] == "ask", "OpenCode external-directory default drifted")
 require(external_rules["~/.ssh/**"] == "deny", "OpenCode SSH external deny drifted")
+# Liveness note (ledger-recorded, 1.18.18 subject semantics): directory-glob
+# external entries are live; file-level external entries and the ~-keyed read
+# entries can never match their subjects and are retained as
+# forward-compatibility, so drift here still fails closed.
 require(
     external_rules[HANDOFF_EXTERNAL_ALLOW] == "allow",
     "OpenCode spar external-directory allow drifted",
