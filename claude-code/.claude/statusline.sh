@@ -7,7 +7,8 @@
 #   spend only, cumulative, hidden until extra usage first occurs. No duration
 #   segment.
 # - No redundant indicators when the tool already surfaces the information natively.
-# - Consistent label:value pattern (e.g., 5h:35%, 5h:52m, 7d:24h 0m).
+# - Consistent label:pct%(detail) pattern: ctx:42%(84k), 5h:35%(⟳07:33),
+#   5h:100%(⟳1h5m). The dim bracket holds the secondary datum; ⟳ marks resets.
 # - Space separators between segments, not special characters.
 # - Colors pin the Omarchy gruvbox palette as truecolor, so rendering does not
 #   depend on the terminal's ANSI palette; re-pin when the theme changes.
@@ -70,14 +71,17 @@ fmt_k() {
   echo "$((n / 1000))k"
 }
 
-# Format seconds remaining to countdown: Xh Ym or Xm
+# Format seconds remaining as one token: XdYh, XhYm, or Xm
 fmt_countdown() {
   local remaining=${1:-0}
   if [ "$remaining" -le 0 ] 2>/dev/null; then echo ""; return; fi
-  local h=$((remaining / 3600))
+  local d=$((remaining / 86400))
+  local h=$(( (remaining % 86400) / 3600 ))
   local m=$(( (remaining % 3600) / 60 ))
-  if [ "$h" -gt 0 ] 2>/dev/null; then
-    echo "${h}h ${m}m"
+  if [ "$d" -gt 0 ]; then
+    echo "${d}d${h}h"
+  elif [ "$h" -gt 0 ]; then
+    echo "${h}h${m}m"
   else
     echo "${m}m"
   fi
@@ -141,30 +145,25 @@ write_state() {
   mv -fT -- "$temp" "$target" 2>/dev/null || { rm -f -- "$temp"; return 1; }
 }
 
-# Render one rate-limit segment on stdout
+# Render one rate-limit segment on stdout: label:pct%(⟳detail); the bracket
+# carries the reset clock, or the remaining countdown once the window is
+# exhausted.
 # Args: label pct reset_epoch date_fmt
 build_rate_seg() {
   local label=$1 pct=$2 epoch=$3 dfmt=$4
-  local color value rtime_part=""
+  local detail=""
 
   [ -z "$pct" ] && return
-  color=$(pct_color "$pct")
-
-  if [ "$pct" -ge 100 ] 2>/dev/null && [ "${epoch:-0}" -gt 0 ] 2>/dev/null; then
-    local countdown
-    countdown=$(fmt_countdown "$((epoch - now))")
-    value="${countdown:-${pct}%}"
-  else
-    value="${pct}%"
-  fi
 
   if [ "${epoch:-0}" -gt "$now" ] 2>/dev/null; then
-    local rtime
-    rtime=$(date -d "@$epoch" +"$dfmt" 2>/dev/null)
-    [ -n "$rtime" ] && rtime_part=" ${dim}@${rtime}${reset}"
+    if [ "$pct" -ge 100 ] 2>/dev/null; then
+      detail=$(fmt_countdown "$((epoch - now))")
+    else
+      detail=$(date -d "@$epoch" +"$dfmt" 2>/dev/null)
+    fi
   fi
 
-  printf '%s' "${dim}${label}:${reset}${color}${value}${reset}${rtime_part}"
+  printf '%s' "${dim}${label}:${reset}$(pct_color "$pct")${pct}%${reset}${detail:+${dim}(⟳${detail})${reset}}"
 }
 
 # --- Detect extra usage (5h OR 7d at 100%) ---
@@ -241,7 +240,7 @@ if [ -n "$used_pct" ]; then
   ctx_seg="${dim}ctx:${reset}$(pct_color "$used_int")${used_int}%${reset}${ctx_tok:+${dim}(${ctx_tok})${reset}}"
 fi
 
-# Rate limits: 5h and 7d (with reset countdown and local reset time)
+# Rate limits: 5h and 7d (bracketed reset clock; countdown once exhausted)
 rate5_seg=$(build_rate_seg "5h" "$rate_5h_int" "$reset_5h" "%H:%M")
 rate7_seg=$(build_rate_seg "7d" "$rate_7d_int" "$reset_7d" "%a.%H:%M")
 
