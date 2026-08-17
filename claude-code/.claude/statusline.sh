@@ -37,8 +37,8 @@ rate_5h="${_f[4]}" rate_7d="${_f[5]}" cost_usd="${_f[6]}"
 
 # Round the rate percentages once; empty stands for absent or null.
 rate_5h_int="" rate_7d_int=""
-[ -n "$rate_5h" ] && [ "$rate_5h" != "null" ] && rate_5h_int=$(printf '%.0f' "$rate_5h" 2>/dev/null)
-[ -n "$rate_7d" ] && [ "$rate_7d" != "null" ] && rate_7d_int=$(printf '%.0f' "$rate_7d" 2>/dev/null)
+[ -n "$rate_5h" ] && rate_5h_int=$(printf '%.0f' "$rate_5h" 2>/dev/null)
+[ -n "$rate_7d" ] && rate_7d_int=$(printf '%.0f' "$rate_7d" 2>/dev/null)
 reset_5h="${_f[7]}" reset_7d="${_f[8]}" session_id="${_f[9]}"
 
 # --- Colors: Omarchy gruvbox palette (themes/gruvbox/colors.toml), truecolor ---
@@ -65,7 +65,7 @@ pct_color() {
 # Format tokens: 200000 -> 200k
 fmt_k() {
   local n=${1:-0}
-  if [ "$n" = "null" ] || [ "$n" -eq 0 ] 2>/dev/null; then echo ""; return; fi
+  [ "$n" -gt 0 ] 2>/dev/null || { echo ""; return; }
   echo "$((n / 1000))k"
 }
 
@@ -140,7 +140,7 @@ write_state() {
   mv -fT -- "$temp" "$target" 2>/dev/null || { rm -f -- "$temp"; return 1; }
 }
 
-# Append a rate-limit segment to rate_seg
+# Render one rate-limit segment on stdout
 # Args: label pct reset_epoch date_fmt
 build_rate_seg() {
   local label=$1 pct=$2 epoch=$3 dfmt=$4
@@ -163,7 +163,7 @@ build_rate_seg() {
     [ -n "$rtime" ] && rtime_part=" ${dim}@${rtime}${reset}"
   fi
 
-  rate_seg+="  ${dim}${label}:${reset}${color}${value}${reset}${rtime_part}"
+  printf '%s' "${dim}${label}:${reset}${color}${value}${reset}${rtime_part}"
 }
 
 # --- Detect extra usage (5h OR 7d at 100%) ---
@@ -181,19 +181,18 @@ now=$(date +%s)
 
 git_cache_stale() {
   [ -n "$git_cache" ] && state_file_safe "$git_cache" || return 0
-  [ ! -f "$git_cache" ] || \
   [ $((now - $(stat -c %Y "$git_cache" 2>/dev/null || echo 0))) -gt $git_cache_max_age ]
 }
 
 # --- Segments ---
 
-# 1. SSH hostname (shown only for remote sessions)
+# SSH hostname (shown only for remote sessions)
 host_seg=""
 if [ -n "$SSH_CONNECTION" ]; then
-  host_seg="${bold_yellow}${HOSTNAME%%.*}${reset}  "
+  host_seg="${bold_yellow}${HOSTNAME%%.*}${reset}"
 fi
 
-# 2. Directory + Git branch (cached, refreshed every 60s)
+# Directory and Git branch (cached, refreshed every 60s)
 branch=""
 repo_root=""
 if [ -n "$cwd" ] && [ -d "$cwd" ]; then
@@ -225,29 +224,31 @@ else
     short_cwd="…/${parts[$((n-2))]}/${parts[$((n-1))]}"
   fi
 fi
+dir_seg="${short_cwd:+${bold_cyan}${short_cwd}${reset}}"
+branch_seg="${branch:+${italic_cyan}${branch}${reset}}"
 
-# 3. Model (strip "Claude " prefix if present)
+# Model (strip "Claude " prefix if present)
 short_model="${model#Claude }"
+model_seg="${short_model:+${dim}${short_model}${reset}}"
 
-# 4. Context window: used (pct%)
+# Context window: used (pct%)
 # used_percentage and ctx_size can be null early in session before first API call.
 ctx_seg=""
-if [ -n "$used_pct" ] && [ "$used_pct" != "null" ]; then
+if [ -n "$used_pct" ]; then
   used_int=$(printf '%.0f' "$used_pct" 2>/dev/null)
   if [ "$ctx_size" -gt 0 ] 2>/dev/null; then
     used_raw=$((ctx_size * used_int / 100))
-    ctx_seg="  $(pct_color "$used_int")$(fmt_k "$used_raw") (${used_int}%)${reset}"
+    ctx_seg="$(pct_color "$used_int")$(fmt_k "$used_raw") (${used_int}%)${reset}"
   else
-    ctx_seg="  $(pct_color "$used_int")${used_int}%${reset}"
+    ctx_seg="$(pct_color "$used_int")${used_int}%${reset}"
   fi
 fi
 
-# 5. Rate limits: 5h and 7d (with reset countdown and local reset time)
-rate_seg=""
-build_rate_seg "5h" "$rate_5h_int" "$reset_5h" "%H:%M"
-build_rate_seg "7d" "$rate_7d_int" "$reset_7d" "%a.%H:%M"
+# Rate limits: 5h and 7d (with reset countdown and local reset time)
+rate5_seg=$(build_rate_seg "5h" "$rate_5h_int" "$reset_5h" "%H:%M")
+rate7_seg=$(build_rate_seg "7d" "$rate_7d_int" "$reset_7d" "%a.%H:%M")
 
-# 6. Session cost (tracks only extra usage spend)
+# Session cost (tracks only extra usage spend)
 # State: line 1 = active|frozen, line 2 = baseline, line 3 = prior extra, line 4 = last displayed
 extra_state=""
 if [ "$state_ready" -eq 1 ] && [ -n "$session_id" ]; then
@@ -270,10 +271,10 @@ if [ "$extra_usage" -eq 1 ] 2>/dev/null; then
   else
     _bl="${cost_usd:-0}" _pr="0" _ld="0"
   fi
-  if [ -n "$cost_usd" ] && [ "$cost_usd" != "null" ]; then
+  if [ -n "$cost_usd" ]; then
     extra_cost=$(jq -n --argjson c "$cost_usd" --argjson b "${_bl:-0}" --argjson p "${_pr:-0}" '[$p + $c - $b, 0] | max' 2>/dev/null) || extra_cost=0
     [ -n "$extra_state" ] && write_state "$extra_state" "active" "$_bl" "$_pr" "$extra_cost"
-    cost_seg="  ${yellow}$(printf '$%.2f' "$extra_cost")${reset}"
+    cost_seg="${yellow}$(printf '$%.2f' "$extra_cost")${reset}"
   fi
 else
   if [ "$extra_state_ok" -eq 1 ]; then
@@ -281,11 +282,15 @@ else
       # Transition to frozen: use last displayed value, not recomputed
       write_state "$extra_state" "frozen" "0" "0" "${_ld:-0}"
     fi
-    cost_seg="  ${dim}$(printf '$%.2f' "${_ld:-0}")${reset}"
+    cost_seg="${dim}$(printf '$%.2f' "${_ld:-0}")${reset}"
   else
-    cost_seg="  ${dim}\$0.00${reset}"
+    cost_seg="${dim}\$0.00${reset}"
   fi
 fi
 
 # --- Output ---
-printf "%b\n" "${host_seg}${bold_cyan}${short_cwd}${reset}${branch:+  ${italic_cyan}${branch}${reset}}  ${dim}${short_model}${reset}${ctx_seg}${rate_seg}${cost_seg}"
+line=""
+for seg in "$host_seg" "$dir_seg" "$branch_seg" "$model_seg" "$ctx_seg" "$rate5_seg" "$rate7_seg" "$cost_seg"; do
+  [ -n "$seg" ] && line+="${line:+  }${seg}"
+done
+printf '%b\n' "$line"
