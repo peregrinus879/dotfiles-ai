@@ -8,8 +8,8 @@
 #   segment.
 # - No redundant indicators when the tool already surfaces the information natively.
 # - Consistent "label: pct% (remaining)" pattern: ctx: 42% (116k),
-#   5h: 38% (02:11), 7d: 24% (05:06:38). The dim bracket holds what remains:
-#   context tokens, or the countdown (hh:mm, dd:hh:mm) to the window reset.
+#   5h: 38% (2:11), 7d: 24% (5:06:38). The dim bracket holds what remains:
+#   context tokens, or the countdown (h:mm, d:hh:mm) to the window reset.
 # - Three-space separators between segments, not special characters; single
 #   spaces bind label, value, and bracket within a segment.
 # - Colors pin the Omarchy gruvbox palette as truecolor, so rendering does not
@@ -77,16 +77,17 @@ fmt_k() {
   echo "$((n / 1000))k"
 }
 
-# Format seconds remaining as zero-padded clock fields: hh:mm or dd:hh:mm
+# Format seconds remaining as clock fields, leading field unpadded: h:mm or
+# d:hh:mm
 # Args: seconds style(hm|dhm)
 fmt_countdown() {
   local remaining=${1:-0} style=$2
   if [ "$remaining" -le 0 ] 2>/dev/null; then echo ""; return; fi
   if [ "$style" = "dhm" ]; then
-    printf '%02d:%02d:%02d\n' "$((remaining / 86400))" \
+    printf '%d:%02d:%02d\n' "$((remaining / 86400))" \
       "$(( (remaining % 86400) / 3600 ))" "$(( (remaining % 3600) / 60 ))"
   else
-    printf '%02d:%02d\n' "$((remaining / 3600))" "$(( (remaining % 3600) / 60 ))"
+    printf '%d:%02d\n' "$((remaining / 3600))" "$(( (remaining % 3600) / 60 ))"
   fi
 }
 
