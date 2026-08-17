@@ -170,9 +170,13 @@ require(
         "ls",
         "opencode --version",
         "pacman -Q",
+        "pacman -Q*",
+        "pacman -Si *",
+        "pacman -Ss *",
         "pwd",
         "spar-claude *",
         "tree",
+        "tree *",
     ],
     "OpenCode metadata-only allowlist drifted",
 )
