@@ -4,6 +4,7 @@
 SHELL := /bin/bash
 PACKAGES := claude-code codex opencode
 SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
+  claude-code/.claude/hooks/spar-handoff-approve.sh \
   claude-code/.local/bin/spar-claude \
   codex/.local/bin/spar-codex \
   $(wildcard scripts/*.sh tests/*.sh)
@@ -45,6 +46,7 @@ verify:
 	for pair in "$$HOME/.claude/CLAUDE.md=claude-code/.claude/CLAUDE.md" \
 	  "$$HOME/.claude/settings.json=claude-code/.claude/settings.json" \
 	  "$$HOME/.claude/statusline.sh=claude-code/.claude/statusline.sh" \
+	  "$$HOME/.claude/hooks/spar-handoff-approve.sh=claude-code/.claude/hooks/spar-handoff-approve.sh" \
 	  "$$HOME/.claude/rules/shared-guidance.md=claude-code/.claude/rules/shared-guidance.md" \
 	  "$$HOME/.claude/skills/commit/SKILL.md=claude-code/.claude/skills/commit/SKILL.md" \
 	  "$$HOME/.claude/skills/spar/SKILL.md=claude-code/.claude/skills/spar/SKILL.md" \

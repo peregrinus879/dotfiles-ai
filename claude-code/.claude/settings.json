@@ -66,10 +66,7 @@
       "Bash(*sed*-i*)",
       "Bash(*| perl*)",
       "Bash(git reset --hard*)",
-      "Bash(git restore *)",
-      "Edit",
-      "NotebookEdit",
-      "Write"
+      "Bash(git restore *)"
     ]
   },
   "autoMode": {
@@ -87,6 +84,19 @@
     "allow": [
       "$defaults",
       "Deleting the session's own scratch files under /tmp/claude-* paths during scratch cleanup is allowed; this exception covers only files the session created there and never extends to repository files or any path outside those scratch directories."
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/spar-handoff-approve.sh"
+          }
+        ]
+      }
     ]
   },
   "model": "claude-fable-5",

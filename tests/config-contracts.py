@@ -31,10 +31,28 @@ require(claude["model"] == "claude-fable-5", "Claude model pin drifted")
 require(claude["effortLevel"] == "xhigh", "Claude effort drifted")
 require(claude["permissions"]["defaultMode"] == "auto", "Claude default mode drifted")
 require(claude["workflowSizeGuideline"] == "large", "Claude workflow guidance drifted")
-require(
-    {"Edit", "Write"}.issubset(claude["permissions"]["ask"]),
-    "Claude persistent edit asks drifted",
+# Per-file review is produced by the spar gate hook's deterministic ask
+# fallback, not by bare ask-list entries: a matching ask rule overrides a hook
+# allow, so bare Edit/Write/NotebookEdit entries would defeat the handoff
+# exemption (anthropics/claude-code#35136 precedence).
+for bare in ("Edit", "Write", "NotebookEdit"):
+    require(
+        bare not in claude["permissions"]["ask"],
+        f"bare {bare} ask entry defeats the spar gate hook",
+    )
+hook_source = (ROOT / "claude-code/.claude/hooks/spar-handoff-approve.sh").read_text(
+    encoding="utf-8"
 )
+for marker in (
+    '"permissionDecision":"%s"',
+    'emit ask "per-file review"',
+    "gate_error",
+    "exit 2",
+    "stat -c '%h'",
+    ".env | .env.* | *.key | *.pem | *credentials* | auth.json | secrets",
+    "HANDOFF_RE='^/var/tmp/spar-",
+):
+    require(marker in hook_source, f"spar gate hook control drifted: {marker}")
 require(
     claude["permissions"]["allow"]
     == [
@@ -51,6 +69,38 @@ require(
 )
 for rule in ("Bash(git push)", "Bash(git push *)"):
     require(rule in claude["permissions"]["deny"], f"Claude push deny drifted: {rule}")
+require(
+    claude["hooks"]["PreToolUse"]
+    == [
+        {
+            "matcher": "Edit|Write|NotebookEdit",
+            "hooks": [
+                {"type": "command", "command": "~/.claude/hooks/spar-handoff-approve.sh"}
+            ],
+        }
+    ],
+    "Claude spar handoff hook registration drifted",
+)
+require(
+    os.access(ROOT / "claude-code/.claude/hooks/spar-handoff-approve.sh", os.X_OK),
+    "Claude spar handoff hook missing or not executable",
+)
+
+# OpenCode's edit-permission subject is the worktree-relative path, so
+# handoff rules use ../-anchored relative patterns; the external_directory
+# subject is the parent directory joined with a literal *, so its allow uses
+# the absolute prefix form.
+HANDOFF_EDIT_ALLOW = "../*var/tmp/spar-*"
+HANDOFF_EXTERNAL_ALLOW = "/var/tmp/spar-*"
+HANDOFF_SENSITIVE_DENIES = (
+    "../*var/tmp/spar-*/*.key",
+    "../*var/tmp/spar-*/*.pem",
+    "../*var/tmp/spar-*/*credentials*",
+    "../*var/tmp/spar-*/.env",
+    "../*var/tmp/spar-*/.env.*",
+    "../*var/tmp/spar-*/auth.json",
+    "../*var/tmp/spar-*/secrets/*",
+)
 
 codex_profile = codex["permissions"]["reviewed-writes"]
 filesystem = codex_profile["filesystem"]
@@ -170,18 +220,33 @@ require(
 
 edit_expected = {
     "*": "ask",
+    HANDOFF_EDIT_ALLOW: "allow",
     "**/*.key": "deny",
     "**/*.pem": "deny",
     ".env": "deny",
     "secrets/**": "deny",
     "~/.aws/**": "deny",
     "~/.gnupg/**": "deny",
+    **{path: "deny" for path in HANDOFF_SENSITIVE_DENIES},
 }
 require(opencode["permission"]["edit"] == edit_expected, "OpenCode edit map drifted")
-require("build" not in opencode["agent"], "OpenCode build override bypasses global review")
 require(
-    opencode["agent"]["plan"]["permission"]["edit"] == {"*": "deny"},
-    "OpenCode plan edit deny drifted",
+    list(opencode["permission"]["edit"]) == list(edit_expected),
+    "OpenCode edit map order drifted (catch-all, spar allow, denies last)",
+)
+require("build" not in opencode["agent"], "OpenCode build override bypasses global review")
+plan_edit_expected = {
+    "*": "deny",
+    HANDOFF_EDIT_ALLOW: "allow",
+    **{path: "deny" for path in HANDOFF_SENSITIVE_DENIES},
+}
+require(
+    opencode["agent"]["plan"]["permission"]["edit"] == plan_edit_expected,
+    "OpenCode plan edit map drifted",
+)
+require(
+    list(opencode["agent"]["plan"]["permission"]["edit"]) == list(plan_edit_expected),
+    "OpenCode plan edit map order drifted",
 )
 
 read_rules = opencode["permission"]["read"]
@@ -200,6 +265,15 @@ for path in (
     require(read_rules[path] == "deny", f"OpenCode read deny drifted: {path}")
 require(external_rules["*"] == "ask", "OpenCode external-directory default drifted")
 require(external_rules["~/.ssh/**"] == "deny", "OpenCode SSH external deny drifted")
+require(
+    external_rules[HANDOFF_EXTERNAL_ALLOW] == "allow",
+    "OpenCode spar external-directory allow drifted",
+)
+external_keys = list(external_rules)
+require(
+    external_keys.index(HANDOFF_EXTERNAL_ALLOW) > external_keys.index("*"),
+    "OpenCode spar allow precedes the catch-all",
+)
 for path in ("~/.claude/.credentials.json", "~/.codex/auth.json"):
     require(read_rules[path] == "deny", f"OpenCode credential read deny drifted: {path}")
     require(external_rules[path] == "deny", f"OpenCode credential external deny drifted: {path}")

@@ -48,15 +48,24 @@
     },
     "edit": {
       "*": "ask",
+      "../*var/tmp/spar-*": "allow",
       "**/*.key": "deny",
       "**/*.pem": "deny",
       ".env": "deny",
       "secrets/**": "deny",
       "~/.aws/**": "deny",
-      "~/.gnupg/**": "deny"
+      "~/.gnupg/**": "deny",
+      "../*var/tmp/spar-*/*.key": "deny",
+      "../*var/tmp/spar-*/*.pem": "deny",
+      "../*var/tmp/spar-*/*credentials*": "deny",
+      "../*var/tmp/spar-*/.env": "deny",
+      "../*var/tmp/spar-*/.env.*": "deny",
+      "../*var/tmp/spar-*/auth.json": "deny",
+      "../*var/tmp/spar-*/secrets/*": "deny"
     },
     "external_directory": {
       "*": "ask",
+      "/var/tmp/spar-*": "allow",
       "~/.aws/**": "deny",
       "~/.claude/.credentials.json": "deny",
       "~/.config/gh/hosts.yml": "deny",
@@ -98,7 +107,15 @@
     "plan": {
       "permission": {
         "edit": {
-          "*": "deny"
+          "*": "deny",
+          "../*var/tmp/spar-*": "allow",
+          "../*var/tmp/spar-*/*.key": "deny",
+          "../*var/tmp/spar-*/*.pem": "deny",
+          "../*var/tmp/spar-*/*credentials*": "deny",
+          "../*var/tmp/spar-*/.env": "deny",
+          "../*var/tmp/spar-*/.env.*": "deny",
+          "../*var/tmp/spar-*/auth.json": "deny",
+          "../*var/tmp/spar-*/secrets/*": "deny"
         }
       }
     }

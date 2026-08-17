@@ -1,3 +1,4 @@
+import fs from "node:fs"
 import path from "node:path"
 import type { Plugin } from "@opencode-ai/plugin"
 
@@ -5,6 +6,7 @@ const PATCH_BEGIN = "*** Begin Patch"
 const PATCH_END = "*** End Patch"
 const PATCH_HEADERS = ["*** Add File:", "*** Delete File:", "*** Update File:"] as const
 const MOVE_HEADER = "*** Move to:"
+const SPAR_PARENT = /^\/var\/tmp\/spar-[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/
 
 export const ReviewedWritesPlugin: Plugin = async ({ directory }) => {
   return {
@@ -16,8 +18,46 @@ export const ReviewedWritesPlugin: Plugin = async ({ directory }) => {
         if ((moves.length > 0 && operations.length !== 1) || (moves.length === 0 && unique.size !== 1)) {
           throw new Error("apply_patch must modify exactly one file; split this patch into one call per file")
         }
+        for (const target of unique) assertSparTargetSafe(target)
+      }
+      if ((input.tool === "edit" || input.tool === "write") && typeof output.args?.filePath === "string") {
+        assertSparTargetSafe(path.resolve(directory, output.args.filePath))
       }
     },
+  }
+
+  // Alias-safe containment for spar handoff scratch writes: targets sit
+  // directly inside a validated /var/tmp/spar-<uuid> directory, and an
+  // existing target must be a regular, owner-owned, single-link file, so
+  // hard-link aliases of persistent files and symlinked subdirectories are
+  // rejected before the permission system sees the call.
+  function assertSparTargetSafe(resolved: string) {
+    if (!resolved.startsWith("/var/tmp/spar-")) {
+      if (/\/var\/tmp\/spar-/.test(resolved)) {
+        throw new Error("spar handoff write rejected: spar-shaped path outside /var/tmp")
+      }
+      return
+    }
+    const parent = path.dirname(resolved)
+    if (!SPAR_PARENT.test(parent)) {
+      throw new Error("spar handoff write rejected: targets must sit directly inside /var/tmp/spar-<uuid>")
+    }
+    const uid = process.getuid?.()
+    const parentStat = fs.lstatSync(parent, { throwIfNoEntry: false })
+    if (
+      !parentStat ||
+      parentStat.isSymbolicLink() ||
+      !parentStat.isDirectory() ||
+      parentStat.uid !== uid ||
+      (parentStat.mode & 0o777) !== 0o700 ||
+      fs.realpathSync(parent) !== parent
+    ) {
+      throw new Error("spar handoff write rejected: the handoff directory failed validation")
+    }
+    const targetStat = fs.lstatSync(resolved, { throwIfNoEntry: false })
+    if (targetStat && (!targetStat.isFile() || targetStat.uid !== uid || targetStat.nlink !== 1)) {
+      throw new Error("spar handoff write rejected: an existing target must be a regular owner-owned single-link file")
+    }
   }
 
   function parsePatchOperations(value: unknown) {
