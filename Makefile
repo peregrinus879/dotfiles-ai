@@ -65,7 +65,6 @@ verify:
 	  "$$HOME/.config/opencode/package-lock.json=opencode/.config/opencode/package-lock.json" \
 	  "$$HOME/.config/opencode/plugins/reviewed-writes.ts=opencode/.config/opencode/plugins/reviewed-writes.ts" \
 	  "$$HOME/.config/opencode/tui.json=opencode/.config/opencode/tui.json" \
-	  "$$HOME/.config/opencode/AGENTS.md=opencode/.config/opencode/AGENTS.md" \
 	  "$$HOME/.config/opencode/commands/commit.md=opencode/.config/opencode/commands/commit.md" \
 	  "$$HOME/.config/opencode/commands/spar.md=opencode/.config/opencode/commands/spar.md" \
 	  "$$HOME/.config/opencode/skills/commit/SKILL.md=opencode/.config/opencode/skills/commit/SKILL.md" \
@@ -103,8 +102,7 @@ verify:
 	  else echo "FAIL: $${b##*/} private handoff lifecycle drifted"; fail=1; fi; \
 	done; \
 	python3 tests/config-contracts.py || { echo "FAIL: config syntax or security contract drifted"; fail=1; }; \
-	if grep -Fqx -- '- Persistent file-content changes use native edit tools, so each file gets its own approval prompt and diff. An `apply_patch` call modifies exactly one file; never bundle multiple files into one patch.' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fqx -- '- An `apply_patch` call must modify exactly one file; never bundle multiple files into one patch.' opencode/.config/opencode/AGENTS.md; then \
+	if grep -Fqx -- '- Persistent file-content changes use native edit tools, so each change surfaces a reviewable diff. An `apply_patch` call modifies exactly one file; never bundle multiple files into one patch.' claude-code/.claude/rules/shared-guidance.md; then \
 	  echo "ok:   one-file apply_patch guidance"; \
 	else echo "FAIL: one-file apply_patch guidance missing"; fail=1; fi; \
 	if grep -Fq 'The go-ahead authorizes those listed commits unless H explicitly excludes commits.' claude-code/.claude/rules/shared-guidance.md && \

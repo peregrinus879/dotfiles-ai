@@ -60,7 +60,8 @@ dotfiles-ai/
 │   │   ├── CLAUDE.md                     # Claude-specific instructions
 │   │   ├── settings.json                 # runtime settings (model, status line, permissions, workflows)
 │   │   ├── statusline.sh                 # terminal status line script
-│   │   ├── agents/                       # custom agents
+│   │   ├── hooks/
+│   │   │   └── spar-handoff-approve.sh   # per-file review gate (spar handoff exemption)
 │   │   ├── rules/                        # organized instruction files
 │   │   │   └── shared-guidance.md        # canonical shared instructions
 │   │   └── skills/                       # custom skills (SKILL.md files)
@@ -86,7 +87,6 @@ dotfiles-ai/
     └── .config/
         └── opencode/
             ├── .gitignore                # excludes generated node_modules
-            ├── AGENTS.md                 # OpenCode-specific instructions
             ├── opencode.json             # runtime config and agent overrides
             ├── tui.json                  # TUI-specific config
             ├── commands/                 # custom slash commands
@@ -100,15 +100,17 @@ dotfiles-ai/
             │   └── spar/                 # cross-model plan sparring (reviewer: spar-claude)
 ```
 
+Tracked `.gitkeep` placeholders (claude-code agents; opencode agents, themes, and tools) are omitted from the tree.
+
 Tracked runtime config primarily expresses shared behavior. `claude-code/.claude/settings.json`, `codex/.codex/config.toml`, and `opencode/.config/opencode/opencode.json` are the source of truth for each tool's model, effort, permissions, and feature toggles; read them directly rather than a prose mirror here. All three carry the same reviewed-writes intent: persistent file changes reach human review one file at a time, while session handoffs use private disk-backed OS temp (`/var/tmp/spar-<session-id>/`) so an in-flight review survives reboots. Claude Code routes every Edit, Write, and NotebookEdit through the deterministic spar gate hook, which asks per file and allows only validated spar handoff targets; Codex uses a read-only permission profile with only OS temp writable, human approval review, and network disabled; OpenCode asks globally, denies plan-agent edits, and uses `reviewed-writes.ts` to reject grouped or malformed patches and alias-shaped handoff targets before permission. Handoff file writes through the native file tools run prompt-free in Claude Code and OpenCode with sensitive names still refused, shell write channels into the handoff stay gated, and the Codex sandbox has no handoff write channel; its automated spar implementer route remains deferred. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
 
-Primary web research follows Claude auto mode's outcome. Claude remains explicitly pinned to auto and sends unmatched WebSearch and WebFetch calls through its classifier; its workflow guidance uses `large`, the highest bounded advisory level, while effort remains xhigh. Codex uses hosted live search and page opening without granting network to shell commands. OpenCode allows WebSearch and WebFetch without prompts; its WebFetch implementation has no Claude-equivalent classifier or resolved-address SSRF boundary, so the sensitive-read denies and prohibition on sending repository content remain material controls. Both spar reviewers stay search-disabled.
+Primary web research follows Claude auto mode's outcome. Claude remains explicitly pinned to auto and sends unmatched WebSearch and WebFetch calls through its classifier. Codex uses hosted live search and page opening without granting network to shell commands. OpenCode allows WebSearch and WebFetch without prompts; its WebFetch implementation has no Claude-equivalent classifier or resolved-address SSRF boundary, so the sensitive-read denies and prohibition on sending repository content remain material controls. Both spar reviewers stay search-disabled.
 
 Codex, OpenCode, and `spar-codex` use GPT-5.6 Sol Fast at xhigh reasoning. Codex represents this as model `gpt-5.6-sol` plus `service_tier = "fast"` and `features.fast_mode = true`; the ChatGPT-authenticated Codex API rejects `gpt-5.6-sol-fast` as a model slug. Codex also pins built-in subagents to Sol/xhigh, with the Fast tier inherited from the parent session. OpenCode exposes the equivalent `openai/gpt-5.6-sol-fast` alias, which resolves to API model `gpt-5.6-sol`, Priority service, and xhigh reasoning; its primary agents use the global default and subagents inherit the invoking primary model. The managed configuration assumes ChatGPT subscription authentication, where Fast consumes GPT-5.6 credits at 2.5 times the Standard rate. API-key use invokes separately billed processing and requires a separate configuration and billing decision.
 
 OpenCode's in-app updater is disabled because the host installation wrapper owns release selection. Its enabled-provider gate and tracked provider block contain only OpenAI, the provider used by the managed model.
 
-Auth, session state, and generated or host-specific config remain intentionally excluded. The app-managed rewrite exception below applies only inside the tracked Claude and Codex runtime files. Nested payload ignore files protect fresh clones if a state directory is accidentally folded into the repository.
+Nested payload ignore files protect fresh clones if a state directory is accidentally folded into the repository.
 
 Three payload-side exceptions exist. Claude Code writes app-managed keys and key ordering into its tracked `settings.json`; commit those rewrites as-is. Codex and the ChatGPT desktop app write project trust, notice keys, marketplace and plugin state, MCP/runtime entries, and desktop preferences into the tracked `config.toml`; preserve and commit those rewrites, while its nested `.gitignore` excludes other runtime files. Generated runtime paths must be revalidated on each host. OpenCode tracks the release-matched npm manifest and lockfile next to its config, while a repository-only `.gitignore` excludes generated `node_modules/`. If Stow reports a real-file conflict, compare and merge any needed local content before removing it; confirmed generated `node_modules/` can be removed and regenerated from the tracked manifests.
 
@@ -118,7 +120,7 @@ Normal interactive use assumes H has chosen to trust the repository: project set
 
 Shared guidance lives in `claude-code/.claude/rules/shared-guidance.md`. Claude Code loads it natively from `rules/`; Codex loads the same file as its global instructions through the `~/.codex/AGENTS.md` symlink chain (Codex has no import mechanism); OpenCode loads it through the `instructions` field in `opencode.json` using `$HOME`-based path expansion. Guidance is shared when the content and meaning are the same in every managed tool (share policy); tool-specific config, wrappers, and schemas stay separate (separate mechanism).
 
-At the repo root, `AGENTS.md` is the canonical project instruction file and `CLAUDE.md` is a thin compatibility wrapper for Claude Code. Read `docs/maintenance.md` before upgrades, permission or reviewer-bridge changes, cross-host validation, `/doctor`, or deferred work.
+Read `docs/maintenance.md` before upgrades, permission or reviewer-bridge changes, cross-host validation, `/doctor`, or deferred work.
 
 OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps `/commit` and `/spar` wrappers and folds documentation sync and scratch file cleanup into the commit workflow instead of maintaining a separate `/update` command. Commit boundaries never alter, stage, or temporarily revert unrelated hunks; a mixed file is deferred or escalated to H. The spar skill copies share protocol wording but each carries only its own tool's reviewer incantations. Claude Code spars with Codex through `spar-codex`; Codex's automated Claude route remains deferred under its strict permission profile, while OpenCode spars with Claude through `spar-claude`. Before authentication or network access, each bridge scans the prompt and complete handoff, rejects alternate authentication and ambient reviewer customization, and validates one private mode-700 `/var/tmp/spar-<session-id>/` directory, flushing it to disk before every call. `spar-codex` disables plugin loading and preflights that its override leaves the effective plugin inventory empty, allowing desktop plugins in ordinary sessions without exposing them to the reviewer. New and resumed `spar-codex` calls use the same strict inline read-only permission profile; `spar-claude` pins Fable 5/xhigh, disables nonessential traffic and updater activity, and exposes only `Read`, `Glob`, and `Grep`. A call succeeds only after one valid terminal event with a nonempty reply, and a new Codex call also requires a valid thread ID. On reviewer-process failure, `spar-codex` scans bounded captured stderr before relaying it, classifies stderr-only limits, and reports any valid new thread ID created before failure. Each bridge owns the reviewer process group so stall and ceiling exits terminate TERM-ignoring descendants before returning.
 
@@ -126,7 +128,7 @@ OpenCode's host environment disables automatic external skill discovery so its m
 
 Reviewers stay offline: Codex reviewer web search and network are disabled, and the Claude reviewer has no web tools. This prevents query-based exfiltration, reduces external prompt-injection exposure, and keeps reviews reproducible. The implementer verifies plan-critical external claims against current primary sources and supplies a traceable evidence pack; reviewers challenge the evidence and its application without fetching it independently. Blind round 0 receives the target outcome, non-goals, outcome-level decisions, constraints, and acceptance criteria without the proposed mechanism. Round 1 receives the full target brief, evidence, and plan. Any issue left for H arrives as a self-contained ruling packet with both positions, evidence, consequences, reversibility, affected commits, and the implementer's labeled recommendation; raw reviewer transcripts remain optional.
 
-The status line stores hashed state names below one owner-validated mode-700 runtime directory. It accepts only owner-only, mode-600, regular, single-link state files and disables the affected persistence path rather than following or repairing unsafe metadata.
+Status line state-file conventions live in the `statusline.sh` header and the AGENTS.md invariant.
 
 ## Review Workflow
 
@@ -189,48 +191,22 @@ Codex stores per-host project trust inside `config.toml`. If `~/.codex/config.to
 
 ### Stow
 
-Create symlinks for all packages:
+The Makefile owns the package list and the stow command sets; run the targets from the repo root:
 
 ```bash
-cd ~/Projects/repos/dotfiles/dotfiles-ai
+make stow      # create symlinks for all packages
+make unstow    # remove all package symlinks
+make dry-run   # preview stow actions without making changes
+make restow    # update symlinks after repo content changes
+```
+
+Each target wraps the corresponding raw invocation, for example `make stow` runs:
+
+```bash
 stow -v -t ~ claude-code codex opencode
 ```
 
-### Unstow
-
-```bash
-cd ~/Projects/repos/dotfiles/dotfiles-ai
-stow -D -v -t ~ claude-code codex opencode
-```
-
-### Dry Run
-
-Preview what stow would do without making changes:
-
-```bash
-cd ~/Projects/repos/dotfiles/dotfiles-ai
-stow -v -n -t ~ claude-code codex opencode
-```
-
-### Re-stow
-
-To update symlinks after the repo content changes (same clone path):
-
-```bash
-cd ~/Projects/repos/dotfiles/dotfiles-ai
-stow -R -v -t ~ claude-code codex opencode
-```
-
-To migrate from a different clone path, unstow from the old location first:
-
-```bash
-cd /old/clone/path
-stow -D -v -t ~ claude-code codex opencode
-cd ~/Projects/repos/dotfiles/dotfiles-ai
-stow -v -t ~ claude-code codex opencode
-```
-
-If the old clone is no longer available, run the full cleanup in the Prepare section before stowing.
+To migrate from a different clone path, run `make unstow` in the old clone first, then `make stow` in the new one. If the old clone is no longer available, run the full cleanup in the Prepare section before stowing.
 
 ## Verify
 
@@ -246,7 +222,7 @@ After stowing or changing the payloads:
 
 A repo-root `Makefile` keeps the package list in one place and wraps the routine commands. Run targets from the repo root:
 
-- `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets from Setup
+- `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets
 - `make verify` - fail-closed dependency checks; symlink resolution; JSON, TOML, model, Fast, provider, updater, and npm-lock contracts; non-destructive Stow fixtures; statusline state-file attack fixtures; bridge payload, authentication, isolation, new/resume, terminal-event, timeout, and descendant-cleanup tests; project-config isolation; three-way skill sync; commit-boundary contracts; executable one-file plugin parser tests; OpenCode permission ordering; and stray-config checks
 - `make clean` - non-destructive preparation that removes only recognized managed symlinks and creates real state directories
 - `make lint` - ShellCheck over `statusline.sh`, both spar bridges, and every script and shell test; `.shellcheckrc` disables the one style-level finding so new issues stand out
