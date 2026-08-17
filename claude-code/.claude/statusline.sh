@@ -7,9 +7,9 @@
 #   spend only, cumulative, hidden until extra usage first occurs. No duration
 #   segment.
 # - No redundant indicators when the tool already surfaces the information natively.
-# - Consistent label:pct%(remaining) pattern: ctx:42%(116k), 5h:38%(⟳02:11),
-#   7d:24%(⟳02:07:33). The dim bracket holds what remains: context tokens, or
-#   the ⟳-marked countdown (hh:mm, dd:hh:mm) to the window reset.
+# - Consistent "label: pct% (remaining)" pattern: ctx: 42% (116k),
+#   5h: 38% (02:11), 7d: 24% (05:06:38). The dim bracket holds what remains:
+#   context tokens, or the countdown (hh:mm, dd:hh:mm) to the window reset.
 # - Space separators between segments, not special characters.
 # - Colors pin the Omarchy gruvbox palette as truecolor, so rendering does not
 #   depend on the terminal's ANSI palette; re-pin when the theme changes.
@@ -147,7 +147,7 @@ write_state() {
   mv -fT -- "$temp" "$target" 2>/dev/null || { rm -f -- "$temp"; return 1; }
 }
 
-# Render one rate-limit segment on stdout: label:pct%(⟳countdown); the dim
+# Render one rate-limit segment on stdout: label: pct% (countdown); the dim
 # bracket holds the time remaining until the window resets.
 # Args: label pct reset_epoch countdown_style
 build_rate_seg() {
@@ -158,7 +158,7 @@ build_rate_seg() {
 
   [ "${epoch:-0}" -gt "$now" ] 2>/dev/null && detail=$(fmt_countdown "$((epoch - now))" "$style")
 
-  printf '%s' "${dim}${label}:${reset}$(pct_color "$pct")${pct}%${reset}${detail:+${dim}(⟳${detail})${reset}}"
+  printf '%s' "${dim}${label}:${reset} $(pct_color "$pct")${pct}%${reset}${detail:+ ${dim}(${detail})${reset}}"
 }
 
 # --- Detect extra usage (5h OR 7d at 100%) ---
@@ -241,7 +241,7 @@ if [ -n "$used_pct" ]; then
   ctx_left=""
   [ "$ctx_size" -gt 0 ] 2>/dev/null && [ "$ctx_tokens" -gt 0 ] 2>/dev/null && \
     ctx_left=$(fmt_k "$((ctx_size - ctx_tokens))")
-  ctx_seg="${dim}ctx:${reset}$(pct_color "$used_int")${used_int}%${reset}${ctx_left:+${dim}(${ctx_left})${reset}}"
+  ctx_seg="${dim}ctx:${reset} $(pct_color "$used_int")${used_int}%${reset}${ctx_left:+ ${dim}(${ctx_left})${reset}}"
 fi
 
 # Rate limits: 5h and 7d (bracketed countdown to the window reset)
@@ -274,7 +274,7 @@ if [ "$extra_usage" -eq 1 ] 2>/dev/null; then
   if [ -n "$cost_usd" ]; then
     extra_cost=$(jq -n --argjson c "$cost_usd" --argjson b "${_bl:-0}" --argjson p "${_pr:-0}" '[$p + $c - $b, 0] | max' 2>/dev/null) || extra_cost=0
     [ -n "$extra_state" ] && write_state "$extra_state" "active" "$_bl" "$_pr" "$extra_cost"
-    cost_seg="${dim}extra:${reset}${yellow}$(printf '$%.2f' "$extra_cost")${reset}"
+    cost_seg="${dim}extra:${reset} ${yellow}$(printf '$%.2f' "$extra_cost")${reset}"
   fi
 else
   if [ "$extra_state_ok" -eq 1 ]; then
@@ -282,7 +282,7 @@ else
       # Transition to frozen: use last displayed value, not recomputed
       write_state "$extra_state" "frozen" "0" "0" "${_ld:-0}"
     fi
-    cost_seg="${dim}extra:$(printf '$%.2f' "${_ld:-0}")${reset}"
+    cost_seg="${dim}extra: $(printf '$%.2f' "${_ld:-0}")${reset}"
   fi
 fi
 

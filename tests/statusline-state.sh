@@ -43,7 +43,7 @@ missing_output=$(XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$missing_size")
 future=$(( $(date +%s) + 3600 ))
 with_reset=$(printf '{"workspace":{"current_dir":"%s"},"model":{"display_name":"Claude Test"},"rate_limits":{"five_hour":{"used_percentage":20,"resets_at":%s},"seven_day":{"used_percentage":30,"resets_at":%s}},"session_id":"reset-probe"}\n' "$cwd" "$future" "$future")
 reset_output=$(XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$with_reset")
-[[ $reset_output == *'(⟳'* ]] || fail "rate-limit reset timestamps did not render"
+[[ $reset_output == *'(0'* ]] || fail "rate-limit reset countdowns did not render"
 
 active_again=${input/1.25/2.25}
 active_output=$(XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$active_again")
