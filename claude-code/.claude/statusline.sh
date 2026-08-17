@@ -7,8 +7,9 @@
 #   spend only, cumulative, hidden until extra usage first occurs. No duration
 #   segment.
 # - No redundant indicators when the tool already surfaces the information natively.
-# - Consistent label:pct%(detail) pattern: ctx:42%(84k), 5h:35%(⟳07:33),
-#   5h:100%(⟳1h5m). The dim bracket holds the secondary datum; ⟳ marks resets.
+# - Consistent label:pct%(remaining) pattern: ctx:42%(116k), 5h:38%(⟳02:11),
+#   7d:24%(⟳02:07:33). The dim bracket holds what remains: context tokens, or
+#   the ⟳-marked countdown (hh:mm, dd:hh:mm) to the window reset.
 # - Space separators between segments, not special characters.
 # - Colors pin the Omarchy gruvbox palette as truecolor, so rendering does not
 #   depend on the terminal's ANSI palette; re-pin when the theme changes.
@@ -29,6 +30,7 @@ readarray -t _f <<< "$(echo "$input" | jq -r '
   (.model.display_name // ""),
   (.context_window.used_percentage // ""),
   (.context_window.total_input_tokens // 0),
+  (.context_window.context_window_size // 0),
   (.rate_limits.five_hour.used_percentage // ""),
   (.rate_limits.seven_day.used_percentage // ""),
   (.cost.total_cost_usd // ""),
@@ -37,14 +39,14 @@ readarray -t _f <<< "$(echo "$input" | jq -r '
   (.session_id // "")
 ')"
 for i in "${!_f[@]}"; do _f[$i]="${_f[$i]%$'\r'}"; done
-cwd="${_f[0]}" model="${_f[1]}" used_pct="${_f[2]}" ctx_tokens="${_f[3]}"
-rate_5h="${_f[4]}" rate_7d="${_f[5]}" cost_usd="${_f[6]}"
+cwd="${_f[0]}" model="${_f[1]}" used_pct="${_f[2]}" ctx_tokens="${_f[3]}" ctx_size="${_f[4]}"
+rate_5h="${_f[5]}" rate_7d="${_f[6]}" cost_usd="${_f[7]}"
 
 # Round the rate percentages once; empty stands for absent or null.
 rate_5h_int="" rate_7d_int=""
 [ -n "$rate_5h" ] && rate_5h_int=$(printf '%.0f' "$rate_5h" 2>/dev/null)
 [ -n "$rate_7d" ] && rate_7d_int=$(printf '%.0f' "$rate_7d" 2>/dev/null)
-reset_5h="${_f[7]}" reset_7d="${_f[8]}" session_id="${_f[9]}"
+reset_5h="${_f[8]}" reset_7d="${_f[9]}" session_id="${_f[10]}"
 
 # --- Colors: Omarchy gruvbox palette (themes/gruvbox/colors.toml), truecolor ---
 dim='\033[38;2;124;111;100m'          # dark_foreground #7c6f64
@@ -74,19 +76,16 @@ fmt_k() {
   echo "$((n / 1000))k"
 }
 
-# Format seconds remaining as one token: XdYh, XhYm, or Xm
+# Format seconds remaining as zero-padded clock fields: hh:mm or dd:hh:mm
+# Args: seconds style(hm|dhm)
 fmt_countdown() {
-  local remaining=${1:-0}
+  local remaining=${1:-0} style=$2
   if [ "$remaining" -le 0 ] 2>/dev/null; then echo ""; return; fi
-  local d=$((remaining / 86400))
-  local h=$(( (remaining % 86400) / 3600 ))
-  local m=$(( (remaining % 3600) / 60 ))
-  if [ "$d" -gt 0 ]; then
-    echo "${d}d${h}h"
-  elif [ "$h" -gt 0 ]; then
-    echo "${h}h${m}m"
+  if [ "$style" = "dhm" ]; then
+    printf '%02d:%02d:%02d\n' "$((remaining / 86400))" \
+      "$(( (remaining % 86400) / 3600 ))" "$(( (remaining % 3600) / 60 ))"
   else
-    echo "${m}m"
+    printf '%02d:%02d\n' "$((remaining / 3600))" "$(( (remaining % 3600) / 60 ))"
   fi
 }
 
@@ -148,23 +147,16 @@ write_state() {
   mv -fT -- "$temp" "$target" 2>/dev/null || { rm -f -- "$temp"; return 1; }
 }
 
-# Render one rate-limit segment on stdout: label:pct%(⟳detail); the bracket
-# carries the reset clock, or the remaining countdown once the window is
-# exhausted.
-# Args: label pct reset_epoch date_fmt
+# Render one rate-limit segment on stdout: label:pct%(⟳countdown); the dim
+# bracket holds the time remaining until the window resets.
+# Args: label pct reset_epoch countdown_style
 build_rate_seg() {
-  local label=$1 pct=$2 epoch=$3 dfmt=$4
+  local label=$1 pct=$2 epoch=$3 style=$4
   local detail=""
 
   [ -z "$pct" ] && return
 
-  if [ "${epoch:-0}" -gt "$now" ] 2>/dev/null; then
-    if [ "$pct" -ge 100 ] 2>/dev/null; then
-      detail=$(fmt_countdown "$((epoch - now))")
-    else
-      detail=$(date -d "@$epoch" +"$dfmt" 2>/dev/null)
-    fi
-  fi
+  [ "${epoch:-0}" -gt "$now" ] 2>/dev/null && detail=$(fmt_countdown "$((epoch - now))" "$style")
 
   printf '%s' "${dim}${label}:${reset}$(pct_color "$pct")${pct}%${reset}${detail:+${dim}(⟳${detail})${reset}}"
 }
@@ -241,18 +233,20 @@ branch_seg="${branch:+${italic_cyan}${branch}${reset}}"
 short_model="${model#Claude }"
 model_seg="${short_model:+${dim}${short_model}${reset}}"
 
-# Context window: ctx:pct%(tokens); tokens come exact from the payload
+# Context window: ctx:pct%(remaining tokens)
 # used_percentage can be null early in session before first API call.
 ctx_seg=""
 if [ -n "$used_pct" ]; then
   used_int=$(printf '%.0f' "$used_pct" 2>/dev/null)
-  ctx_tok=$(fmt_k "$ctx_tokens")
-  ctx_seg="${dim}ctx:${reset}$(pct_color "$used_int")${used_int}%${reset}${ctx_tok:+${dim}(${ctx_tok})${reset}}"
+  ctx_left=""
+  [ "$ctx_size" -gt 0 ] 2>/dev/null && [ "$ctx_tokens" -gt 0 ] 2>/dev/null && \
+    ctx_left=$(fmt_k "$((ctx_size - ctx_tokens))")
+  ctx_seg="${dim}ctx:${reset}$(pct_color "$used_int")${used_int}%${reset}${ctx_left:+${dim}(${ctx_left})${reset}}"
 fi
 
-# Rate limits: 5h and 7d (bracketed reset clock; countdown once exhausted)
-rate5_seg=$(build_rate_seg "5h" "$rate_5h_int" "$reset_5h" "%H:%M")
-rate7_seg=$(build_rate_seg "7d" "$rate_7d_int" "$reset_7d" "%a.%H:%M")
+# Rate limits: 5h and 7d (bracketed countdown to the window reset)
+rate5_seg=$(build_rate_seg "5h" "$rate_5h_int" "$reset_5h" "hm")
+rate7_seg=$(build_rate_seg "7d" "$rate_7d_int" "$reset_7d" "dhm")
 
 # Extra-usage cost (hidden until overage first occurs)
 # State: line 1 = active|frozen, line 2 = baseline, line 3 = prior extra, line 4 = last displayed
