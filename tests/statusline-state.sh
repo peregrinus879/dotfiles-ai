@@ -44,16 +44,25 @@ future=$(( $(date +%s) + 3600 ))
 with_reset=$(printf '{"workspace":{"current_dir":"%s"},"model":{"display_name":"Claude Test"},"rate_limits":{"five_hour":{"used_percentage":20,"resets_at":%s},"seven_day":{"used_percentage":30,"resets_at":%s}},"session_id":"reset-probe"}\n' "$cwd" "$future" "$future")
 reset_output=$(XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$with_reset")
 [[ $reset_output == *'('[0-9]* ]] || fail "rate-limit reset countdowns did not render"
+[[ $reset_output != *'extra:'* ]] || fail "cost segment rendered before overage"
+
+with_tokens=$(printf '{"workspace":{"current_dir":"%s"},"model":{"display_name":"Claude Test"},"context_window":{"used_percentage":42,"total_input_tokens":84000,"context_window_size":200000},"session_id":"ctx-remaining"}\n' "$cwd")
+tokens_output=$(XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$with_tokens")
+[[ $tokens_output == *'(116k)'* ]] || fail "remaining-token bracket did not render"
 
 active_again=${input/1.25/2.25}
 active_output=$(XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$active_again")
 [[ $active_output == *"\$1.00"* ]] || fail "active extra-usage delta did not render"
 frozen=${active_again/100/99}
+frozen=${frozen/2.25/2.75}
 frozen_output=$(XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$frozen")
 [[ $frozen_output == *"\$1.00"* ]] || fail "frozen extra-usage value did not persist"
 reentered=${input/1.25/5.25}
 reentered_output=$(XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$reentered")
 [[ $reentered_output == *"\$1.00"* ]] || fail "extra-usage re-entry did not carry frozen value"
+clamped=${input/1.25/3.25}
+clamped_output=$(XDG_RUNTIME_DIR="$runtime" "$STATUSLINE" <<<"$clamped")
+[[ $clamped_output == *"\$0.00"* ]] || fail "negative extra-usage delta was not clamped"
 
 rm -- "$git_state"
 printf 'canary\n' >"$TMP/symlink-canary"
