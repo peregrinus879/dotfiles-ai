@@ -25,21 +25,24 @@
 umask 077
 input=$(cat)
 
-# --- Parse JSON input (single jq call for performance) ---
-readarray -t _f <<< "$(echo "$input" | jq -r '
-  (.workspace.current_dir // .cwd // ""),
-  (.model.display_name // ""),
-  (.context_window.used_percentage // ""),
-  (.context_window.total_input_tokens // 0),
-  (.context_window.context_window_size // 0),
-  (.rate_limits.five_hour.used_percentage // ""),
-  (.rate_limits.seven_day.used_percentage // ""),
-  (.cost.total_cost_usd // ""),
-  (.rate_limits.five_hour.resets_at // ""),
-  (.rate_limits.seven_day.resets_at // ""),
-  (.session_id // "")
-' 2>/dev/null)"
-for i in "${!_f[@]}"; do _f[$i]="${_f[$i]%$'\r'}"; done
+# --- Parse JSON input (single jq call for performance); NUL-delimited so an
+# embedded newline in a payload string cannot shift later fields ---
+readarray -d '' -t _f < <(printf '%s' "$input" | jq -j '
+  [ (.workspace.current_dir // .cwd // ""),
+    (.model.display_name // ""),
+    (.context_window.used_percentage // ""),
+    (.context_window.total_input_tokens // 0),
+    (.context_window.context_window_size // 0),
+    (.rate_limits.five_hour.used_percentage // ""),
+    (.rate_limits.seven_day.used_percentage // ""),
+    (.cost.total_cost_usd // ""),
+    (.rate_limits.five_hour.resets_at // ""),
+    (.rate_limits.seven_day.resets_at // ""),
+    (.session_id // "")
+  ] | map(tostring) | join([0] | implode)
+' 2>/dev/null)
+# Scrub C0 control bytes so payload text cannot break line or state integrity.
+for i in "${!_f[@]}"; do _f[$i]="${_f[$i]//[$'\001'-$'\037']/}"; done
 cwd="${_f[0]}" model="${_f[1]}" used_pct="${_f[2]}" ctx_tokens="${_f[3]}" ctx_size="${_f[4]}"
 rate_5h="${_f[5]}" rate_7d="${_f[6]}" cost_usd="${_f[7]}"
 
