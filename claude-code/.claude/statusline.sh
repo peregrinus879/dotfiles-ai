@@ -233,7 +233,7 @@ short_model="${model#Claude }"
 # used_percentage and ctx_size can be null early in session before first API call.
 ctx_seg=""
 if [ -n "$used_pct" ] && [ "$used_pct" != "null" ]; then
-  used_int=$(printf '%.0f' "$used_pct")
+  used_int=$(printf '%.0f' "$used_pct" 2>/dev/null)
   if [ "$ctx_size" -gt 0 ] 2>/dev/null; then
     used_raw=$((ctx_size * used_int / 100))
     ctx_seg="  $(pct_color "$used_int")$(fmt_k "$used_raw") (${used_int}%)${reset}"
@@ -271,7 +271,7 @@ if [ "$extra_usage" -eq 1 ] 2>/dev/null; then
     _bl="${cost_usd:-0}" _pr="0" _ld="0"
   fi
   if [ -n "$cost_usd" ] && [ "$cost_usd" != "null" ]; then
-    extra_cost=$(jq -n --argjson c "$cost_usd" --argjson b "${_bl:-0}" --argjson p "${_pr:-0}" '$p + $c - $b' 2>/dev/null) || extra_cost=0
+    extra_cost=$(jq -n --argjson c "$cost_usd" --argjson b "${_bl:-0}" --argjson p "${_pr:-0}" '[$p + $c - $b, 0] | max' 2>/dev/null) || extra_cost=0
     [ -n "$extra_state" ] && write_state "$extra_state" "active" "$_bl" "$_pr" "$extra_cost"
     cost_seg="  ${yellow}$(printf '$%.2f' "$extra_cost")${reset}"
   fi
