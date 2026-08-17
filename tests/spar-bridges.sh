@@ -186,25 +186,27 @@ if SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=malformed PATH="$TMP/bin:$PATH" \
 fi
 rm -rf -- "$handoff"
 
-handoff=$(make_handoff)
-calls="$TMP/codex-stderr-failure"
-rc=0
-diagnostic=$(SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=stderr-failure PATH="$TMP/bin:$PATH" \
-  "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review diagnostics." 2>&1) || rc=$?
-[[ $rc == 5 && $diagnostic == *'transport handshake failed'* ]] ||
-  fail "spar-codex did not relay safe reviewer stderr"
+# run_codex_diag <mode> <expected-rc> <expected-substring> <fail-message>
+# [extra VAR=value env words]. Runs the shared stderr-diagnostic scenario and
+# exports $diagnostic for follow-up assertions.
+run_codex_diag() {
+  local mode=$1 expected_rc=$2 expected_substring=$3 message=$4 handoff rc=0
+  shift 4
+  handoff=$(make_handoff)
+  diagnostic=$(env SPAR_TEST_CALLS="$TMP/codex-$mode" SPAR_TEST_MODE="$mode" \
+    PATH="$TMP/bin:$PATH" "$@" \
+    "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review diagnostics." 2>&1) || rc=$?
+  [[ $rc == "$expected_rc" && $diagnostic == *"$expected_substring"* ]] || fail "$message"
+  rm -rf -- "$handoff"
+}
+
+run_codex_diag stderr-failure 5 'transport handshake failed' \
+  "spar-codex did not relay safe reviewer stderr"
 [[ $diagnostic == *'SPAR-BRIDGE THREAD: reviewer thread started before failure: 11111111-1111-4111-8111-111111111111'* ]] ||
   fail "spar-codex did not preserve a failed-new thread id"
-rm -rf -- "$handoff"
 
-handoff=$(make_handoff)
-calls="$TMP/codex-stderr-empty"
-rc=0
-diagnostic=$(SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=stderr-empty PATH="$TMP/bin:$PATH" \
-  "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review diagnostics." 2>&1) || rc=$?
-[[ $rc == 5 && $diagnostic == *'reviewer exited 1 without stderr'* ]] ||
-  fail "spar-codex did not classify an empty reviewer stderr failure"
-rm -rf -- "$handoff"
+run_codex_diag stderr-empty 5 'reviewer exited 1 without stderr' \
+  "spar-codex did not classify an empty reviewer stderr failure"
 
 handoff=$(make_handoff)
 calls="$TMP/codex-stderr-held-open"
@@ -225,35 +227,17 @@ if [[ -s $child_pid_file ]]; then
 fi
 rm -rf -- "$handoff"
 
-handoff=$(make_handoff)
-calls="$TMP/codex-stderr-limit"
-rc=0
-diagnostic=$(SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=stderr-limit PATH="$TMP/bin:$PATH" \
-  "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review diagnostics." 2>&1) || rc=$?
-[[ $rc == 3 && $diagnostic == *'rate limit reached; resets at 12:34 UTC'* ]] ||
-  fail "spar-codex did not classify a stderr-only usage limit"
-rm -rf -- "$handoff"
+run_codex_diag stderr-limit 3 'rate limit reached; resets at 12:34 UTC' \
+  "spar-codex did not classify a stderr-only usage limit"
 
-handoff=$(make_handoff)
-calls="$TMP/codex-stderr-sensitive"
 diagnostic_secret=$(printf '%s%s' 'sk' '-0123456789abcdef0123456789abcdef')
-rc=0
-diagnostic=$(SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=stderr-sensitive \
-  SPAR_TEST_SECRET=$diagnostic_secret PATH="$TMP/bin:$PATH" \
-  "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review diagnostics." 2>&1) || rc=$?
-[[ $rc == 5 && $diagnostic == *'stderr withheld by content gate'* ]] ||
-  fail "spar-codex did not withhold sensitive reviewer stderr"
+run_codex_diag stderr-sensitive 5 'stderr withheld by content gate' \
+  "spar-codex did not withhold sensitive reviewer stderr" \
+  SPAR_TEST_SECRET="$diagnostic_secret"
 [[ $diagnostic != *"$diagnostic_secret"* ]] || fail "spar-codex relayed sensitive reviewer stderr"
-rm -rf -- "$handoff"
 
-handoff=$(make_handoff)
-calls="$TMP/codex-stderr-oversized"
-rc=0
-diagnostic=$(SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=stderr-oversized PATH="$TMP/bin:$PATH" \
-  "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review diagnostics." 2>&1) || rc=$?
-[[ $rc == 5 && $diagnostic == *'stderr exceeds 8192-byte relay bound'* ]] ||
-  fail "spar-codex did not bound oversized reviewer stderr"
-rm -rf -- "$handoff"
+run_codex_diag stderr-oversized 5 'stderr exceeds 8192-byte relay bound' \
+  "spar-codex did not bound oversized reviewer stderr"
 
 for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin/spar-codex"; do
   for mode in stall ceiling; do

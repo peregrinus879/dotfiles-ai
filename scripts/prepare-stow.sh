@@ -13,7 +13,7 @@ abort() {
 queue_link() { # path, expected package suffix
   local path=$1 suffix=$2 target
   if [[ -L $path ]]; then
-    target=$(realpath -m -- "$(dirname -- "$path")/$(readlink -- "$path")")
+    target=$(realpath -m -- "$path")
     [[ $target == */"$suffix" ]] ||
       abort "refusing unmanaged symlink: $path -> $(readlink -- "$path")"
     remove_links+=("$path")
@@ -26,7 +26,7 @@ prepare_real_dir() { # path, expected folded-package suffix or empty
   local path=$1 suffix=${2:-} target
   if [[ -L $path ]]; then
     [[ -n $suffix ]] || abort "refusing symlinked state directory: $path"
-    target=$(realpath -m -- "$(dirname -- "$path")/$(readlink -- "$path")")
+    target=$(realpath -m -- "$path")
     [[ $target == */"$suffix" ]] ||
       abort "refusing unmanaged directory symlink: $path -> $(readlink -- "$path")"
     remove_links+=("$path")

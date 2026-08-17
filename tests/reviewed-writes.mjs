@@ -3,39 +3,27 @@ import { ReviewedWritesPlugin } from "../opencode/.config/opencode/plugins/revie
 
 const hook = (await ReviewedWritesPlugin({ directory: process.cwd() }))["tool.execute.before"]
 
-async function expectAccepted(name, patchText) {
+async function expectToolAccepted(name, tool, args) {
   try {
-    await hook({ tool: "apply_patch" }, { args: { patchText } })
+    await hook({ tool }, { args })
   } catch (error) {
     throw new Error(`${name} was rejected: ${error.message}`)
   }
 }
 
-async function expectRejected(name, patchText) {
+async function expectToolRejected(name, tool, args) {
   try {
-    await hook({ tool: "apply_patch" }, { args: { patchText } })
+    await hook({ tool }, { args })
   } catch {
     return
   }
   throw new Error(`${name} was accepted`)
 }
 
-async function expectEditAccepted(name, filePath) {
-  try {
-    await hook({ tool: "edit" }, { args: { filePath } })
-  } catch (error) {
-    throw new Error(`${name} was rejected: ${error.message}`)
-  }
-}
-
-async function expectEditRejected(name, filePath) {
-  try {
-    await hook({ tool: "edit" }, { args: { filePath } })
-  } catch {
-    return
-  }
-  throw new Error(`${name} was accepted`)
-}
+const expectAccepted = (name, patchText) => expectToolAccepted(name, "apply_patch", { patchText })
+const expectRejected = (name, patchText) => expectToolRejected(name, "apply_patch", { patchText })
+const expectEditAccepted = (name, filePath) => expectToolAccepted(name, "edit", { filePath })
+const expectEditRejected = (name, filePath) => expectToolRejected(name, "edit", { filePath })
 
 await expectAccepted("one-file update", `*** Begin Patch
 *** Update File: one.txt

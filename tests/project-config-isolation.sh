@@ -64,28 +64,29 @@ export const ProjectProbe = async () => {
 }
 PLUGIN
 
-enabled=$(cd "$TMP/project" && "${OPENCODE_TEST_ENV[@]}" \
-  HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
-  OPENCODE_CONFIG_DIR="$TMP/home/.config/opencode" \
-  opencode debug config 2>&1 || true)
+# run_opencode [extra VAR=value words] <opencode arguments...>: the shared
+# project-cwd invocation with the isolated home; extra env words precede the
+# command per env(1).
+run_opencode() {
+  (cd "$TMP/project" && "${OPENCODE_TEST_ENV[@]}" \
+    HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
+    OPENCODE_CONFIG_DIR="$TMP/home/.config/opencode" "$@")
+}
+
+enabled=$(run_opencode opencode debug config 2>&1 || true)
 [[ $enabled == *'PROJECT_PLUGIN_LOADED'* || $enabled == *'"project-probe": "allow"'* ]] || {
   printf 'FAIL: project config/plugin did not load in the control case\n' >&2
   exit 1
 }
 
-skills_enabled=$(cd "$TMP/project" && "${OPENCODE_TEST_ENV[@]}" \
-  HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
-  OPENCODE_CONFIG_DIR="$TMP/home/.config/opencode" opencode debug skill 2>&1)
+skills_enabled=$(run_opencode opencode debug skill 2>&1)
 [[ $skills_enabled == *"$TMP/home/.claude/skills/external-claude-probe/SKILL.md"* && \
   $skills_enabled == *"$TMP/home/.agents/skills/external-agent-probe/SKILL.md"* ]] || {
   printf 'FAIL: external skill discovery did not load in the control case\n' >&2
   exit 1
 }
 
-disabled=$(cd "$TMP/project" && "${OPENCODE_TEST_ENV[@]}" \
-  HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
-  OPENCODE_CONFIG_DIR="$TMP/home/.config/opencode" \
-  OPENCODE_DISABLE_PROJECT_CONFIG=1 opencode debug config 2>&1)
+disabled=$(run_opencode OPENCODE_DISABLE_PROJECT_CONFIG=1 opencode debug config 2>&1)
 [[ $disabled != *'PROJECT_PLUGIN_LOADED'* && $disabled != *'"project-probe": "allow"'* ]] || {
   printf 'FAIL: disabled project config or plugin still loaded\n' >&2
   exit 1
@@ -95,10 +96,7 @@ disabled=$(cd "$TMP/project" && "${OPENCODE_TEST_ENV[@]}" \
   exit 1
 }
 
-skills_disabled=$(cd "$TMP/project" && "${OPENCODE_TEST_ENV[@]}" \
-  HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
-  OPENCODE_CONFIG_DIR="$TMP/home/.config/opencode" \
-  OPENCODE_DISABLE_EXTERNAL_SKILLS=1 opencode debug skill 2>&1)
+skills_disabled=$(run_opencode OPENCODE_DISABLE_EXTERNAL_SKILLS=1 opencode debug skill 2>&1)
 for managed in \
   "$TMP/home/.config/opencode/skills/commit/SKILL.md" \
   "$TMP/home/.config/opencode/skills/spar/SKILL.md" \
@@ -114,12 +112,9 @@ done
   exit 1
 }
 
-if ! (cd "$TMP/project" && "${OPENCODE_TEST_ENV[@]}" \
-  HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
-  OPENCODE_CONFIG_DIR="$TMP/home/.config/opencode" \
-  OPENCODE_DISABLE_EXTERNAL_SKILLS=1 \
+if ! run_opencode OPENCODE_DISABLE_EXTERNAL_SKILLS=1 \
   OPENCODE_CONFIG_CONTENT='{"skills":{"paths":["~/missing-opencode-skill"]}}' \
-  opencode debug skill >/dev/null); then
+  opencode debug skill >/dev/null; then
   printf 'FAIL: missing explicit skill path broke startup\n' >&2
   exit 1
 fi

@@ -159,7 +159,6 @@ require(
     "OpenCode allow appears after guard block",
 )
 require(bash["*"] == "ask", "OpenCode Bash catch-all drifted")
-require(bash["spar-claude *"] == "allow", "OpenCode Claude bridge allow drifted")
 require(
     [command for command, action in bash_items if action == "allow"]
     == [
@@ -218,7 +217,8 @@ require(
     "OpenCode plugin lock drifted",
 )
 require(
-    opencode_lock["packages"]["node_modules/@opencode-ai/plugin"]["version"] == "1.18.18",
+    opencode_lock["packages"]["node_modules/@opencode-ai/plugin"]["version"]
+    == opencode_package["dependencies"]["@opencode-ai/plugin"],
     "OpenCode resolved plugin version drifted",
 )
 require(
@@ -238,10 +238,9 @@ edit_expected = {
     "~/.gnupg/**": "deny",
     **{path: "deny" for path in HANDOFF_SENSITIVE_DENIES},
 }
-require(opencode["permission"]["edit"] == edit_expected, "OpenCode edit map drifted")
 require(
-    list(opencode["permission"]["edit"]) == list(edit_expected),
-    "OpenCode edit map order drifted (catch-all, spar allow, denies last)",
+    list(opencode["permission"]["edit"].items()) == list(edit_expected.items()),
+    "OpenCode edit map or its order drifted (catch-all, spar allow, denies last)",
 )
 require("build" not in opencode["agent"], "OpenCode build override bypasses global review")
 plan_edit_expected = {
@@ -250,12 +249,9 @@ plan_edit_expected = {
     **{path: "deny" for path in HANDOFF_SENSITIVE_DENIES},
 }
 require(
-    opencode["agent"]["plan"]["permission"]["edit"] == plan_edit_expected,
-    "OpenCode plan edit map drifted",
-)
-require(
-    list(opencode["agent"]["plan"]["permission"]["edit"]) == list(plan_edit_expected),
-    "OpenCode plan edit map order drifted",
+    list(opencode["agent"]["plan"]["permission"]["edit"].items())
+    == list(plan_edit_expected.items()),
+    "OpenCode plan edit map or its order drifted",
 )
 
 read_rules = opencode["permission"]["read"]
