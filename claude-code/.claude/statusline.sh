@@ -12,6 +12,9 @@
 # - Space separators between segments, not special characters.
 # - Colors pin the Omarchy gruvbox palette as truecolor, so rendering does not
 #   depend on the terminal's ANSI palette; re-pin when the theme changes.
+# - Color roles: dim = labels, brackets, metadata; bold = identity (directory,
+#   SSH host); green/yellow/red = severity thresholds; yellow also marks
+#   accruing extra spend.
 # - Runtime state uses hashed keys in one owner-only directory. Existing state
 #   must be a regular, owner-only, single-link file; updates replace atomically.
 # - Intentionally no Bash strict mode, and [ ] guards throughout: parse failures
