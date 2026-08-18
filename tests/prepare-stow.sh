@@ -41,7 +41,7 @@ run_prepare() {
 }
 
 case_fresh_home() {
-  local base="$TMP/fresh" home="$TMP/fresh/home" repo="$TMP/fresh/dotfiles-ai"
+  local base="$TMP/fresh" home="$TMP/fresh/home" repo="$TMP/fresh/eyragents"
   mkdir -p "$base" "$home"
   make_payload "$repo"
   run_prepare "$home"
@@ -51,7 +51,7 @@ case_fresh_home() {
 }
 
 case_managed_links() {
-  local home="$TMP/linked/home" repo="$TMP/linked/dotfiles-ai"
+  local home="$TMP/linked/home" repo="$TMP/linked/eyragents"
   mkdir -p "$home/.claude/skills" "$home/.codex" "$home/.agents/skills" \
     "$home/.local/bin" "$home/.config/opencode"
   make_payload "$repo"
@@ -71,7 +71,7 @@ case_managed_links() {
 }
 
 case_folded_claude() {
-  local home="$TMP/folded/home" repo="$TMP/folded/dotfiles-ai" before after
+  local home="$TMP/folded/home" repo="$TMP/folded/eyragents" before after
   mkdir -p "$home"
   make_payload "$repo"
   before=$(sha256sum "$repo/claude-code/.claude/settings.json")
@@ -86,13 +86,13 @@ case_folded_claude() {
 case_dangling_old_clone() {
   local home="$TMP/dangling/home"
   mkdir -p "$home/.claude"
-  ln -s "$TMP/missing/dotfiles-ai/claude-code/.claude/settings.json" "$home/.claude/settings.json"
+  ln -s "$TMP/missing/eyragents/claude-code/.claude/settings.json" "$home/.claude/settings.json"
   run_prepare "$home"
   [[ ! -L $home/.claude/settings.json ]] || fail "dangling managed link remains"
 }
 
 case_regular_conflict() {
-  local home="$TMP/conflict/home" repo="$TMP/conflict/dotfiles-ai"
+  local home="$TMP/conflict/home" repo="$TMP/conflict/eyragents"
   mkdir -p "$home/.claude"
   make_payload "$repo"
   printf 'user data\n' >"$home/.claude/settings.json"

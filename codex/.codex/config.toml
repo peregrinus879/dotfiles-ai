@@ -47,7 +47,7 @@ glob_scan_max_depth = 64
 [permissions.reviewed-writes.network]
 enabled = false
 
-[projects."/home/peregrinus/Projects/repos/dotfiles/dotfiles-ai"]
+[projects."/home/peregrinus/Projects/eyrie/eyragents"]
 trust_level = "trusted"
 
 [projects."/home/peregrinus/Projects"]

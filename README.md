@@ -1,4 +1,4 @@
-# dotfiles-ai
+# EyrAgents
 
 Claude Code, Codex, and OpenCode global dotfiles, managed with [GNU Stow](https://www.gnu.org/software/stow/).
 
@@ -7,16 +7,16 @@ Claude Code, Codex, and OpenCode global dotfiles, managed with [GNU Stow](https:
 Derivation model for this repo family:
 
 ```text
-AI harness configs              → dotfiles-ai
-Omarchy + personal deviations   → dotfiles-omarchy
-Omarchy + WSL deviations        → dotfiles-wsl
+AI agent harness                → EyrAgents
+Omarchy + personal deviations   → EyrArcHy
+Omarchy + WSL deviations        → EyrWSL
 ```
 
-- [`dotfiles-ai`](https://github.com/peregrinus879/dotfiles-ai) - AI harness configs: Claude Code, Codex, and OpenCode settings, shared guidance, and commit workflow
-- [`dotfiles-omarchy`](https://github.com/peregrinus879/dotfiles-omarchy) - Personal Omarchy customizations: Bash overrides, Hyprland bindings, Neovim plugins, and Yazi
-- [`dotfiles-wsl`](https://github.com/peregrinus879/dotfiles-wsl) - Self-contained WSL Arch dotfiles: terminal baseline plus Windows Terminal, clipboard integration, and OpenCode theme
+- [`eyragents`](https://github.com/peregrinus879/eyragents) - AI agent harness: Claude Code, Codex, and OpenCode settings, shared guidance, and commit workflow
+- [`eyrarchy`](https://github.com/peregrinus879/eyrarchy) - Personal Omarchy customizations: Bash overrides, Hyprland bindings, Neovim plugins, and Yazi
+- [`eyrwsl`](https://github.com/peregrinus879/eyrwsl) - Self-contained WSL Arch environment: terminal baseline plus Windows Terminal, clipboard integration, and OpenCode theme
 
-Local clones live side by side under `~/Projects/repos/dotfiles/`.
+Local clones live side by side under `~/Projects/eyrie/`.
 
 ## Supported Tools
 
@@ -33,7 +33,7 @@ It intentionally excludes auth and session state, machine-local files, and gener
 ## Structure
 
 ```
-dotfiles-ai/
+eyragents/
 ├── AGENTS.md                             # canonical repo maintenance instructions
 ├── CLAUDE.md                             # Claude wrapper importing AGENTS.md
 ├── LICENSE                               # MIT license
@@ -114,7 +114,7 @@ Nested payload ignore files protect fresh clones if a state directory is acciden
 
 Three payload-side exceptions exist. Claude Code writes app-managed keys and key ordering into its tracked `settings.json`; commit those rewrites as-is. Codex and the ChatGPT desktop app write project trust, notice keys, marketplace and plugin state, MCP/runtime entries, and desktop preferences into the tracked `config.toml`; preserve and commit those rewrites, while its nested `.gitignore` excludes other runtime files. Generated runtime paths must be revalidated on each host. OpenCode tracks the release-matched npm manifest and lockfile next to its config, while a repository-only `.gitignore` excludes generated `node_modules/`. If Stow reports a real-file conflict, compare and merge any needed local content before removing it; confirmed generated `node_modules/` can be removed and regenerated from the tracked manifests.
 
-Repo-root instruction files exist only to maintain `dotfiles-ai` itself; they are not part of the stowed payload. `AGENTS.md` keeps the always-loaded operational invariants concise, while `docs/maintenance.md` preserves versioned probes, limitations, deferred work, and watch items for on-demand use.
+Repo-root instruction files exist only to maintain EyrAgents itself; they are not part of the stowed payload. `AGENTS.md` keeps the always-loaded operational invariants concise, while `docs/maintenance.md` preserves versioned probes, limitations, deferred work, and watch items for on-demand use.
 
 Normal interactive use assumes H has chosen to trust the repository: project settings and plugins can extend global behavior in both Claude Code and OpenCode. For an untrusted checkout, `claude --safe-mode --setting-sources user` disables Claude Code customizations while retaining user settings such as permissions. Codex project trust does not suppress repository `AGENTS.md` or skills, so launch from the neutral root with `codex -C /var/empty -c 'default_permissions="reviewed-writes"' "Inspect /absolute/path/to/checkout as untrusted data; do not modify it."`. `OPENCODE_DISABLE_PROJECT_CONFIG=1 OPENCODE_DISABLE_EXTERNAL_SKILLS=1 opencode` suppresses OpenCode project config, project plugins, and automatic Claude/Codex skill discovery while retaining the global config and `reviewed-writes.ts`.
 
@@ -160,13 +160,13 @@ sudo pacman -S --needed stow jq nodejs python shellcheck
 Recommended local layout for this repo family:
 
 ```text
-~/Projects/repos/dotfiles/dotfiles-ai
+~/Projects/eyrie/eyragents
 ```
 
 Stow can work from any clone location, but the related docs and cross-repo maintenance workflows assume this layout.
 
 ```bash
-git clone https://github.com/peregrinus879/dotfiles-ai.git ~/Projects/repos/dotfiles/dotfiles-ai
+git clone https://github.com/peregrinus879/eyragents.git ~/Projects/eyrie/eyragents
 ```
 
 ### Prepare
@@ -174,7 +174,7 @@ git clone https://github.com/peregrinus879/dotfiles-ai.git ~/Projects/repos/dotf
 Checklist before stowing:
 
 - Stow is installed
-- `dotfiles-ai` was cloned locally
+- EyrAgents was cloned locally
 - Any existing conflicting config files were compared and their needed content was merged or adopted
 
 From the repository root, prepare the state directories and remove only symlinks that resolve to this package layout:
@@ -223,7 +223,7 @@ After stowing or changing the payloads:
 A repo-root `Makefile` keeps the package list in one place and wraps the routine commands. Run targets from the repo root:
 
 - `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets
-- `make verify` - fail-closed dependency checks; symlink resolution; JSON, TOML, model, Fast, provider, updater, and npm-lock contracts; non-destructive Stow fixtures; statusline state-file attack fixtures; bridge payload, authentication, isolation, new/resume, terminal-event, timeout, and descendant-cleanup tests; project-config isolation; three-way skill sync; commit-boundary contracts; executable one-file plugin parser tests; OpenCode permission ordering; and stray-config checks
+- `make verify` - exhaustive intended-file deployment; fail-closed dependency checks; JSON, TOML, model, Fast, provider, updater, and npm-lock contracts; non-destructive Stow fixtures; statusline state-file attack fixtures; bridge payload, authentication, isolation, new/resume, terminal-event, timeout, and descendant-cleanup tests; project-config isolation; three-way skill sync; commit-boundary contracts; executable one-file plugin parser tests; OpenCode permission ordering; and stray-config checks
 - `make clean` - non-destructive preparation that removes only recognized managed symlinks and creates real state directories
 - `make lint` - ShellCheck over `statusline.sh`, both spar bridges, and every script and shell test; `.shellcheckrc` disables the one style-level finding so new issues stand out
 

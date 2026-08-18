@@ -1,4 +1,4 @@
-# AGENTS.md - dotfiles-ai
+# AGENTS.md - EyrAgents
 
 This repo stores portable user-level AI assistant configuration for Claude Code, Codex, and OpenCode, deployed to `$HOME` via GNU Stow: the stowed `claude-code/`, `codex/`, and `opencode/` payloads, the shared cross-tool guidance file, and the commit workflow used by all managed tools. Auth, session state, machine-local files, and generated host-specific config stay out except for the documented app-managed rewrites inside tracked runtime config.
 
@@ -44,6 +44,7 @@ This repo stores portable user-level AI assistant configuration for Claude Code,
 - OpenCode plugin dependencies are pinned in the tracked npm manifest and lockfile at the installed OpenCode release; only generated `node_modules/` stays ignored.
 - OpenCode in-app updates stay disabled because the external installation wrapper owns version selection; the tracked provider block contains only providers used by a managed model.
 - Stow tree-folds directories that do not pre-exist at stow time into directory symlinks pointing at the repo. `make clean` keeps runtime-state parents (`~/.claude`, `~/.claude/skills`, `~/.codex`, `~/.agents`, `~/.agents/skills`, `~/.local`, `~/.local/bin`, and `~/.config`) real before stowing; absent `~/.config/opencode` may fold wholesale, while an existing real root receives managed child links (do not add `--no-folding`).
+- `make verify` resolves every tracked or untracked, non-ignored package file to its deployed target. The three package-internal `.gitignore` files remain source-only because GNU Stow ignores them by default.
 - Never weaken the sensitive-path deny rules; keep `~/.ssh` reads and `Bash(gh api *)` out of allowlists in both tools (H runs those via `!`).
 - The Claude automatic shell allowlist is deliberately narrow; do not restore `Bash(gh search *)`, `Bash(jq *)`, or `Bash(opencode debug *)` without a new decision from H.
 - Sensitive-path Edit denies mirror unambiguous credential material only; `~/.ssh/**` and `./.env.*` stay ask-gated for the explicit-instruction exception, but the deterministic read denies make agent editing of existing files impractical in both namespaces (Edit requires a prior read), so the Claude exception effectively covers new-file Writes only. OpenCode's `external_directory` `~/.ssh/**` deny is deliberately stricter: the explicit-instruction exception there runs through H's `!` terminal, not the agent. Use `example.env` for editable placeholder templates.

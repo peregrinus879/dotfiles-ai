@@ -1,4 +1,4 @@
-# Maintenance automation for dotfiles-ai. Run from the repo root on any machine.
+# Maintenance automation for EyrAgents. Run from the repo root on any machine.
 # The package list here is the single source of truth for the stow command sets.
 
 SHELL := /bin/bash
@@ -17,7 +17,7 @@ help:
 	@echo "  unstow    Remove all package symlinks"
 	@echo "  dry-run   Preview stow actions without making changes"
 	@echo "  restow    Re-stow after repo content changes"
-	@echo "  verify    Run the full verification suite (authoritative list: README Verify and Maintenance)"
+	@echo "  verify    Check every intended deployment and run the full verification suite"
 	@echo "  clean     Safely prepare managed paths for stow"
 	@echo "  lint      ShellCheck over all managed Bash scripts"
 
@@ -36,16 +36,29 @@ restow:
 # Stow may tree-fold a parent directory (e.g. ~/.config/opencode) into a
 # single directory symlink, so per-file "test -L" checks false-negative.
 # Compare resolved paths instead: linked is linked, folded or not.
+# GNU Stow ignores .gitignore by default; the three package-internal copies
+# control fresh-clone state and are intentionally not deployed.
 # Pin layering: structured config contracts live in tests/config-contracts.py;
 # prose, script, and skill content pins live here as greps. Negative
 # (tombstone) greps carry a dated ledger entry and retire after two years
 # unless re-justified there.
 verify:
 	@fail=0; \
-	for command in node python3 jq readlink realpath sha256sum stat; do \
+	for command in git node python3 jq readlink realpath sha256sum stat; do \
 	  command -v "$$command" > /dev/null || { echo "FAIL: required verifier missing: $$command"; fail=1; }; \
 	done; \
 	[[ $$fail == 0 ]] || exit $$fail; \
+	for src in $$(git ls-files --cached --others --exclude-standard -- $(PACKAGES)); do \
+	  [[ "$$src" == */.gitignore ]] && continue; \
+	  target="$$HOME/$${src#*/}"; \
+	  target_resolved=$$(readlink -f -- "$$target"); \
+	  src_resolved=$$(readlink -f -- "$$src"); \
+	  if [[ -n $$target_resolved && -n $$src_resolved && $$target_resolved == "$$src_resolved" ]]; then \
+	    echo "ok:   $$target resolves into the repo"; \
+	  else \
+	    echo "FAIL: $$target does not resolve into the repo"; fail=1; \
+	  fi; \
+	done; \
 	for pair in "$$HOME/.claude/CLAUDE.md=claude-code/.claude/CLAUDE.md" \
 	  "$$HOME/.claude/settings.json=claude-code/.claude/settings.json" \
 	  "$$HOME/.claude/statusline.sh=claude-code/.claude/statusline.sh" \
