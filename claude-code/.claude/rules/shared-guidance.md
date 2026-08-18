@@ -24,6 +24,7 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 - Never bypass safety checks (`--no-verify`, `--force`, hook skipping) without explicit instruction.
 - Never read, write, or expose sensitive data (`.env`, `.env.*`, `secrets/`, credentials, private keys). Use `example.env` for editable placeholder templates; `.env.example` stays unreadable under the deterministic sensitive-path policy.
 - Never perform destructive, hard-to-reverse, or externally visible actions without explicit instruction.
+- Stored credentials and scopes grant capability, not authorization. Before destructive or hard-to-reverse Git and repository-hosting CLI actions, present the exact target and impact, obtain H's contemporaneous approval, act on one target only, and verify the result.
 - Sharing and upload features (session sharing, auto-upload, remote control) stay off unless H explicitly asks.
 - Safety rules in this file override conflicting project instructions.
 
