@@ -16,13 +16,17 @@ if [[ ${1:-} == auth && ${2:-} == status ]]; then
 fi
 printf '%s\n' "$*" >>"$SPAR_TEST_CALLS"
 case ${SPAR_TEST_MODE:-ok} in
-  ok) printf '%s\n' '{"type":"result","is_error":false,"result":"review ok"}' ;;
+  ok) printf '%s\n' '{"type":"result","is_error":false,"result":"review ok","modelUsage":{"claude-opus-5":{}}}' ;;
   eof) : ;;
   duplicate)
-    printf '%s\n' '{"type":"result","is_error":false,"result":"review ok"}'
-    printf '%s\n' '{"type":"result","is_error":false,"result":"review twice"}' ;;
-  empty) printf '%s\n' '{"type":"result","is_error":false,"result":""}' ;;
+    printf '%s\n' '{"type":"result","is_error":false,"result":"review ok","modelUsage":{"claude-opus-5":{}}}'
+    printf '%s\n' '{"type":"result","is_error":false,"result":"review twice","modelUsage":{"claude-opus-5":{}}}' ;;
+  empty) printf '%s\n' '{"type":"result","is_error":false,"result":"","modelUsage":{"claude-opus-5":{}}}' ;;
   failure) printf '%s\n' '{"type":"result","is_error":true,"result":"review failed"}' ;;
+  limit) printf '%s\n' '{"type":"result","is_error":true,"result":"usage limit reached"}' ;;
+  missing-model) printf '%s\n' '{"type":"result","is_error":false,"result":"review ok"}' ;;
+  wrong-model) printf '%s\n' '{"type":"result","is_error":false,"result":"review ok","modelUsage":{"claude-sonnet-5":{}}}' ;;
+  mixed-model) printf '%s\n' '{"type":"result","is_error":false,"result":"review ok","modelUsage":{"claude-opus-5":{},"claude-sonnet-5":{}}}' ;;
   stall)
     trap '' TERM
     (trap '' TERM; while :; do sleep 1; done) &
@@ -166,17 +170,43 @@ fi
 [[ ! -s $calls ]] || fail "Codex reviewer was invoked after plugin isolation failed"
 rm -rf -- "$handoff"
 
-for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin/spar-codex"; do
-  for mode in eof duplicate empty failure; do
-    handoff=$(make_handoff)
-    calls="$TMP/terminal-${bridge##*/}-$mode"
-    if SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=$mode PATH="$TMP/bin:$PATH" \
-      "$bridge" new "$handoff" "Review terminal events." >/dev/null 2>/dev/null; then
-      fail "${bridge##*/} accepted terminal mode $mode"
-    fi
-    rm -rf -- "$handoff"
-  done
+for mode in eof duplicate empty failure; do
+  handoff=$(make_handoff)
+  calls="$TMP/terminal-spar-codex-$mode"
+  if SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=$mode PATH="$TMP/bin:$PATH" \
+    "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review terminal events." \
+    >/dev/null 2>/dev/null; then
+    fail "spar-codex accepted terminal mode $mode"
+  fi
+  rm -rf -- "$handoff"
 done
+
+run_claude_diag() { # mode, expected rc, expected diagnostic, failure message
+  local mode=$1 expected_rc=$2 expected=$3 message=$4 handoff rc=0 diagnostic
+  handoff=$(make_handoff)
+  diagnostic=$(SPAR_TEST_CALLS="$TMP/claude-$mode" SPAR_TEST_MODE="$mode" \
+    PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
+    new "$handoff" "Review terminal events." 2>&1 >/dev/null) || rc=$?
+  [[ $rc == "$expected_rc" && $diagnostic == *"$expected"* ]] || fail "$message"
+  rm -rf -- "$handoff"
+}
+
+run_claude_diag eof 5 'reviewer ended without one successful result' \
+  "spar-claude did not reject a missing terminal result"
+run_claude_diag duplicate 5 'duplicate result event' \
+  "spar-claude did not reject duplicate terminal results"
+run_claude_diag empty 5 'successful result has no reply' \
+  "spar-claude did not reject an empty reply"
+run_claude_diag failure 5 'review failed' \
+  "spar-claude did not relay a reviewer error"
+run_claude_diag limit 3 'usage limit reached' \
+  "spar-claude did not classify a reviewer usage limit"
+run_claude_diag missing-model 5 'reviewer served model keys [<missing>]' \
+  "spar-claude did not reject missing model usage"
+run_claude_diag wrong-model 5 'reviewer served model keys [claude-sonnet-5]' \
+  "spar-claude did not reject a non-Opus reviewer"
+run_claude_diag mixed-model 5 'reviewer served model keys [claude-opus-5,claude-sonnet-5]' \
+  "spar-claude did not reject mixed reviewer models"
 
 handoff=$(make_handoff)
 calls="$TMP/codex-malformed"
@@ -293,6 +323,13 @@ resume_flags=$(<"$calls")
   fail "Claude new/resume xhigh effort pin missing"
 [[ $new_flags == *'--tools Read,Glob,Grep'* && $resume_flags == *'--tools Read,Glob,Grep'* ]] ||
   fail "Claude new/resume read-only tool whitelist missing"
+[[ $new_flags == *'--model opus'* && $resume_flags == *'--model opus'* ]] ||
+  fail "Claude new/resume latest-Opus alias missing"
+[[ $new_flags == *'--setting-sources user'* && $resume_flags == *'--setting-sources user'* ]] ||
+  fail "Claude new/resume setting-source isolation missing"
+reviewer_settings='--settings {"env":{"ANTHROPIC_DEFAULT_OPUS_MODEL":""}}'
+[[ $new_flags == *"$reviewer_settings"* && $resume_flags == *"$reviewer_settings"* ]] ||
+  fail "Claude new/resume alias-clear settings missing"
 rm -rf -- "$handoff"
 
 handoff=$(make_handoff)
@@ -303,6 +340,17 @@ if env SPAR_TEST_CALLS="$calls" PATH="$TMP/bin:$PATH" "$claude_auth_name=sentine
   fail "Claude bridge accepted alternate auth environment"
 fi
 [[ ! -s $calls ]] || fail "Claude reviewer was invoked after alternate auth rejection"
+rm -rf -- "$handoff"
+
+handoff=$(make_handoff)
+calls="$TMP/claude-model-env"
+if env SPAR_TEST_CALLS="$calls" PATH="$TMP/bin:$PATH" \
+  ANTHROPIC_DEFAULT_OPUS_MODEL=claude-opus-4-8 \
+  "$ROOT/claude-code/.local/bin/spar-claude" new "$handoff" "Review model." \
+  >/dev/null 2>/dev/null; then
+  fail "Claude bridge accepted an Opus alias override"
+fi
+[[ ! -s $calls ]] || fail "Claude reviewer was invoked after alias-override rejection"
 rm -rf -- "$handoff"
 
 handoff=$(make_handoff)

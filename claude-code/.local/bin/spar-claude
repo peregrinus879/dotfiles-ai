@@ -1,5 +1,5 @@
 #!/bin/bash
-# spar-claude - pinned read-only claude reviewer bridge for the spar skill.
+# spar-claude - bridge-controlled read-only claude reviewer for the spar skill.
 # Flags are hard-coded so no caller can weaken them (AGENTS.md and docs/maintenance.md).
 # Modes: init (private handoff directory to stdout)
 #        clean <handoff-dir>
@@ -12,7 +12,8 @@
 #             64 usage, 124 ceiling.
 set -euo pipefail
 
-MODEL="claude-fable-5"
+MODEL="opus"
+REVIEWER_SETTINGS='{"env":{"ANTHROPIC_DEFAULT_OPUS_MODEL":""}}'
 export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 export DISABLE_AUTOUPDATER=1
 CEILING="${SPAR_BRIDGE_CEILING:-1800}" # absolute seconds per call
@@ -133,6 +134,7 @@ preflight() {
   command -v jq >/dev/null || abort "jq is required and missing"
   for variable in ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL \
     ANTHROPIC_PROFILE ANTHROPIC_FEDERATION_RULE_ID ANTHROPIC_ORGANIZATION_ID \
+    ANTHROPIC_DEFAULT_OPUS_MODEL \
     CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX \
     CLAUDE_CODE_USE_FOUNDRY CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST CLAUDE_CONFIG_DIR; do
     [[ -z ${!variable:-} ]] || abort "$variable is set; claude.ai subscription auth only"
@@ -161,7 +163,7 @@ cleanup_stream() {
 }
 
 stream() { # $1 reply_fd; rest = claude session flags
-  local reply_fd=$1 line rc=0 child_rc=0 result="" result_count=0
+  local reply_fd=$1 line rc=0 child_rc=0 result="" result_count=0 observed_models
   shift
   workdir=$(mktemp -d) || abort "cannot create a private temp directory"
   pid=""
@@ -170,7 +172,8 @@ stream() { # $1 reply_fd; rest = claude session flags
   setsid timeout --kill-after=2 "$CEILING" claude -p "$@" \
     --permission-mode plan --disallowedTools "Write Edit NotebookEdit Bash" \
     --tools "Read,Glob,Grep" \
-    --model "$MODEL" --effort xhigh --safe-mode --output-format stream-json \
+    --model "$MODEL" --effort xhigh --safe-mode --setting-sources user \
+    --settings "$REVIEWER_SETTINGS" --output-format stream-json \
     --include-partial-messages --verbose >"$workdir/fifo" 2>/dev/null <<<"$PROMPT" &
   pid=$!
   # shellcheck disable=SC2094 # the fifo's writer is the background claude process
@@ -185,6 +188,21 @@ stream() { # $1 reply_fd; rest = claude session flags
         exit 3
       fi
       echo "SPAR-BRIDGE ERROR: $line" >&2
+      exit 5
+    fi
+    if ! jq -e '
+      .modelUsage
+      | select(type == "object" and length > 0)
+      | keys
+      | all(.[]; test("^claude-opus-"))
+    ' <<<"$line" >/dev/null 2>&1; then
+      observed_models=$(jq -r '
+        if (.modelUsage | type) == "object" and (.modelUsage | length) > 0
+        then .modelUsage | keys | join(",")
+        else "<missing>"
+        end
+      ' <<<"$line" 2>/dev/null || printf '<unreadable>')
+      echo "SPAR-BRIDGE ERROR: reviewer served model keys [$observed_models]; required every key to match ^claude-opus-" >&2
       exit 5
     fi
     result=$(jq -er '.result | select(type == "string" and length > 0)' <<<"$line") || {
