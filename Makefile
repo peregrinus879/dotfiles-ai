@@ -175,11 +175,15 @@ verify:
 	  else echo "FAIL: $$s skill copies drifted (allowed diffs: tool frontmatter keys, Co-Authored-By, Reviewer incantations section)"; fail=1; fi; \
 	done; \
 	tripwire=$$(sed -n 's/.*version tripwire source: //p' docs/maintenance.md | head -1); \
-	if [[ -n $$tripwire ]] && command -v mise > /dev/null && command -v claude > /dev/null; then \
-	  current="claude=$$(claude --version 2>/dev/null | awk '{print $$1}') "; \
-	  current+=$$(mise ls --current 2>/dev/null | awk '$$1=="codex"||$$1=="opencode"{printf "%s=%s ", $$1, $$2}'); \
-	  if [[ -n $$current && $$current != "$$tripwire " ]]; then \
-	    echo "WARN: installed versions ($$current) differ from the ledger probe triple ($$tripwire); permission probes may be stale (docs/maintenance.md)"; \
+	if [[ -n $$tripwire ]]; then \
+	  if command -v mise > /dev/null && command -v claude > /dev/null; then \
+	    current="claude=$$(claude --version 2>/dev/null | awk '{print $$1}') "; \
+	    current+=$$(mise ls --current 2>/dev/null | awk '$$1=="codex"||$$1=="opencode"{printf "%s=%s ", $$1, $$2}'); \
+	    if [[ -n $$current && $$current != "$$tripwire " ]]; then \
+	      echo "WARN: installed versions ($$current) differ from the ledger probe triple ($$tripwire); permission probes may be stale (docs/maintenance.md)"; \
+	    fi; \
+	  else \
+	    echo "note: version tripwire skipped; mise and claude are required"; \
 	  fi; \
 	fi; \
 	exit $$fail
