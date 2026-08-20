@@ -152,6 +152,23 @@ verify:
 	  ! grep -Fq 'spar-scratch' opencode/.config/opencode/skills/spar/SKILL.md; then \
 	  echo "ok:   spar skills use private OS temp handoffs"; \
 	else echo "FAIL: spar scratch protocol drifted"; fail=1; fi; \
+	if grep -Fq '**Brainstorming:**' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'spar-brainstorm.md' claude-code/.local/bin/spar-claude && \
+	  grep -Fq 'spar-brainstorm.md' codex/.local/bin/spar-codex && \
+	  grep -Fq 'artifact round 1' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'well-formed terminal verdict with zero blockers means GO' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'at most three calls total' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'nine calls across execution gates overall' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'before its staging and commit phases' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'decision-ready, not option approval' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'Any content edit after GO re-enters once' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq '**Final integration gate:**' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'never individual edits, commands, or tests' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'leave the worktree intact' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'never alter or exempt that artifact merely to pass' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'do not collapse these modes into plan review' opencode/.config/opencode/commands/spar.md; then \
+	  echo "ok:   spar brainstorming and stage-gate contracts"; \
+	else echo "FAIL: spar brainstorming or stage-gate contracts drifted"; fail=1; fi; \
 	if grep -Fq 'beginning with a target brief' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq '`Evidence Pack` section' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'literal captured output' claude-code/.claude/skills/spar/SKILL.md && \
@@ -174,6 +191,10 @@ verify:
 	    echo "ok:   $$s skill copies in sync (shared sections)"; \
 	  else echo "FAIL: $$s skill copies drifted (allowed diffs: tool frontmatter keys, Co-Authored-By, Reviewer incantations section)"; fail=1; fi; \
 	done; \
+	spar_shared_lines=$$(awk '/^## Reviewer incantations$$/{skip=1; next} /^## /{skip=0} !skip' claude-code/.claude/skills/spar/SKILL.md | grep -v -e 'allowed-tools' -e 'Co-Authored-By' | wc -l); \
+	if (( spar_shared_lines > 0 && spar_shared_lines <= 67 )); then \
+	  echo "ok:   spar shared protocol stays within the 37+30 line budget ($$spar_shared_lines)"; \
+	else echo "FAIL: spar shared protocol exceeds the 37+30 line budget ($$spar_shared_lines)"; fail=1; fi; \
 	tripwire=$$(sed -n 's/.*version tripwire source: //p' docs/maintenance.md | head -1); \
 	if [[ -n $$tripwire ]]; then \
 	  if command -v mise > /dev/null && command -v claude > /dev/null; then \

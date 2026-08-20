@@ -118,6 +118,7 @@ status_handoffs() {
     title=""
     if [[ -f $root/spar-plan.md ]]; then IFS= read -r title <"$root/spar-plan.md" || true
     elif [[ -f $root/spar-diff.md ]]; then IFS= read -r title <"$root/spar-diff.md" || true
+    elif [[ -f $root/spar-brainstorm.md ]]; then IFS= read -r title <"$root/spar-brainstorm.md" || true
     fi
     printf 'title\t%s\n' "${title:-<none>}"
     if [[ -f $root/reviewer-id ]]; then

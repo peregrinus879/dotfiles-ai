@@ -68,7 +68,7 @@ eyragents/
 │   │   │   └── shared-guidance.md        # canonical shared instructions
 │   │   └── skills/                       # custom skills (SKILL.md files)
 │   │       ├── commit/                   # commit workflow (doc sync, scratch cleanup)
-│   │       └── spar/                     # cross-model plan sparring (reviewer: spar-codex)
+│   │       └── spar/                     # cross-model sparring and gates (reviewer: spar-codex)
 │   └── .local/
 │       └── bin/
 │           ├── spar-claude               # latest-Opus read-only reviewer bridge for spar
@@ -77,7 +77,7 @@ eyragents/
 │   ├── .agents/
 │   │   └── skills/                       # agent skills (documented user scope)
 │   │       ├── commit/                   # commit workflow (doc sync, scratch cleanup)
-│   │       └── spar/                     # cross-model plan sparring (reviewer: spar-claude)
+│   │       └── spar/                     # cross-model sparring and gates (reviewer: spar-claude)
 │   ├── .codex/
 │   │   ├── .gitignore                    # excludes Codex runtime state
 │   │   ├── AGENTS.md                     # symlink chain to the canonical shared guidance
@@ -99,7 +99,7 @@ eyragents/
             ├── package-lock.json         # reproducible npm dependency graph
             ├── skills/                   # agent skills
             │   ├── commit/               # commit workflow (doc sync, scratch cleanup)
-            │   └── spar/                 # cross-model plan sparring (reviewer: spar-claude)
+            │   └── spar/                 # cross-model sparring and gates (reviewer: spar-claude)
 ```
 
 Tracked `.gitkeep` placeholders (claude-code agents; opencode agents, themes, and tools) are omitted from the tree.
@@ -129,6 +129,8 @@ OpenCode skills are loaded by the agent, while custom slash commands live under 
 OpenCode's host environment disables automatic external skill discovery so its managed commit and spar copies are selected instead of the colliding Claude and Codex copies. The tracked `skills.paths` restores only the Omarchy skill. The Omarchy `.bashrc` owner covers terminal-first interactive descendants; non-interactive OpenCode launchers must set `OPENCODE_DISABLE_EXTERNAL_SKILLS=1` themselves.
 
 Reviewers stay offline: Codex reviewer web search and network are disabled, and the Claude reviewer has no web tools. This prevents query-based exfiltration, reduces external prompt-injection exposure, and keeps reviews reproducible. The implementer verifies plan-critical external claims against current primary sources and supplies a traceable evidence pack; reviewers challenge the evidence and its application without fetching it independently. Blind round 0 receives the target outcome, non-goals, outcome-level decisions, constraints, and acceptance criteria without the proposed mechanism. Round 1 receives the full target brief, evidence, and plan. Any issue left for H arrives as a self-contained ruling packet with both positions, evidence, consequences, reversibility, affected commits, and the implementer's labeled recommendation; raw reviewer transcripts remain optional.
+
+The spar workflow separates brainstorming, planning and stage-gated execution, and diff-only review. Brainstorming develops a decision-ready option matrix without selecting an option. Planning retains the blind first pass and fresh cold read. Approved execution gates each coherent unit after verification and commit preparation but before staging, then gates the integrated starting-base-to-HEAD change before push. The simplicity boundary is one skill and the existing bridges, with no new bridge mode or state machine and no gates on individual edits, commands, or tests. Zero blocking findings means GO even when non-blocking findings remain; malformed or coverage-incomplete verdicts never mean GO. Repository content edits after implementation GO re-enter that gate once, while a second edit, a blocker, an unresolved value judgment, or a gate ceiling returns control to H without discarding the worktree.
 
 Status line state-file conventions live in the `statusline.sh` header and the AGENTS.md invariant.
 
@@ -215,9 +217,9 @@ To migrate from a different clone path, run `make unstow` in the old clone first
 After stowing or changing the payloads:
 
 - Run `make verify` and `make lint` from the repo root.
-- Start a fresh Claude Code session, confirm the shared guidance and status line load, and confirm `spar-codex` is on PATH.
-- Start a fresh Codex session, confirm the shared guidance loads and the assistant addresses the user as H, confirm `spar-claude` is on PATH, and confirm the spar skill reports the automated Claude route as deferred rather than weakening the permission profile.
-- Start a fresh OpenCode session, run `opencode debug config`, and confirm the resolved config includes the shared guidance path, `share = disabled`, and the global `reviewed-writes.ts` plugin; run `opencode debug skill` and confirm commit and spar resolve under `~/.config/opencode/skills/` while Omarchy resolves through the explicit path.
+- Start a fresh Claude Code session, confirm the shared guidance and status line load, confirm `spar-codex` is on PATH, and confirm the spar skill exposes brainstorming, planning gates, and diff-only review.
+- Start a fresh Codex session, confirm the shared guidance loads and the assistant addresses the user as H, confirm `spar-claude` is on PATH, confirm the same spar modes, and confirm the automated Claude route remains deferred rather than weakening the permission profile.
+- Start a fresh OpenCode session, run `opencode debug config`, and confirm the resolved config includes the shared guidance path, `share = disabled`, and the global `reviewed-writes.ts` plugin; run `opencode debug skill` and confirm commit and spar resolve under `~/.config/opencode/skills/` while Omarchy resolves through the explicit path, then confirm `/spar` selects among brainstorming, planning and stage gates, and diff-only review.
 - Confirm `/commit` still routes through the repo skill workflow in all managed tools, including doc sync and scratch cleanup before staging.
 
 ## Maintenance
@@ -225,7 +227,7 @@ After stowing or changing the payloads:
 A repo-root `Makefile` keeps the package list in one place and wraps the routine commands. Run targets from the repo root:
 
 - `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets
-- `make verify` - exhaustive intended-file deployment; fail-closed dependency checks; JSON, TOML, model, Fast, provider, updater, and npm-lock contracts; non-destructive Stow fixtures; statusline state-file attack fixtures; bridge payload, authentication, isolation, new/resume, terminal-event, timeout, and descendant-cleanup tests; project-config isolation; three-way skill sync; commit-boundary contracts; executable one-file plugin parser tests; OpenCode permission ordering; and stray-config checks
+- `make verify` - exhaustive intended-file deployment; fail-closed dependency checks; JSON, TOML, model, Fast, provider, updater, and npm-lock contracts; non-destructive Stow fixtures; statusline state-file attack fixtures; bridge payload, authentication, isolation, brainstorming status, new/resume, terminal-event, timeout, and descendant-cleanup tests; project-config isolation; three-way skill sync and bounded stage-gate contracts; commit-boundary contracts; executable one-file plugin parser tests; OpenCode permission ordering; and stray-config checks
 - `make clean` - non-destructive preparation that removes only recognized managed symlinks and creates real state directories
 - `make lint` - ShellCheck over `statusline.sh`, both spar bridges, and every script and shell test; `.shellcheckrc` disables the one style-level finding so new issues stand out
 

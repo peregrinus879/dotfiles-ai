@@ -445,14 +445,18 @@ printf '# Task Alpha probe\n' >"$h1/spar-plan.md"
 printf '2026-08-17T00:00:00+00:00\tprimary\tcompleted\t11111111-1111-4111-8111-111111111111\n' >"$h1/reviewer-id"
 h2=$(make_handoff)
 chmod 755 "$h2"
+h3=$(make_handoff)
+printf '# Brainstorm Gamma probe\n' >"$h3/spar-brainstorm.md"
 for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin/spar-codex"; do
   out=$("$bridge" status 2>/dev/null) || fail "${bridge##*/} status failed"
   [[ $out == *"handoff	$h1"* ]] || fail "${bridge##*/} status missed a valid handoff"
   [[ $out == *'# Task Alpha probe'* ]] || fail "${bridge##*/} status missed the task title"
   [[ $out == *'11111111-1111-4111-8111-111111111111'* ]] || fail "${bridge##*/} status missed the manifest"
+  [[ $out == *"handoff	$h3"* ]] || fail "${bridge##*/} status missed a brainstorm handoff"
+  [[ $out == *'# Brainstorm Gamma probe'* ]] || fail "${bridge##*/} status missed the brainstorm title"
   [[ $out == *"invalid	$h2"* ]] || fail "${bridge##*/} status did not report the invalid handoff"
 done
-rm -rf -- "$h1" "$h2"
+rm -rf -- "$h1" "$h2" "$h3"
 
 # Failure contracts: a failing mkfifo aborts exit 2 with the private workdir
 # cleaned (the trap is installed before mkfifo), and a failing uuid read in

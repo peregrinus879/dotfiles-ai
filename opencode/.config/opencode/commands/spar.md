@@ -1,6 +1,6 @@
 ---
-description: Spar the plan with the counterpart model
+description: Run cross-model brainstorming, planning, stage gates, or diff review
 agent: build
 ---
 
-Use the `spar` skill for this repository: run the cross-model plan sparring loop for the task the user describes.
+Use the `spar` skill for this repository. Select the matching brainstorming, planning and stage-gated execution, or diff-only mode for the task the user describes; do not collapse these modes into plan review.
