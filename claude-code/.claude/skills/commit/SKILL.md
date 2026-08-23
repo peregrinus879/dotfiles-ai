@@ -13,9 +13,10 @@ allowed-tools: Bash(git add *) Bash(git commit *)
 
 [optional body]
 
-Co-Authored-By: Claude {current model} <noreply@anthropic.com>
+Co-Authored-By: {official display name of current model} <noreply@anthropic.com>
 ```
 
+Co-Authored-By model rule: resolve the placeholder at commit time from the active model identifier. Use the provider's official human-facing display name, preserving every qualifier in that name. Never copy the raw technical identifier or hard-code a specific model.
 Use conventional commit types (`feat`, `fix`, `docs`, `refactor`, `style`, `test`, `chore`).
 
 ## Pre-commit check

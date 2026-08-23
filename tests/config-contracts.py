@@ -28,14 +28,19 @@ with (ROOT / "codex/.codex/config.toml").open("rb") as handle:
     codex = tomllib.load(handle)
 
 openai_attribution = "Co-Authored-By: OpenAI {official display name of current model} <noreply@openai.com>"
-openai_display_rule = "Use the provider's official human-facing display name"
+model_display_rule = "Use the provider's official human-facing display name"
 for path in (
     "codex/.agents/skills/commit/SKILL.md",
     "opencode/.config/opencode/skills/commit/SKILL.md",
 ):
     skill = (ROOT / path).read_text(encoding="utf-8")
     require(openai_attribution in skill, f"OpenAI commit attribution drifted: {path}")
-    require(openai_display_rule in skill, f"OpenAI model display rule drifted: {path}")
+    require(model_display_rule in skill, f"OpenAI model display rule drifted: {path}")
+
+claude_skill = (ROOT / "claude-code/.claude/skills/commit/SKILL.md").read_text(encoding="utf-8")
+claude_attribution = "Co-Authored-By: {official display name of current model} <noreply@anthropic.com>"
+require(claude_attribution in claude_skill, "Claude commit attribution drifted")
+require(model_display_rule in claude_skill, "Claude model display rule drifted")
 
 require(claude["model"] == "claude-fable-5", "Claude model pin drifted")
 require(
