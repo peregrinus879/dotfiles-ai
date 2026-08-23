@@ -112,13 +112,14 @@ codex_profile = codex["permissions"]["reviewed-writes"]
 filesystem = codex_profile["filesystem"]
 workspace = filesystem[":workspace_roots"]
 require(codex["model"] == "gpt-5.6-sol", "Codex model pin drifted")
-require(codex["model_reasoning_effort"] == "xhigh", "Codex effort drifted")
+require(codex["model_reasoning_effort"] == "ultra", "Codex effort drifted")
+require(codex["model_reasoning_summary"] == "auto", "Codex reasoning summary drifted")
 require(codex["service_tier"] == "fast", "Codex Fast service tier drifted")
 require(codex["web_search"] == "live", "Codex primary web search drifted")
 require(codex["features"]["fast_mode"] is True, "Codex Fast feature drifted")
 require(codex["agents"]["default_subagent_model"] == "gpt-5.6-sol", "Codex subagent model drifted")
 require(
-    codex["agents"]["default_subagent_reasoning_effort"] == "xhigh",
+    codex["agents"]["default_subagent_reasoning_effort"] == "max",
     "Codex subagent effort drifted",
 )
 require(codex["approval_policy"] == "on-request", "Codex approval policy drifted")
@@ -223,8 +224,13 @@ require(
 )
 require(
     opencode["provider"]["openai"]["models"]["gpt-5.6-sol-fast"]["options"]["reasoningEffort"]
-    == "xhigh",
-    "OpenCode Fast xhigh option drifted",
+    == "max",
+    "OpenCode Fast max option drifted",
+)
+require(
+    opencode["provider"]["openai"]["models"]["gpt-5.6-sol-fast"]["options"]["reasoningSummary"]
+    == "auto",
+    "OpenCode reasoning summary drifted",
 )
 
 edit_expected = {
