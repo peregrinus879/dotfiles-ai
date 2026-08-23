@@ -12,9 +12,10 @@ description: Commit workflow with doc sync, scratch cleanup, staging, and conven
 
 [optional body]
 
-Co-Authored-By: OpenAI {current model} <noreply@openai.com>
+Co-Authored-By: OpenAI {official display name of current model} <noreply@openai.com>
 ```
 
+Co-Authored-By model rule: resolve the placeholder at commit time from the active model identifier. Use the provider's official human-facing display name, preserving every qualifier in that name. Never copy the raw technical identifier or hard-code a specific model.
 Use conventional commit types (`feat`, `fix`, `docs`, `refactor`, `style`, `test`, `chore`).
 
 ## Pre-commit check

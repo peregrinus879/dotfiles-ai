@@ -27,6 +27,16 @@ opencode_project = load_json("opencode.json")
 with (ROOT / "codex/.codex/config.toml").open("rb") as handle:
     codex = tomllib.load(handle)
 
+openai_attribution = "Co-Authored-By: OpenAI {official display name of current model} <noreply@openai.com>"
+openai_display_rule = "Use the provider's official human-facing display name"
+for path in (
+    "codex/.agents/skills/commit/SKILL.md",
+    "opencode/.config/opencode/skills/commit/SKILL.md",
+):
+    skill = (ROOT / path).read_text(encoding="utf-8")
+    require(openai_attribution in skill, f"OpenAI commit attribution drifted: {path}")
+    require(openai_display_rule in skill, f"OpenAI model display rule drifted: {path}")
+
 require(claude["model"] == "claude-fable-5", "Claude model pin drifted")
 require(claude["effortLevel"] == "xhigh", "Claude effort drifted")
 require(claude["permissions"]["defaultMode"] == "auto", "Claude default mode drifted")
