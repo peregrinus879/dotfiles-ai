@@ -320,8 +320,8 @@ rm -f "$calls"
 SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
   resume 11111111-1111-4111-8111-111111111111 "$handoff" "Review flags." >/dev/null 2>/dev/null
 resume_flags=$(<"$calls")
-[[ $new_flags == *'--effort xhigh'* && $resume_flags == *'--effort xhigh'* ]] ||
-  fail "Claude new/resume xhigh effort pin missing"
+[[ $new_flags == *'--effort max'* && $resume_flags == *'--effort max'* ]] ||
+  fail "Claude new/resume maximum effort pin missing"
 [[ $new_flags == *'--tools Read,Glob,Grep'* && $resume_flags == *'--tools Read,Glob,Grep'* ]] ||
   fail "Claude new/resume read-only tool whitelist missing"
 [[ $new_flags == *'--model opus'* && $resume_flags == *'--model opus'* ]] ||

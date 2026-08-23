@@ -38,7 +38,11 @@ for path in (
     require(openai_display_rule in skill, f"OpenAI model display rule drifted: {path}")
 
 require(claude["model"] == "claude-fable-5", "Claude model pin drifted")
-require(claude["effortLevel"] == "xhigh", "Claude effort drifted")
+require(
+    claude["env"]["CLAUDE_CODE_EFFORT_LEVEL"] == "max",
+    "Claude maximum effort pin drifted",
+)
+require("effortLevel" not in claude, "Claude maximum effort must use the environment pin")
 require(claude["permissions"]["defaultMode"] == "auto", "Claude default mode drifted")
 require(claude["workflowSizeGuideline"] == "large", "Claude workflow guidance drifted")
 # Per-file review is produced by the spar gate hook's deterministic ask

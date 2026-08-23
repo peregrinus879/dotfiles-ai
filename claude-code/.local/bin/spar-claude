@@ -173,7 +173,7 @@ stream() { # $1 reply_fd; rest = claude session flags
   setsid timeout --kill-after=2 "$CEILING" claude -p "$@" \
     --permission-mode plan --disallowedTools "Write Edit NotebookEdit Bash" \
     --tools "Read,Glob,Grep" \
-    --model "$MODEL" --effort xhigh --safe-mode --setting-sources user \
+    --model "$MODEL" --effort max --safe-mode --setting-sources user \
     --settings "$REVIEWER_SETTINGS" --output-format stream-json \
     --include-partial-messages --verbose >"$workdir/fifo" 2>/dev/null <<<"$PROMPT" &
   pid=$!
