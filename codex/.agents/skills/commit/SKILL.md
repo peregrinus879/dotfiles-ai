@@ -43,17 +43,18 @@ Before staging, prepare one complete candidate from `git status --short`, unstag
 - the proposed commit message; and
 - the proposed disposition of every scratch-looking untracked file.
 
-Tell H to review from a separate terminal pane at the repository root:
+Repeat this complete compact cheat sheet in every review packet until H asks to retire it, and tell H to review from a separate terminal pane at the repository root:
 
-1. Run `nvim .`.
-2. Press `<Space>gd` to open tracked staged and unstaged hunks.
-3. Use `<C-n>` and `<C-p>` to move between hunks, `<Enter>` to open one, and `<Space>sR` to resume the picker.
-4. Press `<Space>gs` to find each intended untracked file and inspect its full contents.
-5. Press `<Space>qq` to quit Neovim and return to the session.
+1. `nvim .`, then `<Space>gd`: open tracked staged and unstaged hunks.
+2. `<M-w>`: cycle the input, hunk list, and preview panes. `<C-n>`/`<C-p>` or arrow keys: move between hunks; the highlight updates the preview.
+3. `<M-p>`: toggle the preview. `<M-m>`: maximize or restore the active picker pane.
+4. `<Enter>`: open the selected file and close the picker. `<Space>sR`: resume after opening a file. `<Esc>`: close without opening.
+5. `<Space>gs`: open Git Status for intended untracked files. Highlight each file to inspect its preview; use `<Enter>` only when it must be opened, then `<Space>sR` to resume.
+6. Avoid `<Tab>`, which stages, and `<C-r>`, which restores, in both Git pickers.
 
-Warn H not to use picker actions that stage, restore, or discard content during inspection. Then use the tool's interactive selector with `Approve and commit` first, followed by `Request revisions`, `Comment / question`, and `Stop`. Recommend approval only when the candidate and verification are ready.
+Offer the read-only terminal fallback `git status --short`, `git diff --stat HEAD`, `git diff HEAD`, and `git diff HEAD -- path/to/file`. Then use the tool's interactive selector with `Approve and commit (Recommended)` first, followed by `Revise with comments` and `Reject with comments`; its built-in custom answer is the discussion path. A comment-bearing choice triggers a free-form follow-up when its comment is not already present. `Revise with comments` updates the current candidate but never authorizes a commit: incorporate the comments, verify, and present a refreshed packet. `Reject with comments` rejects the candidate: preserve unrelated and user-authored changes, remove all candidate-owned changes, build a new candidate from the comments, verify, and present a refreshed packet. A custom discussion answer changes nothing: answer it, then present the same packet and selector again.
 
-Plan approval and skill invocation do not authorize a commit. Approval covers only the presented content, intended paths, message, and scratch disposition. Any change to one of them requires a refreshed packet and selector. Rejection or interruption leaves the worktree intact.
+Plan approval and skill invocation do not authorize a commit. Approval covers only the presented content, intended paths, message, and scratch disposition. Any change to one of them requires a refreshed packet and selector. Interruption leaves the current worktree intact.
 
 ## Staging and commit
 

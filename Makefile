@@ -122,15 +122,32 @@ verify:
 	  grep -Fq 'Execute one approved commit unit at a time.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Before every commit, run `/commit`' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Commit only after H approves that exact candidate.' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Approve and commit (Recommended) | Revise with comments | Reject with comments' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'run its approved mandatory `/spar` final integration review' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Trivial work may skip a formal plan, but never the exact pre-commit review.' claude-code/.claude/rules/shared-guidance.md; then \
 	  echo "ok:   autonomous-work commit checkpoints"; \
 	else echo "FAIL: autonomous-work commit checkpoints drifted"; fail=1; fi; \
 	if grep -Fq 'do not alter, stage, or temporarily revert the unrelated hunks' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Approve and commit` first, followed by `Request revisions`, `Comment / question`, and `Stop`' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Approve and commit (Recommended)` first, followed by `Revise with comments` and `Reject with comments`' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'Any change to one of them requires a refreshed packet and selector.' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Repeat this complete compact cheat sheet in every review packet' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq '`<M-w>`: cycle the input, hunk list, and preview panes.' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq '`<M-p>`: toggle the preview. `<M-m>`: maximize or restore' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq '`<Enter>`: open the selected file and close the picker.' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Avoid `<Tab>`, which stages, and `<C-r>`, which restores' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'A comment-bearing choice triggers a free-form follow-up when its comment is not already present.' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq '`Revise with comments` updates the current candidate but never authorizes a commit' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'remove all candidate-owned changes, build a new candidate from the comments' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'built-in custom answer is the discussion path' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'read-only terminal fallback' claude-code/.claude/skills/commit/SKILL.md && \
+	  ! grep -Fq '`<C-f>`' claude-code/.claude/skills/commit/SKILL.md && \
+	  ! grep -Fq '`<C-c>`' claude-code/.claude/skills/commit/SKILL.md && \
+	  ! grep -Fq '`<C-d>`' claude-code/.claude/skills/commit/SKILL.md && \
+	  ! grep -Fq '`<C-u>`' claude-code/.claude/skills/commit/SKILL.md && \
+	  ! grep -Fq '`<C-w>`' claude-code/.claude/skills/commit/SKILL.md && \
+	  ! grep -Fq '`<C-b>`' claude-code/.claude/skills/commit/SKILL.md && \
 	  ! grep -Fq 'temporarily revert the unrelated hunks with the file edit tools' claude-code/.claude/skills/commit/SKILL.md; then \
-	  echo "ok:   exact-diff commit review preserves unrelated hunks"; \
+	  echo "ok:   exact-diff commit review and LazyVim guidance"; \
 	else echo "FAIL: exact-diff commit review drifted"; fail=1; fi; \
 	if ! grep -Fq 'disable-model-invocation' claude-code/.claude/skills/commit/SKILL.md && \
 	  ! grep -Fq 'disable-model-invocation' claude-code/.claude/skills/spar/SKILL.md; then \

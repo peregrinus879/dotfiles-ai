@@ -138,14 +138,18 @@ Status line state-file conventions live in the `statusline.sh` header and the AG
 
 ## Review Workflow
 
-Before every commit, open a separate terminal pane at the repository root and review the candidate in the installed Omarchy LazyVim:
+Before every commit, the assistant repeats this complete compact cheat sheet. Open a separate terminal pane at the repository root and review the candidate in the installed Omarchy LazyVim:
 
-1. Run `nvim .`.
-2. Press `<Space>gd` for all tracked staged and unstaged hunks.
-3. Use `<C-n>` and `<C-p>` to navigate hunks, `<Enter>` to open one, and `<Space>sR` to resume the picker.
-4. Press `<Space>gs` and inspect the full contents of every intended untracked file.
-5. Avoid picker actions that stage, restore, or discard content during review.
-6. Press `<Space>qq` to quit, then choose `Approve and commit`, `Request revisions`, `Comment / question`, or `Stop` in the assistant selector.
+1. `nvim .`, then `<Space>gd`: open the tracked diff picker.
+2. `<M-w>`: cycle the input, hunk list, and preview panes. `<C-n>`/`<C-p>` or arrows: move between hunks; the highlight updates the preview.
+3. `<M-p>`: toggle the preview. `<M-m>`: maximize or restore the active picker pane.
+4. `<Enter>`: open the selected file and close the picker. `<Space>sR`: resume after opening a file. `<Esc>`: close without opening.
+5. `<Space>gs`: open Git Status for intended untracked files. Highlight a file for its preview; use `<Enter>` only when it must be opened, then `<Space>sR` to resume.
+6. Avoid `<Tab>`, which stages, and `<C-r>`, which restores, in both Git pickers.
+
+The assistant selector offers `Approve and commit (Recommended)`, `Revise with comments`, and `Reject with comments`; its built-in custom answer is the discussion path. `Revise with comments` updates the current candidate without authorizing a commit. `Reject with comments` preserves unrelated and user-authored work, removes all candidate-owned changes, and builds a new candidate from the comments. Both comments choices produce a refreshed packet. A custom discussion answer changes nothing: the assistant answers, then repeats the same candidate and selector. Only `Approve and commit` authorizes staging and commit of the exact packet.
+
+Read-only terminal fallback: `git status --short` lists the candidate, `git diff --stat HEAD` summarizes it, `git diff HEAD` shows the complete tracked diff, and `git diff HEAD -- path/to/file` isolates one path.
 
 ## Setup
 
