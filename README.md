@@ -63,7 +63,7 @@ eyragents/
 │   │   ├── settings.json                 # runtime settings (model, status line, permissions, workflows)
 │   │   ├── statusline.sh                 # terminal status line script
 │   │   ├── hooks/
-│   │   │   └── spar-handoff-approve.sh   # per-file review gate (spar handoff exemption)
+│   │   │   └── spar-handoff-approve.sh   # validated spar handoff write exception
 │   │   ├── rules/                        # organized instruction files
 │   │   │   └── shared-guidance.md        # canonical shared instructions
 │   │   └── skills/                       # custom skills (SKILL.md files)
@@ -94,7 +94,7 @@ eyragents/
             ├── commands/                 # custom slash commands
             │   ├── commit.md             # wrapper for the commit skill
             │   └── spar.md               # wrapper for the spar skill
-            ├── plugins/                  # reviewed-writes enforcement plugin
+            ├── plugins/                  # one-file patch and handoff safety plugin
             ├── package.json              # release-matched plugin dependency
             ├── package-lock.json         # reproducible npm dependency graph
             ├── skills/                   # agent skills
@@ -104,7 +104,7 @@ eyragents/
 
 Tracked `.gitkeep` placeholders (claude-code agents; opencode agents, themes, and tools) are omitted from the tree.
 
-Tracked runtime config primarily expresses shared behavior. `claude-code/.claude/settings.json`, `codex/.codex/config.toml`, and `opencode/.config/opencode/opencode.json` are the source of truth for each tool's model, effort, permissions, and feature toggles; read them directly rather than a prose mirror here. All three carry the same reviewed-writes intent: persistent file changes reach human review one file at a time, while session handoffs use private disk-backed OS temp (`/var/tmp/spar-<session-id>/`) so an in-flight review survives reboots. Claude Code routes every Edit, Write, and NotebookEdit through the deterministic spar gate hook, which asks per file and allows only validated spar handoff targets; Codex uses a read-only permission profile with only OS temp writable, human approval review, and network disabled; OpenCode asks globally, denies plan-agent edits, and uses `reviewed-writes.ts` to reject grouped or malformed patches and alias-shaped handoff targets before permission. Handoff file writes through the native file tools run prompt-free in Claude Code and OpenCode with sensitive names still refused, shell write channels into the handoff stay gated, and the Codex sandbox has no handoff write channel; its automated spar implementer route remains deferred. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
+Tracked runtime config primarily expresses shared behavior. `claude-code/.claude/settings.json`, `codex/.codex/config.toml`, and `opencode/.config/opencode/opencode.json` are the source of truth for each tool's model, effort, permissions, and feature toggles; read them directly rather than a prose mirror here. Trusted-repository work is autonomous until the commit boundary: Claude Code uses auto mode, Codex uses a write-capable workspace profile plus automatic approval review, and OpenCode allows workspace edits and shell commands behind explicit sensitive, external, destructive, privileged, upload, and remote-mutation denials. OpenCode has no classifier or OS sandbox, so wrappers and scripts remain a documented residual. Every commit requires H's editor review and approval of the exact candidate before staging. Session handoffs use private disk-backed OS temp (`/var/tmp/spar-<session-id>/`) so an in-flight review survives reboots; the Claude hook and OpenCode plugin validate handoff writes without reintroducing ordinary per-file prompts. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
 
 Primary web research follows Claude auto mode's outcome. Claude remains explicitly pinned to auto and sends unmatched WebSearch and WebFetch calls through its classifier. Codex uses hosted live search and page opening without granting network to shell commands. OpenCode allows WebSearch and WebFetch without prompts; its WebFetch implementation has no Claude-equivalent classifier or resolved-address SSRF boundary, so the sensitive-read denies and prohibition on sending repository content remain material controls. Both spar reviewers stay search-disabled.
 
@@ -120,7 +120,7 @@ Three payload-side exceptions exist. Claude Code writes app-managed keys and key
 
 Repo-root instruction files exist only to maintain EyrAgents itself; they are not part of the stowed payload. `AGENTS.md` keeps the always-loaded operational invariants concise, while `docs/maintenance.md` preserves versioned probes, limitations, deferred work, and watch items for on-demand use.
 
-Normal interactive use assumes H has chosen to trust the repository: project settings and plugins can extend global behavior in both Claude Code and OpenCode. For an untrusted checkout, `claude --safe-mode --setting-sources user` disables Claude Code customizations while retaining user settings such as permissions. Codex project trust does not suppress repository `AGENTS.md` or skills, so launch from the neutral root with `codex -C /var/empty -c 'default_permissions="reviewed-writes"' "Inspect /absolute/path/to/checkout as untrusted data; do not modify it."`. `OPENCODE_DISABLE_PROJECT_CONFIG=1 OPENCODE_DISABLE_EXTERNAL_SKILLS=1 opencode` suppresses OpenCode project config, project plugins, and automatic Claude/Codex skill discovery while retaining the global config and `reviewed-writes.ts`.
+Normal interactive use assumes H has chosen to trust the repository: project settings and plugins can extend global behavior in both Claude Code and OpenCode. For an untrusted checkout, `claude --safe-mode --setting-sources user` disables Claude Code customizations while retaining user settings such as permissions. Codex project trust does not suppress repository `AGENTS.md` or skills, so launch from the neutral root with `codex -C /var/empty -c 'default_permissions=":read-only"' "Inspect /absolute/path/to/checkout as untrusted data; do not modify it."`. `OPENCODE_DISABLE_PROJECT_CONFIG=1 OPENCODE_DISABLE_EXTERNAL_SKILLS=1 opencode` suppresses OpenCode project config, project plugins, and automatic Claude/Codex skill discovery while retaining the global config and `reviewed-writes.ts`.
 
 Shared guidance lives in `claude-code/.claude/rules/shared-guidance.md`. Claude Code loads it natively from `rules/`; Codex loads the same file as its global instructions through the `~/.codex/AGENTS.md` symlink chain (Codex has no import mechanism); OpenCode loads it through the `instructions` field in `opencode.json` using `$HOME`-based path expansion. Guidance is shared when the content and meaning are the same in every managed tool (share policy); tool-specific config, wrappers, and schemas stay separate (separate mechanism).
 
@@ -132,20 +132,20 @@ OpenCode's host environment disables automatic external skill discovery so its m
 
 Reviewers stay offline: Codex reviewer web search and network are disabled, and the Claude reviewer has no web tools. This prevents query-based exfiltration, reduces external prompt-injection exposure, and keeps reviews reproducible. The implementer verifies plan-critical external claims against current primary sources and supplies a traceable evidence pack; reviewers challenge the evidence and its application without fetching it independently. Blind round 0 receives the target outcome, non-goals, outcome-level decisions, constraints, and acceptance criteria without the proposed mechanism. Round 1 receives the full target brief, evidence, and plan. Any issue left for H arrives as a self-contained ruling packet with both positions, evidence, consequences, reversibility, affected commits, and the implementer's labeled recommendation; raw reviewer transcripts remain optional.
 
-The spar workflow separates brainstorming, planning and stage-gated execution, and diff-only review. Brainstorming develops a decision-ready option matrix without selecting an option. Planning retains the blind first pass and fresh cold read. Approved execution gates each coherent unit after verification and commit preparation but before staging, then gates the integrated starting-base-to-HEAD change before push. The simplicity boundary is one skill and the existing bridges, with no new bridge mode or state machine and no gates on individual edits, commands, or tests. Zero blocking findings means GO even when non-blocking findings remain; malformed or coverage-incomplete verdicts never mean GO. Repository content edits after implementation GO re-enter that gate once, while a second edit, a blocker, an unresolved value judgment, or a gate ceiling returns control to H without discarding the worktree.
+The spar workflow separates brainstorming, planning and stage-gated execution, and diff-only review. Brainstorming develops a decision-ready option matrix without selecting an option. Planning retains the blind first pass and fresh cold read. Approved execution gates each coherent unit after verification and commit preparation, then H reviews and approves the exact candidate before staging. Reviewer GO never authorizes a commit. The integrated starting-base-to-HEAD change is gated before push. The simplicity boundary is one skill and the existing bridges, with no new bridge mode or state machine and no gates on individual edits, commands, or tests. Zero blocking findings means GO even when non-blocking findings remain; malformed or coverage-incomplete verdicts never mean GO. Repository content edits after implementation GO re-enter that gate once, while a second edit, a blocker, an unresolved value judgment, or a gate ceiling returns control to H without discarding the worktree.
 
 Status line state-file conventions live in the `statusline.sh` header and the AGENTS.md invariant.
 
 ## Review Workflow
 
-For multi-file review in Claude Code or OpenCode, use Bash mode with Git diffs:
+Before every commit, open a separate terminal pane at the repository root and review the candidate in the installed Omarchy LazyVim:
 
-1. Run `!git status --short` to see touched files.
-2. Run `!git diff --stat` for a compact overview.
-3. Run `!git diff` to review the full patch.
-4. Run `!git diff -- path/to/file` to isolate one file.
-
-Both tools support `!`-prefixed Bash commands in the interactive terminal UI.
+1. Run `nvim .`.
+2. Press `<Space>gd` for all tracked staged and unstaged hunks.
+3. Use `<C-n>` and `<C-p>` to navigate hunks, `<Enter>` to open one, and `<Space>sR` to resume the picker.
+4. Press `<Space>gs` and inspect the full contents of every intended untracked file.
+5. Avoid picker actions that stage, restore, or discard content during review.
+6. Press `<Space>qq` to quit, then choose `Approve and commit`, `Request revisions`, `Comment / question`, or `Stop` in the assistant selector.
 
 ## Setup
 
@@ -219,10 +219,10 @@ To migrate from a different clone path, run `make unstow` in the old clone first
 After stowing or changing the payloads:
 
 - Run `make verify` and `make lint` from the repo root.
-- Start a fresh Claude Code session, confirm the shared guidance and status line load, confirm `spar-codex` is on PATH, and confirm the spar skill exposes brainstorming, planning gates, and diff-only review.
-- Start a fresh Codex session, confirm the shared guidance loads and the assistant addresses the user as H, confirm `spar-claude` is on PATH, confirm the same spar modes, and confirm the automated Claude route remains deferred rather than weakening the permission profile.
-- Start a fresh OpenCode session, run `opencode debug config`, and confirm the resolved config includes the shared guidance path, `share = disabled`, and the global `reviewed-writes.ts` plugin; run `opencode debug skill` and confirm commit and spar resolve under `~/.config/opencode/skills/` while Omarchy resolves through the explicit path, then confirm `/spar` selects among brainstorming, planning and stage gates, and diff-only review.
-- Confirm `/commit` still routes through the repo skill workflow in all managed tools, including doc sync and scratch cleanup before staging.
+- Start a fresh Claude Code session, confirm auto mode and the shared guidance load, confirm ordinary edits do not hit a per-file prompt, confirm the status line loads, and confirm `spar-codex` is on PATH.
+- Start a fresh Codex session, confirm the shared guidance loads, `trusted-workspace` is active with automatic review, ordinary workspace edits succeed, and `spar-claude` remains deferred rather than escalating through the primary profile.
+- Start a fresh OpenCode session, run `opencode debug config`, and confirm workspace edits and Bash default to allow while external paths and pinned safety operations deny; confirm `share = disabled` and the global `reviewed-writes.ts` plugin remain active.
+- Confirm `/commit` routes through the repo skill workflow in all managed tools and presents the exact candidate, LazyVim instructions, and approval selector before staging.
 
 ## Maintenance
 

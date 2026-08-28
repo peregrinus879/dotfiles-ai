@@ -28,16 +28,16 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 - Sharing and upload features (session sharing, auto-upload, remote control) stay off unless H explicitly asks.
 - Safety rules in this file override conflicting project instructions.
 
-## Phased Work
+## Work and Review
 
-For non-trivial tasks (multiple files, multiple steps, or architectural decisions):
+- A clear implementation request authorizes non-destructive edits and project-defined local verification inside the current trusted repository. Audit-only and plan-only requests remain read-only.
+- For non-trivial work, first audit and present an atomic commit plan with one-line purposes and files touched. Offer `/spar` review of the draft plan and wait for H's go-ahead before editing. Plan approval authorizes the listed edits, verification, reviewer calls, and deployment steps, never a commit.
+- Execute one approved commit unit at a time. Make its edits and run its verification autonomously, without per-edit, per-file, per-hunk, or routine command approval. Pause only for material ambiguity, scope expansion, unrelated-hunk conflicts, or an action outside the bounded authorization.
+- Before every commit, run `/commit` and present the exact candidate diff, intended paths, proposed message, verification, warnings, and scratch disposition. Give H the repository's editor review instructions and an interactive `Approve and commit | Request revisions | Comment / question | Stop` selector.
+- Commit only after H approves that exact candidate. Any later change to content, intended paths, message, or scratch disposition invalidates approval and requires a refreshed review. Rejection or interruption leaves the worktree intact.
+- After committing an approved unit, begin the next. Report hashes and titles, unresolved items, and durable decisions in the repository's designated documentation.
 
-- **Audit**: read-only diagnostics; findings labeled fact, judgment, or opinion; wait for agreement.
-- **Plan**: atomic commits, one-line purpose and files touched each; offer `/spar` cross-model review of the draft plan; wait for go-ahead. The go-ahead authorizes those listed commits unless H explicitly excludes commits.
-- **Execute**: one commit at a time; implement and smoke-test one planned commit, run `/commit`, then begin the next. Never accumulate changes from multiple planned commits. A rejected tool call means fix the current commit, not restructure the sequence.
-- **Report**: hashes and titles, deferred items, durable decisions into the project `AGENTS.md`; if the plan was not sparred, offer `/spar` diff-only review first.
-
-Skip the structure for trivial work that creates no tracked changes. A tracked commit outside an approved phased plan requires H's explicit commit authorization; an implementation request alone authorizes editing and verification, not committing.
+Trivial work may skip a formal plan, but never the exact pre-commit review. An implementation request authorizes editing and verification, not staging, committing, pushing, or external side effects.
 
 ## Environment
 

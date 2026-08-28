@@ -2,6 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "defaultMode": "auto",
+    "disableBypassPermissionsMode": "disable",
     "allow": [
       "Bash(claude --version)",
       "Bash(codex --version)",
@@ -12,17 +13,52 @@
       "Bash(spar-codex *)"
     ],
     "deny": [
+      "Bash(doas)",
+      "Bash(doas *)",
       "Bash(find * -delete*)",
       "Bash(find * -exec *)",
       "Bash(find * -execdir *)",
       "Bash(find * -ok *)",
       "Bash(find * -okdir *)",
+      "Bash(gh api *)",
+      "Bash(gh gist create*)",
+      "Bash(gh gist delete*)",
+      "Bash(gh gist edit*)",
+      "Bash(gh issue close*)",
+      "Bash(gh issue comment*)",
+      "Bash(gh issue create*)",
+      "Bash(gh issue edit*)",
+      "Bash(gh issue reopen*)",
+      "Bash(gh pr close*)",
+      "Bash(gh pr create*)",
+      "Bash(gh pr merge*)",
+      "Bash(gh release create*)",
+      "Bash(gh release delete*)",
+      "Bash(gh release edit*)",
+      "Bash(gh release upload*)",
+      "Bash(git checkout -- *)",
+      "Bash(git clean)",
+      "Bash(git clean *)",
       "Bash(tree * --output *)",
       "Bash(tree * -o *)",
       "Bash(tree --output*)",
       "Bash(tree -o *)",
       "Bash(git push)",
       "Bash(git push *)",
+      "Bash(git reset)",
+      "Bash(git reset *)",
+      "Bash(git restore)",
+      "Bash(git restore *)",
+      "Bash(git stash clear)",
+      "Bash(git stash clear *)",
+      "Bash(git stash drop)",
+      "Bash(git stash drop *)",
+      "Bash(pkexec)",
+      "Bash(pkexec *)",
+      "Bash(su)",
+      "Bash(su *)",
+      "Bash(sudo)",
+      "Bash(sudo *)",
       "Edit(./**/*.key)",
       "Edit(./**/*.pem)",
       "Edit(./.env)",
@@ -52,20 +88,6 @@
       "Read(~/.npmrc)",
       "Read(~/.pypirc)",
       "Read(~/.ssh/**)"
-    ],
-    "ask": [
-      "Bash(* >*)",
-      "Bash(* 2>*)",
-      "Bash(* &>*)",
-      "Bash(* | tee*)",
-      "Bash(*awk*inplace*)",
-      "Bash(*git apply*)",
-      "Bash(*patch -p*)",
-      "Bash(*perl *)",
-      "Bash(*sed*-i*)",
-      "Bash(*| perl*)",
-      "Bash(git reset --hard*)",
-      "Bash(git restore *)"
     ]
   },
   "autoMode": {
@@ -77,12 +99,10 @@
     "soft_deny": [
       "$defaults",
       "Reading or displaying the contents of credential files (~/.ssh, ~/.aws, ~/.claude/.credentials.json, ~/.codex/auth.json, ~/.gnupg, ~/.kube, ~/.netrc, .env files, private keys) clears only when the user names the specific credential file; tools implicitly consuming their own credentials (git over SSH, cloud CLIs reading their config) and authored templates outside the .env.* namespace, such as example.env, are not this rule.",
-      "File-content changes go through the Edit, Write, or NotebookEdit tools so each change surfaces a reviewable diff; shell write channels (in-place editors such as sed or perl, output redirection, tee, dd, truncate, interpreter one-liners that write files, formatters or codemods rewriting tracked files) clear only when the user names the specific files and the change.",
       "Filesystem mutations that bypass diff review (moving, copying, syncing, extracting, or patching over existing files; restoring or resetting paths from version control; deleting files) clear only on explicit instruction naming the paths; creating genuinely new files at fresh paths via mv or cp is not this rule."
     ],
     "allow": [
-      "$defaults",
-      "Deleting the session's own scratch files under /tmp/claude-* paths during scratch cleanup is allowed; this exception covers only files the session created there and never extends to repository files or any path outside those scratch directories."
+      "$defaults"
     ]
   },
   "hooks": {

@@ -127,6 +127,12 @@ make_handoff() {
   printf '%s\n' "$root"
 }
 
+hook_decision() { # target
+  printf '{"tool_name":"Edit","tool_input":{"file_path":"%s"}}\n' "$1" |
+    "$ROOT/claude-code/.claude/hooks/spar-handoff-approve.sh" |
+    jq -r '.hookSpecificOutput.permissionDecision'
+}
+
 run_bridge() { # bridge, prompt, optional handoff content
   local bridge=$1 prompt=$2 content=${3:-} handoff calls rc=0
   handoff=$(make_handoff)
@@ -139,6 +145,14 @@ run_bridge() { # bridge, prompt, optional handoff content
   [[ ! -s $calls ]] || BRIDGE_CALLED=1
   rm -rf -- "$handoff"
 }
+
+[[ $(hook_decision "$ROOT/README.md") == defer ]] || fail "Claude hook did not defer an ordinary edit"
+handoff=$(make_handoff)
+[[ $(hook_decision "$handoff/spar-plan.md") == allow ]] || fail "Claude hook rejected a valid handoff write"
+[[ $(hook_decision "$handoff/.env") == deny ]] || fail "Claude hook did not deny a sensitive handoff write"
+chmod 755 "$handoff"
+[[ $(hook_decision "$handoff/spar-plan.md") == deny ]] || fail "Claude hook did not deny unsafe handoff metadata"
+rm -rf -- "$handoff"
 
 for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin/spar-codex"; do
   run_bridge "$bridge" "Review this ordinary plan."

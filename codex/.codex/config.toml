@@ -4,8 +4,13 @@ model_reasoning_summary = "auto"
 service_tier = "fast"
 web_search = "live"
 approval_policy = "on-request"
-approvals_reviewer = "user"
-default_permissions = "reviewed-writes"
+approvals_reviewer = "auto_review"
+default_permissions = "trusted-workspace"
+
+[auto_review]
+policy = """
+Approve only actions necessary for H's requested work inside the active workspace. Reject credential access, privileged actions, destructive state changes, uploads, remote mutations, writes outside the workspace, and bypasses of safety checks. A local Git commit is eligible only after H explicitly approves the exact candidate in the conversation.
+"""
 
 [features]
 fast_mode = true
@@ -15,11 +20,11 @@ js_repl = false
 default_subagent_model = "gpt-5.6-sol"
 default_subagent_reasoning_effort = "max"
 
-[permissions.reviewed-writes]
-description = "Read-only workspace with writable system temporary roots."
-extends = ":read-only"
+[permissions.trusted-workspace]
+description = "Writable workspace with sensitive paths and command network denied."
+extends = ":workspace"
 
-[permissions.reviewed-writes.filesystem]
+[permissions.trusted-workspace.filesystem]
 ":tmpdir" = "write"
 ":slash_tmp" = "write"
 "~/.aws" = "deny"
@@ -36,8 +41,8 @@ extends = ":read-only"
 "~/.ssh" = "deny"
 glob_scan_max_depth = 64
 
-[permissions.reviewed-writes.filesystem.":workspace_roots"]
-"." = "read"
+[permissions.trusted-workspace.filesystem.":workspace_roots"]
+"." = "write"
 ".env" = "deny"
 ".env.*" = "deny"
 "secrets" = "deny"
@@ -45,7 +50,7 @@ glob_scan_max_depth = 64
 "**/*.pem" = "deny"
 "**/*credentials*" = "deny"
 
-[permissions.reviewed-writes.network]
+[permissions.trusted-workspace.network]
 enabled = false
 
 [projects."/home/peregrinus/Projects/eyrie/eyragents"]

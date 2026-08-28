@@ -118,17 +118,19 @@ verify:
 	if grep -Fqx -- '- Persistent file-content changes use native edit tools, so each change surfaces a reviewable diff. An `apply_patch` call modifies exactly one file; never bundle multiple files into one patch.' claude-code/.claude/rules/shared-guidance.md; then \
 	  echo "ok:   one-file apply_patch guidance"; \
 	else echo "FAIL: one-file apply_patch guidance missing"; fail=1; fi; \
-	if grep -Fq 'The go-ahead authorizes those listed commits unless H explicitly excludes commits.' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Never accumulate changes from multiple planned commits.' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'A tracked commit outside an approved phased plan requires H'"'"'s explicit commit authorization' claude-code/.claude/rules/shared-guidance.md && \
-	  ! grep -Fq 'Treat a trivial tracked change as one implicit atomic commit' claude-code/.claude/rules/shared-guidance.md && \
-	  ! grep -Fq 'Commits: only when asked' claude-code/.claude/rules/shared-guidance.md; then \
-	  echo "ok:   phased-work commit checkpoints"; \
-	else echo "FAIL: phased-work commit checkpoints drifted"; fail=1; fi; \
+	if grep -Fq 'Plan approval authorizes the listed edits, verification, reviewer calls, and deployment steps, never a commit.' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Execute one approved commit unit at a time.' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Before every commit, run `/commit`' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Commit only after H approves that exact candidate.' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Trivial work may skip a formal plan, but never the exact pre-commit review.' claude-code/.claude/rules/shared-guidance.md; then \
+	  echo "ok:   autonomous-work commit checkpoints"; \
+	else echo "FAIL: autonomous-work commit checkpoints drifted"; fail=1; fi; \
 	if grep -Fq 'do not alter, stage, or temporarily revert the unrelated hunks' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Approve and commit` first, followed by `Request revisions`, `Comment / question`, and `Stop`' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Any change to one of them requires a refreshed packet and selector.' claude-code/.claude/skills/commit/SKILL.md && \
 	  ! grep -Fq 'temporarily revert the unrelated hunks with the file edit tools' claude-code/.claude/skills/commit/SKILL.md; then \
-	  echo "ok:   commit workflow preserves unrelated hunks"; \
-	else echo "FAIL: commit workflow can mutate unrelated hunks"; fail=1; fi; \
+	  echo "ok:   exact-diff commit review preserves unrelated hunks"; \
+	else echo "FAIL: exact-diff commit review drifted"; fail=1; fi; \
 	if ! grep -Fq 'disable-model-invocation' claude-code/.claude/skills/commit/SKILL.md && \
 	  ! grep -Fq 'disable-model-invocation' claude-code/.claude/skills/spar/SKILL.md; then \
 	  echo "ok:   Claude managed skills are model-invocable"; \
@@ -159,7 +161,7 @@ verify:
 	  grep -Fq 'well-formed terminal verdict with zero blockers means GO' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'at most three calls total' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'nine calls across execution gates overall' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'before its staging and commit phases' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'only H'"'"'s approval of that exact candidate authorizes its commit' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'decision-ready, not option approval' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'Any content edit after GO re-enters once' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq '**Final integration gate:**' claude-code/.claude/skills/spar/SKILL.md && \

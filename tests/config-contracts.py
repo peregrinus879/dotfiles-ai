@@ -49,14 +49,16 @@ require(
 )
 require("effortLevel" not in claude, "Claude maximum effort must use the environment pin")
 require(claude["permissions"]["defaultMode"] == "auto", "Claude default mode drifted")
+require(
+    claude["permissions"]["disableBypassPermissionsMode"] == "disable",
+    "Claude bypass mode must remain disabled",
+)
 require(claude["workflowSizeGuideline"] == "large", "Claude workflow guidance drifted")
-# Per-file review is produced by the spar gate hook's deterministic ask
-# fallback, not by bare ask-list entries: a matching ask rule overrides a hook
-# allow, so bare Edit/Write/NotebookEdit entries would defeat the handoff
-# exemption (anthropics/claude-code#35136 precedence).
+# Ordinary edits defer to auto mode. Bare ask rules would restore per-file
+# prompts and override the spar hook's validated handoff allow.
 for bare in ("Edit", "Write", "NotebookEdit"):
     require(
-        bare not in claude["permissions"]["ask"],
+        bare not in claude["permissions"].get("ask", []),
         f"bare {bare} ask entry defeats the spar gate hook",
     )
 hook_source = (ROOT / "claude-code/.claude/hooks/spar-handoff-approve.sh").read_text(
@@ -64,7 +66,8 @@ hook_source = (ROOT / "claude-code/.claude/hooks/spar-handoff-approve.sh").read_
 )
 for marker in (
     '"permissionDecision":"%s"',
-    'emit ask "per-file review"',
+    'emit defer "use the configured permission mode"',
+    'emit deny "invalid spar handoff parent"',
     "gate_error",
     "exit 2",
     "stat -c '%h'",
@@ -94,6 +97,16 @@ for rule in (
     require(rule in claude["permissions"]["deny"], f"Claude tree output deny drifted: {rule}")
 for rule in ("Bash(git push)", "Bash(git push *)"):
     require(rule in claude["permissions"]["deny"], f"Claude push deny drifted: {rule}")
+for rule in (
+    "Bash(git clean *)",
+    "Bash(git reset *)",
+    "Bash(git restore *)",
+    "Bash(git stash clear *)",
+    "Bash(git stash drop *)",
+    "Bash(gh api *)",
+    "Bash(sudo *)",
+):
+    require(rule in claude["permissions"]["deny"], f"Claude hard deny drifted: {rule}")
 require(
     claude["hooks"]["PreToolUse"]
     == [
@@ -127,7 +140,7 @@ HANDOFF_SENSITIVE_DENIES = (
     "../*var/tmp/spar-*/secrets/*",
 )
 
-codex_profile = codex["permissions"]["reviewed-writes"]
+codex_profile = codex["permissions"]["trusted-workspace"]
 filesystem = codex_profile["filesystem"]
 workspace = filesystem[":workspace_roots"]
 require(codex["model"] == "gpt-5.6-sol", "Codex model pin drifted")
@@ -142,10 +155,18 @@ require(
     "Codex subagent effort drifted",
 )
 require(codex["approval_policy"] == "on-request", "Codex approval policy drifted")
-require(codex["approvals_reviewer"] == "user", "Codex human reviewer drifted")
-require(codex["default_permissions"] == "reviewed-writes", "Codex profile selection drifted")
+require(codex["approvals_reviewer"] == "auto_review", "Codex automatic reviewer drifted")
+require(codex["default_permissions"] == "trusted-workspace", "Codex profile selection drifted")
+for boundary in (
+    "credential access",
+    "privileged actions",
+    "destructive state changes",
+    "remote mutations",
+    "writes outside the workspace",
+):
+    require(boundary in codex["auto_review"]["policy"], f"Codex auto-review boundary drifted: {boundary}")
 require("sandbox_mode" not in codex, "Codex mixes legacy sandbox with permission profile")
-require(codex_profile["extends"] == ":read-only", "Codex profile base drifted")
+require(codex_profile["extends"] == ":workspace", "Codex profile base drifted")
 require(codex_profile["network"]["enabled"] is False, "Codex network deny drifted")
 require(filesystem[":tmpdir"] == "write", "Codex temp permission drifted")
 require(filesystem[":slash_tmp"] == "write", "Codex /tmp permission drifted")
@@ -165,48 +186,56 @@ for path in (
     "~/.ssh",
 ):
     require(filesystem[path] == "deny", f"Codex sensitive deny drifted: {path}")
-require(workspace["."] == "read", "Codex workspace read rule drifted")
+require(workspace["."] == "write", "Codex workspace write rule drifted")
 for path in (".env", ".env.*", "secrets", "**/*.key", "**/*.pem", "**/*credentials*"):
     require(workspace[path] == "deny", f"Codex workspace deny drifted: {path}")
 require(".env.example" not in workspace, "Codex template exception weakens .env.* deny")
 
 bash = opencode["permission"]["bash"]
 bash_items = list(bash.items())
-guard_index = next((index for index, item in enumerate(bash_items) if item[0] == "* >*"), None)
-require(guard_index is not None, "OpenCode redirect guard missing")
 require(
-    all(action != "allow" for _, action in bash_items[guard_index:]),
-    "OpenCode allow appears after guard block",
+    bash_items[0] == ("*", "allow"),
+    "OpenCode Bash autonomy catch-all must remain first",
 )
-require(bash["*"] == "ask", "OpenCode Bash catch-all drifted")
 require(
     [command for command, action in bash_items if action == "allow"]
     == [
+        "*",
         "claude --version",
         "codex --version",
-        "git branch",
-        "git branch --show-current",
-        "git diff",
-        "git log",
-        "git rev-parse --abbrev-ref @{upstream}",
-        "git rev-parse --abbrev-ref HEAD",
-        "git show",
-        "git status",
-        "ls",
         "opencode --version",
-        "pacman -Q*",
-        "pacman -Si *",
-        "pacman -Ss *",
-        "pwd",
-        "spar-claude *",
     ],
-    "OpenCode metadata-only allowlist drifted",
+    "OpenCode Bash safe exceptions drifted",
 )
+require(all(action != "ask" for _, action in bash_items), "OpenCode Bash prompt reintroduced")
+for command, exception in (
+    ("claude *", "claude --version"),
+    ("codex *", "codex --version"),
+    ("opencode *", "opencode --version"),
+):
+    require(bash[command] == "deny", f"OpenCode nested-agent deny drifted: {command}")
+    require(
+        list(bash).index(exception) > list(bash).index(command),
+        f"OpenCode safe version exception precedes broad deny: {exception}",
+    )
 for command in ("tree -o *", "tree --output*", "tree * -o *", "tree * --output *"):
     require(bash[command] == "deny", f"OpenCode tree output deny drifted: {command}")
-for unsafe in ("gh api", "gh api *", "codex *", "claude -p *"):
-    require(unsafe not in bash, f"Unsafe OpenCode Bash allow found: {unsafe}")
 require(bash["git push"] == "deny" and bash["git push *"] == "deny", "OpenCode push deny drifted")
+for command in (
+    "curl *",
+    "gh api *",
+    "git clean *",
+    "git reset *",
+    "git restore *",
+    "git stash clear *",
+    "git stash drop *",
+    "rm *",
+    "scp *",
+    "ssh *",
+    "sudo *",
+    "wget *",
+):
+    require(bash[command] == "deny", f"OpenCode hard deny drifted: {command}")
 require(opencode["permission"]["webfetch"] == "allow", "OpenCode WebFetch auto-read drifted")
 require(opencode["permission"]["websearch"] == "allow", "OpenCode WebSearch drifted")
 require(opencode["model"] == "openai/gpt-5.6-sol-fast", "OpenCode Fast model drifted")
@@ -253,7 +282,7 @@ require(
 )
 
 edit_expected = {
-    "*": "ask",
+    "*": "allow",
     HANDOFF_EDIT_ALLOW: "allow",
     "**/*.key": "deny",
     "**/*.pem": "deny",
@@ -267,7 +296,7 @@ require(
     list(opencode["permission"]["edit"].items()) == list(edit_expected.items()),
     "OpenCode edit map or its order drifted (catch-all, spar allow, denies last)",
 )
-require("build" not in opencode["agent"], "OpenCode build override bypasses global review")
+require("build" not in opencode["agent"], "OpenCode build override bypasses global policy")
 plan_edit_expected = {
     "*": "deny",
     HANDOFF_EDIT_ALLOW: "allow",
@@ -293,7 +322,7 @@ for path in (
     "~/.ssh/**",
 ):
     require(read_rules[path] == "deny", f"OpenCode read deny drifted: {path}")
-require(external_rules["*"] == "ask", "OpenCode external-directory default drifted")
+require(external_rules["*"] == "deny", "OpenCode external-directory default drifted")
 require(external_rules["~/.ssh/**"] == "deny", "OpenCode SSH external deny drifted")
 # Liveness note (ledger-recorded, 1.18.18 subject semantics): directory-glob
 # external entries are live; file-level external entries and the ~-keyed read
