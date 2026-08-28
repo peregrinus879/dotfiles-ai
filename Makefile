@@ -122,6 +122,7 @@ verify:
 	  grep -Fq 'Execute one approved commit unit at a time.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Before every commit, run `/commit`' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Commit only after H approves that exact candidate.' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'run its approved mandatory `/spar` final integration review' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Trivial work may skip a formal plan, but never the exact pre-commit review.' claude-code/.claude/rules/shared-guidance.md; then \
 	  echo "ok:   autonomous-work commit checkpoints"; \
 	else echo "FAIL: autonomous-work commit checkpoints drifted"; fail=1; fi; \
@@ -157,20 +158,22 @@ verify:
 	if grep -Fq '**Brainstorming:**' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'spar-brainstorm.md' claude-code/.local/bin/spar-claude && \
 	  grep -Fq 'spar-brainstorm.md' codex/.local/bin/spar-codex && \
-	  grep -Fq 'artifact round 1' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'well-formed terminal verdict with zero blockers means GO' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'at most three calls total' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'nine calls across execution gates overall' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'only H'"'"'s approval of that exact candidate authorizes its commit' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'Planning uses blind round 0, full review round 1, and a fresh cold read in round 2.' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'no per-unit reviewer gate is required' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'No mode run continues past round 2' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq '**Final integration review:** mandatory after all planned commits are local and before any push.' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'complete `git diff --binary <base>..HEAD`' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'the final integration review repeats after any fix-forward commit' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'only H'"'"'s approval of the exact candidate authorizes its commit' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'decision-ready, not option approval' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'Any content edit after GO re-enters once' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq '**Final integration gate:**' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'never individual edits, commands, or tests' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'leave the worktree intact' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'leaving the worktree intact' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'never alter or exempt that artifact merely to pass' claude-code/.claude/skills/spar/SKILL.md && \
+	  ! grep -Fq 'implementation gate' claude-code/.claude/skills/spar/SKILL.md && \
+	  ! grep -Fq 'nine calls across execution gates' claude-code/.claude/skills/spar/SKILL.md && \
+	  ! grep -Fq 'four-round ceiling' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'do not collapse these modes into plan review' opencode/.config/opencode/commands/spar.md; then \
-	  echo "ok:   spar brainstorming and stage-gate contracts"; \
-	else echo "FAIL: spar brainstorming or stage-gate contracts drifted"; fail=1; fi; \
+	  echo "ok:   spar bounded-round and integration contracts"; \
+	else echo "FAIL: spar bounded-round or integration contracts drifted"; fail=1; fi; \
 	if grep -Fq 'beginning with a target brief' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq '`Evidence Pack` section' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'literal captured output' claude-code/.claude/skills/spar/SKILL.md && \
