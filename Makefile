@@ -120,6 +120,11 @@ verify:
 	  else echo "FAIL: $${b##*/} private handoff lifecycle drifted"; fail=1; fi; \
 	done; \
 	python3 tests/config-contracts.py || { echo "FAIL: config syntax or security contract drifted"; fail=1; }; \
+	if grep -Fq 'Probe versions are historical evidence, not installed-version pins or routine synchronization targets.' AGENTS.md && \
+	  grep -Fq 'Routine client updates require no dependency edit' README.md && \
+	  grep -Fq 'Routine updates do not trigger config, code, dependency, test, or documentation edits.' docs/maintenance.md; then \
+	  echo "ok:   tool release-maintenance policy documented"; \
+	else echo "FAIL: tool release-maintenance policy drifted"; fail=1; fi; \
 	if grep -Fqx -- '- Persistent file-content changes use native edit tools, so each change surfaces a reviewable diff. An `apply_patch` call modifies exactly one file; never bundle multiple files into one patch.' claude-code/.claude/rules/shared-guidance.md; then \
 	  echo "ok:   one-file apply_patch guidance"; \
 	else echo "FAIL: one-file apply_patch guidance missing"; fail=1; fi; \
@@ -223,18 +228,6 @@ verify:
 	    echo "ok:   $$s skill copies in sync (shared sections)"; \
 	  else echo "FAIL: $$s skill copies drifted (allowed diffs: tool frontmatter keys, Co-Authored-By, Reviewer incantations section)"; fail=1; fi; \
 	done; \
-	tripwire=$$(sed -n 's/.*version tripwire source: //p' docs/maintenance.md | head -1); \
-	if [[ -n $$tripwire ]]; then \
-	  if command -v mise > /dev/null && command -v claude > /dev/null; then \
-	    current="claude=$$(claude --version 2>/dev/null | awk '{print $$1}') "; \
-	    current+=$$(mise ls --current 2>/dev/null | awk '$$1=="codex"||$$1=="opencode"{printf "%s=%s ", $$1, $$2}'); \
-	    if [[ -n $$current && $$current != "$$tripwire " ]]; then \
-	      echo "WARN: installed versions ($$current) differ from the ledger probe triple ($$tripwire); permission probes may be stale (docs/maintenance.md)"; \
-	    fi; \
-	  else \
-	    echo "note: version tripwire skipped; mise and claude are required"; \
-	  fi; \
-	fi; \
 	exit $$fail
 
 clean:

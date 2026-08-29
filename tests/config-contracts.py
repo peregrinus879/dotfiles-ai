@@ -281,19 +281,21 @@ require(
     ),
     "OpenCode re-imports colliding external workflow skills",
 )
+plugin_requirement = opencode_package["dependencies"]["@opencode-ai/plugin"]
+plugin_major = plugin_requirement.removeprefix("^")
 require(
-    opencode_package["dependencies"]["@opencode-ai/plugin"] == "1.18.18",
-    "OpenCode plugin dependency drifted",
+    plugin_requirement.startswith("^") and plugin_major.isdigit() and int(plugin_major) > 0,
+    "OpenCode plugin dependency must use a bare compatible-major range",
 )
 require(
     opencode_lock["packages"][""]["dependencies"]["@opencode-ai/plugin"]
-    == opencode_package["dependencies"]["@opencode-ai/plugin"],
+    == plugin_requirement,
     "OpenCode plugin lock drifted",
 )
+plugin_lock = opencode_lock["packages"]["node_modules/@opencode-ai/plugin"]
 require(
-    opencode_lock["packages"]["node_modules/@opencode-ai/plugin"]["version"]
-    == opencode_package["dependencies"]["@opencode-ai/plugin"],
-    "OpenCode resolved plugin version drifted",
+    plugin_lock["version"].split(".", 1)[0] == plugin_major,
+    "OpenCode resolved plugin escaped its compatible major",
 )
 require(
     opencode["provider"]["openai"]["models"]["gpt-5.6-sol-fast"]["options"]["reasoningEffort"]
@@ -349,7 +351,7 @@ for path in (
     require(read_rules[path] == "deny", f"OpenCode read deny drifted: {path}")
 require(external_rules["*"] == "deny", "OpenCode external-directory default drifted")
 require(external_rules["~/.ssh/**"] == "deny", "OpenCode SSH external deny drifted")
-# Liveness note (ledger-recorded, 1.18.18 subject semantics): directory-glob
+# Liveness note (ledger-recorded subject semantics): directory-glob
 # external entries are live; file-level external entries and the ~-keyed read
 # entries can never match their subjects and are retained as
 # forward-compatibility, so drift here still fails closed.
