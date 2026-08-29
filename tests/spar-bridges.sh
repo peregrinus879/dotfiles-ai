@@ -290,10 +290,26 @@ for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
   fi
 done
 
+# A denied-directory basename on the repository root cannot prune validation.
+mkdir -p "$TMP/root-name"
+git init -q "$TMP/root-name/secrets"
+printf 'root-name hard-link fixture\n' >"$TMP/root-name-source"
+ln -- "$TMP/root-name-source" "$TMP/root-name/secrets/public-alias.md"
+for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
+  unexpected=""
+  if unexpected=$(/usr/bin/env -C "$TMP/root-name/secrets" "$bridge" init 2>/dev/null); then
+    [[ -z $unexpected ]] || track_handoff "$unexpected"
+    fail "${bridge##*/} pruned repository validation by root basename"
+  fi
+done
+rm -- "$TMP/root-name/secrets/public-alias.md" "$TMP/root-name-source"
+
 # Native handoff writes reserve control and instruction filenames through aliases.
 handoff=$(raw_handoff)
 [[ $(hook_decision "$handoff/spar-plan.md") == allow ]] || fail "hook rejected a valid handoff write"
-for target in "$handoff/reviewer-id" "$handoff/.env" "$handoff/AGENTS.md" "$handoff/CLAUDE.md"; do
+for target in "$handoff/reviewer-id" "$handoff/.env" "$handoff/.env~" "$handoff/.env-old" \
+  "$handoff/.env_bak" "$handoff/AGENTS.md" "$handoff/Agents.md" "$handoff/CLAUDE.md" \
+  "$handoff/private.p12~"; do
   [[ $(hook_decision "$target") == deny ]] || fail "hook allowed reserved target: $target"
 done
 ln -s -- "$handoff" "$TMP/handoff-alias"
@@ -338,13 +354,21 @@ if printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1; then
 fi
 chmod 700 "$handoff"
 
-for name in .env .netrc private.pem.bak AGENTS.md CLAUDE.md Reviewer-ID; do
+for name in .env .env~ .env-old .env_bak .netrc private.pem.bak private.p12~ \
+  AGENTS.md CLAUDE.md Reviewer-ID; do
   handoff=$(raw_handoff)
   printf 'harmless\n' >"$handoff/$name"
   if printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1; then
     fail "sensitive handoff filename passed scanner: $name"
   fi
 done
+
+handoff=$(raw_handoff)
+mkdir -p "$handoff/a/.env-old"
+printf 'harmless\n' >"$handoff/a/.env-old/config"
+if printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1; then
+  fail "sensitive nested handoff path passed scanner"
+fi
 
 unknown_token=$(printf '%s%s' 'sk-' 'UNKNOWNFIXTURE0123456789ABCDEF')
 handoff=$(raw_handoff)
@@ -389,6 +413,7 @@ finding_count=$(grep -c '^SPAR-PAYLOAD FINDING:' <<<"$diagnostic")
 
 diff_headers=(
   'diff --git a/.env.production b/.env.production'
+  'diff --git a/a/.env-old/config b/a/.env-old/config'
   'diff --cc secrets/config'
   'diff --combined private.pem'
   '--- a/.netrc'
@@ -396,7 +421,7 @@ diff_headers=(
   'rename from credentials.old'
   'rename to credentials.new'
   'copy from id_ed25519'
-  'copy to .npmrc'
+  'copy to .env_bak'
 )
 for header in "${diff_headers[@]}"; do
   handoff=$(raw_handoff)
@@ -606,7 +631,9 @@ for flag in '--add-dir' '--permission-mode dontAsk' '--tools Read,Glob,Grep' '--
 done
 for rule in "Read(/$REPO_ROOT/**)" "Read(/$handoff/**)" "Read(/$REPO_ROOT/.git)" \
   "Read(/$REPO_ROOT/.git/**)" "Read(/$handoff/reviewer-id)" 'Read(./.git)' \
-  'Read(./**/.git)' 'Read(./**/.env)' 'Read(./secrets)' 'Read(./**/secrets)' \
+  'Read(./**/.git)' 'Read(./**/.env)' 'Read(./**/.env-*)' 'Read(./**/.env_*)' \
+  'Read(./**/.env~*)' 'Read(./secrets)' 'Read(./**/secrets)' \
+  'Read(./**/*.pem.*)' 'Read(./**/*.p12~*)' \
   'Read(./**/*credentials*)' "Read(/$HOME/.aws/**)" "Read(/$HOME/.claude/.credentials.json)" \
   "Read(/$HOME/.config/gh/hosts.yml)" "Read(/$HOME/.docker/config.json)" \
   "Read(/$HOME/.gnupg/**)" "Read(/$HOME/.kube/**)" \
@@ -659,7 +686,9 @@ profile_prefix="filesystem={\":root\"=\"deny\",\":minimal\"=\"read\",\":tmpdir\"
   fail "Codex runtime-minimal grants or grant ordering drifted"
 for rule in "\"$REPO_ROOT\"=\"read\"" "\"$handoff\"=\"read\"" \
   "\"$REPO_ROOT/.git\"=\"deny\"" "\"$handoff/reviewer-id\"=\"deny\"" \
-  '":workspace_roots"' '"**/.env"="deny"' '"**/*credentials*"="deny"'; do
+  '":workspace_roots"' '"**/.env"="deny"' '"**/.env-*"="deny"' \
+  '"**/.env_*"="deny"' '"**/.env~*"="deny"' '"**/*.pem.*"="deny"' \
+  '"**/*.p12~*"="deny"' '"**/*credentials*"="deny"'; do
   [[ $codex_new == *"$rule"* && $codex_resume == *"$rule"* ]] || fail "Codex permission rule missing: $rule"
 done
 [[ $codex_new == *'-C '"$REPO_ROOT"* && $codex_resume == *'-C '"$REPO_ROOT"* ]] ||
@@ -739,6 +768,24 @@ for mode in eof duplicate empty failure missing-model wrong-model mixed-model mi
   [[ $rc == 5 && $diagnostic != *'review failed'* ]] || fail "Claude terminal mode contract failed: $mode"
   [[ $diagnostic == *'SPAR-BRIDGE SESSION:'* ]] || fail "Claude did not report its failed new session"
 done
+
+mkdir -p "$TMP/mktemp-fail-bin"
+printf '#!/usr/bin/env bash\nexit 1\n' >"$TMP/mktemp-fail-bin/mktemp"
+chmod 755 "$TMP/mktemp-fail-bin/mktemp"
+handoff=$(init_handoff "$CLAUDE_BRIDGE")
+rc=0
+diagnostic=$(SPAR_TEST_CALLS="$TMP/claude-mktemp-failure" \
+  PATH="$TMP/mktemp-fail-bin:$TMP/bin:$PATH" "$CLAUDE_BRIDGE" new "$handoff" \
+  "Review early recovery." 2>&1 >/dev/null) || rc=$?
+[[ $rc == 2 && $diagnostic == *'SPAR-BRIDGE SESSION:'* ]] ||
+  fail "Claude did not report an allocated session after workdir creation failed"
+
+handoff=$(init_handoff "$CLAUDE_BRIDGE")
+rc=0
+diagnostic=$(SPAR_TEST_CALLS="$TMP/claude-final-output" PATH="$TMP/bin:$PATH" \
+  "$CLAUDE_BRIDGE" new "$handoff" "Review final delivery." 2>&1 >/dev/full) || rc=$?
+[[ $rc != 0 && $diagnostic == *'SPAR-BRIDGE SESSION:'* ]] ||
+  fail "Claude did not report an allocated session after final delivery failed"
 
 # Diagnostic write failures preserve reviewer status and cannot retain private output.
 mkdir -p "$TMP/mktemp-bin"

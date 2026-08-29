@@ -16,7 +16,7 @@ const SPAR_RESERVED = new Set([
   "claude.local.md",
   "reviewer-id",
 ])
-const SPAR_SENSITIVE = /^(?:\.env(?:\..*)?|\.(?:netrc|npmrc|pypirc)(?:[._~-].*)?|auth\.json(?:[._~-].*)?|secrets?(?:[._~-].*)?|.*credentials.*|.*\.(?:key|pem)(?:[._~-].*)?)$/i
+const SPAR_SENSITIVE = /^(?:\.env(?:[._~-].*)?|\.(?:netrc|npmrc|pypirc)(?:[._~-].*)?|auth\.json(?:[._~-].*)?|secrets?(?:[._~-].*)?|.*credentials.*|.*\.(?:key|pem|p12|pfx)(?:[._~-].*)?)$/i
 
 export const ReviewedWritesPlugin: Plugin = async ({ directory }) => {
   const absoluteTarget = (target: string) =>

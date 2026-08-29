@@ -93,7 +93,7 @@ validate_repo_metadata() {
     abort "cannot validate repository mount boundaries"
   fi
   [[ $nested_mounts == 0 ]] || abort "repository contains a nested mount boundary"
-  if ! unsafe=$(find -P "$REPO_ROOT" -xdev \
+  if ! unsafe=$(find -P "$REPO_ROOT" -xdev -mindepth 1 \
     \( -type d \( -name .git -o -name secrets \) \) -prune -o \
     -type f -links +1 -printf 'unsafe\n' -quit); then
     abort "cannot validate repository file metadata"
@@ -265,12 +265,16 @@ preflight() {
         deny: [
           "Write", "Edit", "NotebookEdit", "Bash", "WebFetch", "WebSearch", "Task",
           "Read(./.git)", "Read(./.git/**)", "Read(./**/.git)", "Read(./**/.git/**)",
-          "Read(./.env)", "Read(./.env.*)", "Read(./**/.env)", "Read(./**/.env.*)",
+          "Read(./.env)", "Read(./.env.*)", "Read(./.env-*)", "Read(./.env_*)", "Read(./.env~*)",
+          "Read(./**/.env)", "Read(./**/.env.*)", "Read(./**/.env-*)", "Read(./**/.env_*)", "Read(./**/.env~*)",
           "Read(./secrets)", "Read(./secrets/**)", "Read(./**/secrets)", "Read(./**/secrets/**)",
-          "Read(./**/*.key)", "Read(./**/*.pem)", "Read(./**/*.p12)", "Read(./**/*.pfx)",
+          "Read(./**/*.key)", "Read(./**/*.key.*)", "Read(./**/*.key-*)", "Read(./**/*.key_*)", "Read(./**/*.key~*)",
+          "Read(./**/*.pem)", "Read(./**/*.pem.*)", "Read(./**/*.pem-*)", "Read(./**/*.pem_*)", "Read(./**/*.pem~*)",
+          "Read(./**/*.p12)", "Read(./**/*.p12.*)", "Read(./**/*.p12-*)", "Read(./**/*.p12_*)", "Read(./**/*.p12~*)",
+          "Read(./**/*.pfx)", "Read(./**/*.pfx.*)", "Read(./**/*.pfx-*)", "Read(./**/*.pfx_*)", "Read(./**/*.pfx~*)",
           "Read(./**/*credentials*)", "Read(./**/auth.json)",
-           "Read(./**/.netrc)", "Read(./**/.npmrc)", "Read(./**/.pypirc)",
-           "Read(./**/id_rsa*)", "Read(./**/id_dsa*)", "Read(./**/id_ecdsa*)", "Read(./**/id_ed25519*)",
+          "Read(./**/.netrc)", "Read(./**/.npmrc)", "Read(./**/.pypirc)",
+          "Read(./**/id_rsa*)", "Read(./**/id_dsa*)", "Read(./**/id_ecdsa*)", "Read(./**/id_ed25519*)",
           "Read(/" + $home + "/.aws)", "Read(/" + $home + "/.aws/**)",
           "Read(/" + $home + "/.claude/.credentials.json)",
           "Read(/" + $home + "/.codex/auth.json)",
@@ -326,10 +330,11 @@ interrupt_stream() {
 stream() { # $1 reply_fd; rest = claude session flags
   local reply_fd=$1 line rc=0 child_rc=0 result="" result_count=0 event_session
   shift
-  workdir=$(mktemp -d) || abort "cannot create a private temp directory"
+  workdir=""
   pid=""
   trap cleanup_stream EXIT
   trap interrupt_stream INT TERM HUP
+  workdir=$(mktemp -d) || abort "cannot create a private temp directory"
   mkfifo -m 600 "$workdir/fifo" || abort "cannot create the event fifo"
   setsid timeout --kill-after=2 "$CEILING" /usr/bin/env -C "$REPO_ROOT" "$REVIEWER_BIN" -p "$@" \
     --add-dir "$HANDOFF" --permission-mode dontAsk \
@@ -394,8 +399,6 @@ stream() { # $1 reply_fd; rest = claude session flags
     exit 5
   }
   scan_reply "$result"
-  REPORT_SESSION=0
-  trap - EXIT INT TERM HUP
   rm -rf -- "$workdir"
   workdir=""
   printf '%s\n' "$result" >&"$reply_fd"
@@ -434,7 +437,9 @@ case $mode in
     REPORT_SESSION=1
     stream 2 --session-id "$sid"
     append_manifest "$HANDOFF" "$role" completed "$sid"
-    printf '%s\n' "$sid" ;;
+    printf '%s\n' "$sid"
+    REPORT_SESSION=0
+    trap - EXIT INT TERM HUP ;;
   resume)
     [[ $# -eq 4 ]] || usage
     [[ $2 =~ $UUID_RE ]] || abort "resume session id is not a UUID: $2"
@@ -446,6 +451,7 @@ case $mode in
     PROMPT=$4
     scan_payload "$HANDOFF"
     preflight
-    stream 1 --resume "$2" ;;
+    stream 1 --resume "$2"
+    trap - EXIT INT TERM HUP ;;
   *) usage ;;
 esac

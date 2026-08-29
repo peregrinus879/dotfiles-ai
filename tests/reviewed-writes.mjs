@@ -90,6 +90,9 @@ try {
   await expectEditRejected("reviewer instruction injection", `${handoff}/AGENTS.md`)
   await expectEditRejected("Claude instruction injection", `${handoff}/CLAUDE.md`)
   await expectEditRejected("sensitive handoff backup", `${handoff}/private.pem.bak`)
+  await expectEditRejected("dotenv handoff backup", `${handoff}/.env_bak`)
+  await expectEditRejected("mixed-case instruction injection", `${handoff}/Agents.md`)
+  await expectEditRejected("PKCS handoff backup", `${handoff}/private.p12~`)
 
   fs.symlinkSync(handoff, `${aliasWorkspace}/handoff`)
   await expectEditAccepted("workspace alias to handoff content", `${aliasWorkspace}/handoff/spar-plan.md`)

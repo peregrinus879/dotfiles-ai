@@ -39,7 +39,7 @@ build_reviewer_profile() {
   escaped_runtime=${escaped_runtime//\"/\\\"}
   escaped_repo=${REPO_ROOT//\\/\\\\}
   escaped_repo=${escaped_repo//\"/\\\"}
-  REVIEWER_PROFILE="permissions.spar-reviewer={description=\"Repository-scoped read-only spar reviewer\",filesystem={\":root\"=\"deny\",\":minimal\"=\"read\",\":tmpdir\"=\"deny\",\":slash_tmp\"=\"deny\",\"$escaped_runtime\"=\"read\",\"$escaped_repo\"=\"read\",\"$HANDOFF\"=\"read\",\"$escaped_repo/.git\"=\"deny\",\"$HANDOFF/reviewer-id\"=\"deny\",\"~/.aws\"=\"deny\",\"~/.claude/.credentials.json\"=\"deny\",\"~/.codex/auth.json\"=\"deny\",\"~/.config/gh/hosts.yml\"=\"deny\",\"~/.docker/config.json\"=\"deny\",\"~/.gnupg\"=\"deny\",\"~/.kube\"=\"deny\",\"~/.local/share/opencode/auth.json\"=\"deny\",\"~/.netrc\"=\"deny\",\"~/.npmrc\"=\"deny\",\"~/.pypirc\"=\"deny\",\"~/.ssh\"=\"deny\",glob_scan_max_depth=64,\":workspace_roots\"={\".\"=\"read\",\".git\"=\"deny\",\"**/.git\"=\"deny\",\".env\"=\"deny\",\".env.*\"=\"deny\",\"**/.env\"=\"deny\",\"**/.env.*\"=\"deny\",\"secrets\"=\"deny\",\"secrets/**\"=\"deny\",\"**/secrets\"=\"deny\",\"**/secrets/**\"=\"deny\",\"**/*.key\"=\"deny\",\"**/*.pem\"=\"deny\",\"**/*.p12\"=\"deny\",\"**/*.pfx\"=\"deny\",\"**/*credentials*\"=\"deny\",\"**/auth.json\"=\"deny\",\"**/.netrc\"=\"deny\",\"**/.npmrc\"=\"deny\",\"**/.pypirc\"=\"deny\",\"**/id_rsa*\"=\"deny\",\"**/id_dsa*\"=\"deny\",\"**/id_ecdsa*\"=\"deny\",\"**/id_ed25519*\"=\"deny\"}},network={enabled=false}}"
+  REVIEWER_PROFILE="permissions.spar-reviewer={description=\"Repository-scoped read-only spar reviewer\",filesystem={\":root\"=\"deny\",\":minimal\"=\"read\",\":tmpdir\"=\"deny\",\":slash_tmp\"=\"deny\",\"$escaped_runtime\"=\"read\",\"$escaped_repo\"=\"read\",\"$HANDOFF\"=\"read\",\"$escaped_repo/.git\"=\"deny\",\"$HANDOFF/reviewer-id\"=\"deny\",\"~/.aws\"=\"deny\",\"~/.claude/.credentials.json\"=\"deny\",\"~/.codex/auth.json\"=\"deny\",\"~/.config/gh/hosts.yml\"=\"deny\",\"~/.docker/config.json\"=\"deny\",\"~/.gnupg\"=\"deny\",\"~/.kube\"=\"deny\",\"~/.local/share/opencode/auth.json\"=\"deny\",\"~/.netrc\"=\"deny\",\"~/.npmrc\"=\"deny\",\"~/.pypirc\"=\"deny\",\"~/.ssh\"=\"deny\",glob_scan_max_depth=64,\":workspace_roots\"={\".\"=\"read\",\".git\"=\"deny\",\"**/.git\"=\"deny\",\".env\"=\"deny\",\".env.*\"=\"deny\",\".env-*\"=\"deny\",\".env_*\"=\"deny\",\".env~*\"=\"deny\",\"**/.env\"=\"deny\",\"**/.env.*\"=\"deny\",\"**/.env-*\"=\"deny\",\"**/.env_*\"=\"deny\",\"**/.env~*\"=\"deny\",\"secrets\"=\"deny\",\"secrets/**\"=\"deny\",\"**/secrets\"=\"deny\",\"**/secrets/**\"=\"deny\",\"**/*.key\"=\"deny\",\"**/*.key.*\"=\"deny\",\"**/*.key-*\"=\"deny\",\"**/*.key_*\"=\"deny\",\"**/*.key~*\"=\"deny\",\"**/*.pem\"=\"deny\",\"**/*.pem.*\"=\"deny\",\"**/*.pem-*\"=\"deny\",\"**/*.pem_*\"=\"deny\",\"**/*.pem~*\"=\"deny\",\"**/*.p12\"=\"deny\",\"**/*.p12.*\"=\"deny\",\"**/*.p12-*\"=\"deny\",\"**/*.p12_*\"=\"deny\",\"**/*.p12~*\"=\"deny\",\"**/*.pfx\"=\"deny\",\"**/*.pfx.*\"=\"deny\",\"**/*.pfx-*\"=\"deny\",\"**/*.pfx_*\"=\"deny\",\"**/*.pfx~*\"=\"deny\",\"**/*credentials*\"=\"deny\",\"**/auth.json\"=\"deny\",\"**/.netrc\"=\"deny\",\"**/.npmrc\"=\"deny\",\"**/.pypirc\"=\"deny\",\"**/id_rsa*\"=\"deny\",\"**/id_dsa*\"=\"deny\",\"**/id_ecdsa*\"=\"deny\",\"**/id_ed25519*\"=\"deny\"}},network={enabled=false}}"
 }
 PLUGIN_DISABLE_OVERRIDES=(
   -c 'features.plugins=false'
@@ -152,15 +152,13 @@ validate_repo_metadata() {
     abort "cannot validate repository mount boundaries"
   fi
   [[ $nested_mounts == 0 ]] || abort "repository contains a nested mount boundary"
-  if ! unsafe=$(find -P "$REPO_ROOT" -xdev \
+  if ! unsafe=$(find -P "$REPO_ROOT" -xdev -mindepth 1 \
     \( -type d \( -name .git -o -name secrets \) \) -prune -o \
     -type f -links +1 -printf 'hardlink\n' -quit); then
     abort "cannot validate repository file metadata"
   fi
   [[ -z $unsafe ]] || abort "repository contains a hard-linked file outside denied directories"
-  if ! unsafe=$(find -P "$REPO_ROOT" -xdev \
-    \( -mindepth 65 -printf 'deep\n' -quit \) -o \
-    \( -type d \( -name .git -o -name secrets \) \) -prune); then
+  if ! unsafe=$(find -P "$REPO_ROOT" -xdev -mindepth 65 -printf 'deep\n' -quit); then
     abort "cannot validate repository depth"
   fi
   [[ -z $unsafe ]] || abort "repository exceeds the reviewer deny-glob depth limit"

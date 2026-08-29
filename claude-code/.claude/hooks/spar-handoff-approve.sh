@@ -67,13 +67,20 @@ name=${target##*/}
 [[ $(stat -c '%u' -- "$parent" 2>/dev/null) == $(id -u) ]] || emit deny "spar handoff directory has the wrong owner"
 [[ $(stat -c '%a' -- "$parent" 2>/dev/null) == 700 ]] || emit deny "spar handoff directory has the wrong mode"
 
-case $name in
-  reviewer-id | AGENTS.md | AGENTS.override.md | CLAUDE.md | CLAUDE.local.md | .git)
+case ${name,,} in
+  reviewer-id | agents.md | agents.override.md | claude.md | claude.local.md | .git)
     emit deny "bridge-owned or reviewer-instruction handoff target" ;;
-  .env | .env.* | .netrc | .netrc.* | .npmrc | .npmrc.* | .pypirc | .pypirc.* | \
-    *.key | *.key.* | *.key~ | *.key-* | *.key_* | *.pem | *.pem.* | *.pem~ | *.pem-* | *.pem_* | \
-    *credentials* | auth.json | auth.json.* | auth.json~ | auth.json-* | auth.json_* | \
-    secret | secret.* | secret-* | secret_* | secrets | secrets.* | secrets-* | secrets_*)
+  .env | .env.* | .env-* | .env_* | .env~* | \
+    .netrc | .netrc.* | .netrc-* | .netrc_* | .netrc~* | \
+    .npmrc | .npmrc.* | .npmrc-* | .npmrc_* | .npmrc~* | \
+    .pypirc | .pypirc.* | .pypirc-* | .pypirc_* | .pypirc~* | \
+    *.key | *.key.* | *.key~* | *.key-* | *.key_* | \
+    *.pem | *.pem.* | *.pem~* | *.pem-* | *.pem_* | \
+    *.p12 | *.p12.* | *.p12~* | *.p12-* | *.p12_* | \
+    *.pfx | *.pfx.* | *.pfx~* | *.pfx-* | *.pfx_* | \
+    *credentials* | auth.json | auth.json.* | auth.json~* | auth.json-* | auth.json_* | \
+    secret | secret.* | secret~* | secret-* | secret_* | \
+    secrets | secrets.* | secrets~* | secrets-* | secrets_*)
     emit deny "sensitive-shaped spar handoff target" ;;
 esac
 

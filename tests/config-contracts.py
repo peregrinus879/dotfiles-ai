@@ -73,8 +73,10 @@ for marker in (
     "realpath -m",
     "path_traverses_handoff",
     "stat -c '%h'",
-    "reviewer-id | AGENTS.md | AGENTS.override.md | CLAUDE.md | CLAUDE.local.md | .git",
-    ".netrc | .netrc.* | .npmrc | .npmrc.* | .pypirc | .pypirc.*",
+    "case ${name,,} in",
+    "reviewer-id | agents.md | agents.override.md | claude.md | claude.local.md | .git",
+    ".env | .env.* | .env-* | .env_* | .env~*",
+    ".netrc | .netrc.* | .netrc-* | .netrc_* | .netrc~*",
     "HANDOFF_RE='^/var/tmp/spar-",
 ):
     require(marker in hook_source, f"spar gate hook control drifted: {marker}")
@@ -89,6 +91,7 @@ for marker in (
     "TOTAL_MAX = 1024 * 1024",
     "ENTRY_COUNT_MAX = 128",
     "FINDING_REPORT_MAX = 8",
+    're.fullmatch(r"\\.env(?:[._~-].*)?", part)',
     '"claude.local.md",',
     '"reviewer-id",',
     "def diff_paths(text: str):",
@@ -137,6 +140,9 @@ for marker in (
     '"Read(./**/.git)"',
     '"Read(./secrets)"',
     '"Read(./**/secrets)"',
+    '"Read(./**/.env~*)"',
+    '"Read(./**/*.pem.*)"',
+    '"Read(./**/*.p12~*)"',
     "CLAUDE_CODE_USE_ANTHROPIC_AWS",
     "CLAUDE_CODE_USE_MANTLE",
     "CLAUDE_CODE_SKIP_ANTHROPIC_AWS_AUTH",
@@ -160,6 +166,9 @@ for marker in (
     '\\"$HANDOFF/reviewer-id\\"=\\"deny\\"',
     "project_doc_max_bytes=0",
     "project_doc_fallback_filenames=[]",
+    "**/.env~*",
+    "**/*.pem.*",
+    "**/*.p12~*",
     'network={enabled=false}',
     '--ignore-user-config',
     '--ignore-rules',
@@ -180,6 +189,7 @@ for name, source in (("Claude", claude_bridge_source), ("Codex", codex_bridge_so
         "repository contains a nested mount boundary",
         "REPO_ROOT != /",
         "findmnt -R -J -o TARGET",
+        "-xdev -mindepth 1",
         "INIT_HANDOFF=$root",
         "cannot report the handoff directory",
         "child_rc == 124 || $child_rc == 137",
@@ -190,12 +200,22 @@ for name, source in (("Claude", claude_bridge_source), ("Codex", codex_bridge_so
 
 require("EXPECTED_SESSION_ID" in claude_bridge_source, "Claude session-result binding drifted")
 require(
+    claude_bridge_source.index("trap cleanup_stream EXIT")
+    < claude_bridge_source.index("workdir=$(mktemp -d)"),
+    "Claude recovery trap must precede private workdir creation",
+)
+require(
+    claude_bridge_source.index('stream 2 --session-id "$sid"')
+    < claude_bridge_source.index("REPORT_SESSION=0"),
+    "Claude recovery reporting clears before final session delivery",
+)
+require(
     "A reviewer descendant may outlive its leader" in claude_bridge_source,
     "Claude normal-exit descendant cleanup drifted",
 )
 for marker in (
     "EXPECTED_THREAD_ID",
-    "-mindepth 65",
+    "-xdev -mindepth 65 -printf 'deep\\n' -quit",
     '(.installed | type) == "array"',
     "REPORT_THREAD=1",
 ):
@@ -220,6 +240,8 @@ for marker in (
     "resolveWriteTarget",
     "traversesSparHandoff",
     "reviewer-instruction",
+    "env(?:[._~-].*)?",
+    "key|pem|p12|pfx",
 ):
     require(marker in reviewed_writes_source, f"OpenCode handoff write gate drifted: {marker}")
 require(

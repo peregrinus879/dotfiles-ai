@@ -109,8 +109,7 @@ def sensitive_path(value: str) -> bool:
     parts = normalized.split("/")
     name = parts[-1]
     return (
-        name == ".env"
-        or name.startswith(".env.")
+        any(re.fullmatch(r"\.env(?:[._~-].*)?", part) for part in parts)
         or re.search(r"\.(?:key|pem|p12|pfx)(?:[._~-].*)?$", name) is not None
         or any(re.fullmatch(r"secrets?(?:[._~-].*)?", part) for part in parts)
         or any("credentials" in part for part in parts)
