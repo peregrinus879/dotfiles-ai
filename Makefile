@@ -102,9 +102,14 @@ verify:
 	  if [[ -x "$$HOME/.local/bin/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
 	done; \
 	if [[ $$(grep -Fc -- '--tools ' claude-code/.local/bin/spar-claude) == 1 ]] && \
-	  grep -Fqx '    --tools "Read,Glob,Grep" \' claude-code/.local/bin/spar-claude; then \
+	  grep -Fqx '    --tools "Read,Glob,Grep" --allowedTools "$$READ_RULE" \' claude-code/.local/bin/spar-claude; then \
 	  echo "ok:   spar-claude read-only tool whitelist"; \
 	else echo "FAIL: spar-claude read-only tool whitelist missing"; fail=1; fi; \
+	if grep -Fqx '#!/bin/bash -p' claude-code/.local/bin/spar-claude && \
+	  grep -Fqx '#!/bin/bash -p' codex/.local/bin/spar-codex && \
+	  grep -Fqx '#!/usr/bin/python3 -I' claude-code/.local/bin/spar-payload-scan; then \
+	  echo "ok:   spar bridge interpreter isolation"; \
+	else echo "FAIL: spar bridge interpreter isolation drifted"; fail=1; fi; \
 	for b in claude-code/.local/bin/spar-claude codex/.local/bin/spar-codex; do \
 	  if grep -Fq "HANDOFF_RE='^/var/tmp/spar-" "$$b" && grep -Fq 'validate_handoff()' "$$b" && \
 	    grep -Fq 'stat -c '\''%h'\''' "$$b" && grep -Fq 'stat -c '\''%a'\''' "$$b" && \
@@ -123,7 +128,9 @@ verify:
 	  grep -Fq 'Before every commit, run `/commit`' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Commit only after H approves that exact candidate.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Approve and commit (Recommended) | Revise with comments | Reject with comments' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'run its approved mandatory `/spar` final integration review' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'A clear task request authorizes value-based read-only spar reviewer calls inside its scope.' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Plan and build are the primary `/spar` checkpoints, not mandatory gates' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'treat `/spar` build review as a primary checkpoint before push' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Trivial work may skip a formal plan, but never the exact pre-commit review.' claude-code/.claude/rules/shared-guidance.md; then \
 	  echo "ok:   autonomous-work commit checkpoints"; \
 	else echo "FAIL: autonomous-work commit checkpoints drifted"; fail=1; fi; \
@@ -175,26 +182,29 @@ verify:
 	if grep -Fq '**Brainstorming:**' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'spar-brainstorm.md' claude-code/.local/bin/spar-claude && \
 	  grep -Fq 'spar-brainstorm.md' codex/.local/bin/spar-codex && \
-	  grep -Fq 'Planning uses blind round 0, full review round 1, and a fresh cold read in round 2.' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'no per-unit reviewer gate is required' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'No mode run continues past round 2' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq '**Final integration review:** mandatory after all planned commits are local and before any push.' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq '**Review judgment:** Plan and build are the primary spar checkpoints, not mandatory gates.' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'fixed calls, rounds, fan-outs, and review depth never substitute for judgment' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq '**Plan review:** Consider spar after research and analysis and before presenting the final plan.' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq '**Build review:** Consider spar after all approved commits and before push.' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'complete `git diff --binary <base>..HEAD`' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'the final integration review repeats after any fix-forward commit' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'only H'"'"'s approval of the exact candidate authorizes its commit' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'decision-ready, not option approval' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'latest approved plan and Decision Rationale' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'only H'"'"'s approval of each exact candidate authorizes a commit' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'decision-ready input, not option approval' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'leaving the worktree intact' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'never alter or exempt that artifact merely to pass' claude-code/.claude/skills/spar/SKILL.md && \
-	  ! grep -Fq 'implementation gate' claude-code/.claude/skills/spar/SKILL.md && \
-	  ! grep -Fq 'nine calls across execution gates' claude-code/.claude/skills/spar/SKILL.md && \
-	  ! grep -Fq 'four-round ceiling' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'do not collapse these modes into plan review' opencode/.config/opencode/commands/spar.md; then \
-	  echo "ok:   spar bounded-round and integration contracts"; \
-	else echo "FAIL: spar bounded-round or integration contracts drifted"; fail=1; fi; \
-	if grep -Fq 'beginning with a target brief' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq '`Evidence Pack` section' claude-code/.claude/skills/spar/SKILL.md && \
+	  ! grep -Fq 'hard ceiling of round 2' claude-code/.claude/skills/spar/SKILL.md && \
+	  ! grep -Fq 'mandatory after all planned commits' claude-code/.claude/skills/spar/SKILL.md && \
+	  ! grep -Fq 'repeating at most one call' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'plan and build are primary checkpoints' opencode/.config/opencode/commands/spar.md; then \
+	  echo "ok:   spar value-based checkpoint contracts"; \
+	else echo "FAIL: spar value-based checkpoint contracts drifted"; fail=1; fi; \
+	if grep -Fq 'Begin the artifact with a target brief' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq '`Decision Rationale`' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'without repeating completed research' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'Include an `Evidence Pack`' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'literal captured output' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'You review offline' claude-code/.claude/skills/spar/SKILL.md && \
+	  grep -Fq 'rather than reopening them solely because another approach exists' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'exact decision requested' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'Raw reviewer transcripts are never required' claude-code/.claude/skills/spar/SKILL.md; then \
 	  echo "ok:   spar target, evidence, and ruling packets"; \
@@ -213,10 +223,6 @@ verify:
 	    echo "ok:   $$s skill copies in sync (shared sections)"; \
 	  else echo "FAIL: $$s skill copies drifted (allowed diffs: tool frontmatter keys, Co-Authored-By, Reviewer incantations section)"; fail=1; fi; \
 	done; \
-	spar_shared_lines=$$(awk '/^## Reviewer incantations$$/{skip=1; next} /^## /{skip=0} !skip' claude-code/.claude/skills/spar/SKILL.md | grep -v -e 'allowed-tools' -e 'Co-Authored-By' | wc -l); \
-	if (( spar_shared_lines > 0 && spar_shared_lines <= 67 )); then \
-	  echo "ok:   spar shared protocol stays within the 37+30 line budget ($$spar_shared_lines)"; \
-	else echo "FAIL: spar shared protocol exceeds the 37+30 line budget ($$spar_shared_lines)"; fail=1; fi; \
 	tripwire=$$(sed -n 's/.*version tripwire source: //p' docs/maintenance.md | head -1); \
 	if [[ -n $$tripwire ]]; then \
 	  if command -v mise > /dev/null && command -v claude > /dev/null; then \

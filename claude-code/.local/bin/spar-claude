@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -p
 # spar-claude - bridge-controlled read-only claude reviewer for the spar skill.
 # Flags are hard-coded so no caller can weaken them (AGENTS.md and docs/maintenance.md).
 # Modes: init (private handoff directory to stdout)
@@ -6,13 +6,15 @@
 #        flush <handoff-dir> (validate, then sync the handoff filesystem)
 #        status (list validated handoffs with task title and reviewer manifest)
 #        new <handoff-dir> "<prompt>" [primary|cold] (session id to stdout, reply
-#          to stderr; appends role and state lines to the reviewer-id manifest)
+#          to stderr; appends bridge, role, state, and id to the reviewer manifest)
 #        resume <sid> <handoff-dir> "<prompt>" (reply to stdout)
 # Exit codes: 0 ok, 2 preflight failed, 3 usage limit, 4 stall, 5 reviewer error,
 #             64 usage, 124 ceiling.
+unset BASH_ENV ENV
 set -euo pipefail
 
 MODEL="opus"
+BRIDGE="claude"
 REVIEWER_SETTINGS='{"env":{"ANTHROPIC_DEFAULT_OPUS_MODEL":""}}'
 export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 export DISABLE_AUTOUPDATER=1
@@ -100,9 +102,20 @@ flush_handoff() {
 
 append_manifest() { # handoff-dir role state id
   local root=$1
-  (umask 077; printf '%s\t%s\t%s\t%s\n' "$(date -Is)" "$2" "$3" "$4" >>"$root/reviewer-id") ||
+  (umask 077; printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "$BRIDGE" "$2" "$3" "$4" >>"$root/reviewer-id") ||
     abort "cannot append the reviewer manifest: $root"
   sync -f -- "$root" || abort "cannot flush the reviewer manifest: $root"
+}
+
+validate_resume_session() { # handoff-dir session-id
+  local root=$1 sid=$2
+  [[ -f $root/reviewer-id ]] || abort "resume session is not recorded in this handoff: $sid"
+  awk -F '\t' -v bridge="$BRIDGE" -v sid="$sid" '
+    (NF == 5 && $2 == bridge && $3 == "primary" &&
+      ($4 == "allocated" || $4 == "completed") && $5 == sid) ||
+    (NF == 4 && $2 == "primary" && $3 == "allocated" && $4 == sid) { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' "$root/reviewer-id" || abort "resume session is not recorded in this handoff: $sid"
 }
 
 status_handoffs() {
@@ -131,16 +144,30 @@ status_handoffs() {
 }
 
 preflight() {
-  local variable auth
+  local variable auth account_home command_path
   command -v jq >/dev/null || abort "jq is required and missing"
+  command_path=$(command -v claude) || abort "claude is required and missing"
+  REVIEWER_BIN=$(realpath -e -- "$command_path") || abort "cannot resolve the claude runtime"
+  [[ -f $REVIEWER_BIN && ! -L $REVIEWER_BIN && -x $REVIEWER_BIN ]] ||
+    abort "claude runtime is not an executable regular file: $REVIEWER_BIN"
   for variable in ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL \
+    ANTHROPIC_BETAS ANTHROPIC_CUSTOM_HEADERS \
     ANTHROPIC_PROFILE ANTHROPIC_FEDERATION_RULE_ID ANTHROPIC_ORGANIZATION_ID \
     ANTHROPIC_DEFAULT_OPUS_MODEL \
     CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX \
-    CLAUDE_CODE_USE_FOUNDRY CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST CLAUDE_CONFIG_DIR; do
-    [[ -z ${!variable:-} ]] || abort "$variable is set; claude.ai subscription auth only"
+    CLAUDE_CODE_USE_FOUNDRY CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST CLAUDE_CONFIG_DIR \
+    CLAUDE_CODE_CERT_STORE CLAUDE_CODE_CLIENT_CERT CLAUDE_CODE_CLIENT_KEY \
+    CLAUDE_CODE_CLIENT_KEY_PASSPHRASE CLAUDE_CODE_DISABLE_MTLS_RELOAD_ON_STALE_CONNECTION \
+    CLAUDE_CODE_OAUTH_SCOPES \
+    SSL_CERT_FILE SSL_CERT_DIR NODE_EXTRA_CA_CERTS NODE_TLS_REJECT_UNAUTHORIZED \
+    HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY \
+    http_proxy https_proxy all_proxy no_proxy; do
+    [[ -z ${!variable:-} ]] || abort "$variable is set; reviewer authentication and routing must not be overridden"
   done
-  auth=$(timeout --kill-after=2 30 claude auth status 2>/dev/null) ||
+  IFS=: read -r _ _ _ _ _ account_home _ < <(getent passwd "$(id -u)")
+  [[ -n $account_home && ${HOME:-} == "$account_home" ]] ||
+    abort "HOME does not match the current account home"
+  auth=$(timeout --kill-after=2 30 "$REVIEWER_BIN" auth status 2>/dev/null) ||
     abort "cannot verify Claude authentication"
   jq -e '.loggedIn == true and .authMethod == "claude.ai" and .apiProvider == "firstParty"' \
     <<<"$auth" >/dev/null 2>&1 ||
@@ -170,10 +197,10 @@ stream() { # $1 reply_fd; rest = claude session flags
   pid=""
   trap cleanup_stream EXIT INT TERM
   mkfifo -m 600 "$workdir/fifo" || abort "cannot create the event fifo"
-  setsid timeout --kill-after=2 "$CEILING" claude -p "$@" \
-    --permission-mode plan --disallowedTools "Write Edit NotebookEdit Bash" \
-    --tools "Read,Glob,Grep" \
-    --model "$MODEL" --effort max --safe-mode --setting-sources user \
+  setsid timeout --kill-after=2 "$CEILING" /usr/bin/env -C "$HANDOFF" "$REVIEWER_BIN" -p "$@" \
+    --permission-mode dontAsk --disallowedTools "Write Edit NotebookEdit Bash" \
+    --tools "Read,Glob,Grep" --allowedTools "$READ_RULE" \
+    --model "$MODEL" --effort max --safe-mode --setting-sources= \
     --settings "$REVIEWER_SETTINGS" --output-format stream-json \
     --include-partial-messages --verbose >"$workdir/fifo" 2>/dev/null <<<"$PROMPT" &
   pid=$!
@@ -246,23 +273,28 @@ case $mode in
     status_handoffs ;;
   new)
     [[ $# -eq 3 || $# -eq 4 ]] || usage
+    HANDOFF=$2
     role=${4:-primary}
     [[ $role == primary || $role == cold ]] || abort "reviewer role must be primary or cold: $role"
-    flush_handoff "$2"
+    flush_handoff "$HANDOFF"
+    READ_RULE="Read(/$HANDOFF/**)"
     PROMPT=$3
-    scan_payload "$2"
+    scan_payload "$HANDOFF"
     sid=$(cat /proc/sys/kernel/random/uuid) || abort "cannot generate a reviewer session id"
     preflight
-    append_manifest "$2" "$role" allocated "$sid"
+    append_manifest "$HANDOFF" "$role" allocated "$sid"
     stream 2 --session-id "$sid"
-    append_manifest "$2" "$role" completed "$sid"
+    append_manifest "$HANDOFF" "$role" completed "$sid"
     printf '%s\n' "$sid" ;;
   resume)
     [[ $# -eq 4 ]] || usage
     [[ $2 =~ $UUID_RE ]] || abort "resume session id is not a UUID: $2"
-    flush_handoff "$3"
+    HANDOFF=$3
+    flush_handoff "$HANDOFF"
+    validate_resume_session "$HANDOFF" "$2"
+    READ_RULE="Read(/$HANDOFF/**)"
     PROMPT=$4
-    scan_payload "$3"
+    scan_payload "$HANDOFF"
     preflight
     stream 1 --resume "$2" ;;
   *) usage ;;

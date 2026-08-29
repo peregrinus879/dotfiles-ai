@@ -70,11 +70,36 @@ for marker in (
     'emit deny "invalid spar handoff parent"',
     "gate_error",
     "exit 2",
+    "realpath -m",
+    "path_traverses_handoff",
     "stat -c '%h'",
-    ".env | .env.* | *.key | *.pem | *credentials* | auth.json | secrets",
+    "reviewer-id | AGENTS.md | AGENTS.override.md | CLAUDE.md | CLAUDE.local.md | .git",
+    ".netrc | .netrc.* | .npmrc | .npmrc.* | .pypirc | .pypirc.*",
     "HANDOFF_RE='^/var/tmp/spar-",
 ):
     require(marker in hook_source, f"spar gate hook control drifted: {marker}")
+scanner_source = (ROOT / "claude-code/.local/bin/spar-payload-scan").read_text(
+    encoding="utf-8"
+)
+for marker in (
+    "#!/usr/bin/python3 -I",
+    '"claude.local.md",',
+    "def diff_paths(text: str):",
+    "def safe_assignment_value(value: str)",
+    "SAFE_VALUE.fullmatch",
+):
+    require(marker in scanner_source, f"spar payload scanner control drifted: {marker}")
+reviewed_writes_source = (
+    ROOT / "opencode/.config/opencode/plugins/reviewed-writes.ts"
+).read_text(encoding="utf-8")
+for marker in (
+    "SPAR_RESERVED",
+    "SPAR_SENSITIVE",
+    "resolveWriteTarget",
+    "traversesSparHandoff",
+    "reviewer-instruction",
+):
+    require(marker in reviewed_writes_source, f"OpenCode handoff write gate drifted: {marker}")
 require(
     claude["permissions"]["allow"]
     == [

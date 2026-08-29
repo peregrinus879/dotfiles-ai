@@ -14,6 +14,7 @@
 # Non-file tools reaching this hook are ignored (silent exit 0).
 
 HANDOFF_RE='^/var/tmp/spar-[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
+HANDOFF_TREE_RE='^/var/tmp/spar-[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}(/|$)'
 
 emit() {
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"%s","permissionDecisionReason":"%s"}}\n' "$1" "$2"
@@ -23,6 +24,19 @@ emit() {
 gate_error() {
   echo "spar-handoff-approve: $1; blocking (fail closed)" >&2
   exit 2
+}
+
+path_traverses_handoff() {
+  local path=$1 cursor=/ part resolved
+  local -a parts
+  IFS=/ read -r -a parts <<<"$path"
+  for part in "${parts[@]}"; do
+    [[ -n $part ]] || continue
+    cursor="${cursor%/}/$part"
+    resolved=$(realpath -e -- "$cursor" 2>/dev/null) || break
+    [[ $resolved =~ $HANDOFF_TREE_RE ]] && return 0
+  done
+  return 1
 }
 
 for dependency in jq realpath stat; do
@@ -36,6 +50,12 @@ case $tool in
 esac
 target=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"$input" 2>/dev/null) ||
   gate_error "cannot parse the tool input path"
+[[ -n $target ]] || gate_error "tool input path is empty"
+if [[ $target == /* ]]; then requested=$target; else requested="$PWD/$target"; fi
+target=$(realpath -m -- "$requested" 2>/dev/null) || gate_error "cannot resolve the tool input path"
+if path_traverses_handoff "$requested" && [[ ! $target =~ $HANDOFF_TREE_RE ]]; then
+  emit deny "spar handoff target escapes through an alias"
+fi
 [[ $target == /var/tmp/spar-* ]] || emit defer "use the configured permission mode"
 
 parent=${target%/*}
@@ -48,7 +68,13 @@ name=${target##*/}
 [[ $(stat -c '%a' -- "$parent" 2>/dev/null) == 700 ]] || emit deny "spar handoff directory has the wrong mode"
 
 case $name in
-  .env | .env.* | *.key | *.pem | *credentials* | auth.json | secrets) emit deny "sensitive-shaped spar handoff target" ;;
+  reviewer-id | AGENTS.md | AGENTS.override.md | CLAUDE.md | CLAUDE.local.md | .git)
+    emit deny "bridge-owned or reviewer-instruction handoff target" ;;
+  .env | .env.* | .netrc | .netrc.* | .npmrc | .npmrc.* | .pypirc | .pypirc.* | \
+    *.key | *.key.* | *.key~ | *.key-* | *.key_* | *.pem | *.pem.* | *.pem~ | *.pem-* | *.pem_* | \
+    *credentials* | auth.json | auth.json.* | auth.json~ | auth.json-* | auth.json_* | \
+    secret | secret.* | secret-* | secret_* | secrets | secrets.* | secrets-* | secrets_*)
+    emit deny "sensitive-shaped spar handoff target" ;;
 esac
 
 if [[ -e $target || -L $target ]]; then

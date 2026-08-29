@@ -13,6 +13,7 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 - Comments and doc notes state only present constraints; no version-history or transition narration. A release or version identifier may scope a present fact, never frame a change; otherwise a version appears only as a workaround's removal trigger, dying with the workaround, or as a dated maintenance-ledger probe anchoring re-verification. Provenance belongs in commit messages.
 - Flag deviations from the project's style or linter config rather than silently matching; do not introduce a new formatter or linter unasked.
 - Do not delegate synthesis or final decisions to subagents.
+- Choose subagents, reviewer calls, and workflow shape by expected value, task risk, independence, and available capacity; preserve enough capacity to synthesize and act. Fixed fan-outs, call counts, and review depth never substitute for judgment.
 
 ## Safety
 
@@ -30,13 +31,13 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 
 ## Work and Review
 
-- A clear implementation request authorizes non-destructive edits and project-defined local verification inside the current trusted repository. Audit-only and plan-only requests remain read-only.
-- For non-trivial work, first audit and present an atomic commit plan with one-line purposes and files touched plus one final `/spar` integration review after all units. Offer `/spar` review of the draft plan and wait for H's go-ahead before editing. Plan approval authorizes the listed edits, verification, reviewer calls, and deployment steps, never a commit.
+- A clear task request authorizes value-based read-only spar reviewer calls inside its scope. A clear implementation request additionally authorizes non-destructive edits and project-defined local verification inside the current trusted repository; audit-only and plan-only requests remain workspace read-only.
+- For non-trivial work, first audit and present an atomic commit plan with one-line purposes and files touched. Plan and build are the primary `/spar` checkpoints, not mandatory gates: use spar when independent review is likely to improve the outcome, and at any other point where it adds value. A plan review, when used, follows research and analysis and precedes the final plan presentation. Plan approval authorizes the listed edits, verification, reviewer calls, and deployment steps, never a commit.
 - Execute one approved commit unit at a time. Make its edits and run its verification autonomously, without per-edit, per-file, per-hunk, or routine command approval. Pause only for material ambiguity, scope expansion, unrelated-hunk conflicts, or an action outside the bounded authorization.
 - Before every commit, run `/commit` and present the exact candidate diff, intended paths, proposed message, verification, warnings, and scratch disposition. Give H the repository's editor review instructions and an interactive `Approve and commit (Recommended) | Revise with comments | Reject with comments` selector; its built-in custom answer is the discussion path. Collect comments when not already supplied. Revise with comments updates the current direction without authorizing a commit; reject with comments preserves unrelated and user-authored work, removes all candidate-owned changes, then builds a new candidate from the comments. Both require a refreshed review. A custom discussion answer changes nothing: answer it, then repeat the unchanged candidate and selector. Only approve and commit authorizes staging and commit.
 - Commit only after H approves that exact candidate. Any later change to content, intended paths, message, or scratch disposition invalidates approval and requires a refreshed review. Rejection or interruption leaves the worktree intact.
 - After committing an approved unit, begin the next. Report hashes and titles, unresolved items, and durable decisions in the repository's designated documentation.
-- After all units in a non-trivial plan are committed, run its approved mandatory `/spar` final integration review over the starting-base-to-HEAD change before any push. Blocking findings return as a proposed fix-forward unit, and the integration review repeats after approved fixes. Reviewer convergence never authorizes a commit or push.
+- After all approved units are committed, treat `/spar` build review as a primary checkpoint before push. When used, compare the starting-base-to-HEAD change with the latest approved plan, decision rationale, H's rulings, and authorized deviations. Findings may return as a proposed fix-forward unit; reviewer convergence never authorizes a commit or push.
 
 Trivial work may skip a formal plan, but never the exact pre-commit review. An implementation request authorizes editing and verification, not staging, committing, pushing, or external side effects.
 

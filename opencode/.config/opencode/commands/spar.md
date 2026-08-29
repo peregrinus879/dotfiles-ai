@@ -1,6 +1,6 @@
 ---
-description: Run cross-model brainstorming, planning, integration, or diff review
+description: Run value-based cross-model brainstorming, plan, build, or diff review
 agent: build
 ---
 
-Use the `spar` skill for this repository. Select the matching brainstorming, planning, final integration, or diff-only mode for the task the user describes; do not collapse these modes into plan review.
+Use the `spar` skill for this repository. Select the review purpose, timing, context, and depth from expected value; plan and build are primary checkpoints, and spar may run anywhere else it can materially improve the outcome.

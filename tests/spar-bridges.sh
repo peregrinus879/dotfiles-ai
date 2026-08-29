@@ -14,6 +14,7 @@ if [[ ${1:-} == auth && ${2:-} == status ]]; then
   printf '%s\n' '{"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty"}'
   exit
 fi
+[[ -z ${SPAR_TEST_PWDS:-} ]] || printf '%s\n' "$PWD" >>"$SPAR_TEST_PWDS"
 printf '%s\n' "$*" >>"$SPAR_TEST_CALLS"
 case ${SPAR_TEST_MODE:-ok} in
   ok) printf '%s\n' '{"type":"result","is_error":false,"result":"review ok","modelUsage":{"claude-opus-5":{}}}' ;;
@@ -54,6 +55,20 @@ if [[ ${1:-} == plugin && ${2:-} == list ]]; then
   fi
   exit
 fi
+if [[ ${1:-} == exec ]]; then
+  seen_resume=0
+  skip_repo_check=0
+  for arg in "$@"; do
+    [[ $arg == --skip-git-repo-check ]] && skip_repo_check=1
+    if [[ $seen_resume == 1 && ($arg == -C || $arg == --cd) ]]; then
+      printf 'top-level option appears after resume: %s\n' "$arg" >&2
+      exit 90
+    fi
+    [[ $arg == resume ]] && seen_resume=1
+  done
+  [[ $skip_repo_check == 1 ]] || { printf 'missing --skip-git-repo-check\n' >&2; exit 90; }
+fi
+[[ -z ${SPAR_TEST_PWDS:-} ]] || printf '%s\n' "$PWD" >>"$SPAR_TEST_PWDS"
 printf '%s\n' "$*" >>"$SPAR_TEST_CALLS"
 case ${SPAR_TEST_MODE:-ok} in
   ok)
@@ -150,6 +165,28 @@ run_bridge() { # bridge, prompt, optional handoff content
 handoff=$(make_handoff)
 [[ $(hook_decision "$handoff/spar-plan.md") == allow ]] || fail "Claude hook rejected a valid handoff write"
 [[ $(hook_decision "$handoff/.env") == deny ]] || fail "Claude hook did not deny a sensitive handoff write"
+[[ $(hook_decision "$handoff/reviewer-id") == deny ]] || fail "Claude hook did not reserve the reviewer manifest"
+[[ $(hook_decision "$handoff/AGENTS.md") == deny ]] || fail "Claude hook allowed reviewer-instruction injection"
+[[ $(hook_decision "$handoff/CLAUDE.md") == deny ]] || fail "Claude hook allowed Claude-instruction injection"
+[[ $(hook_decision "$handoff/.netrc.bak") == deny ]] || fail "Claude hook allowed a sensitive backup filename"
+ln -s -- "$handoff" "$TMP/handoff-alias"
+[[ $(hook_decision "$TMP/handoff-alias/spar-plan.md") == allow ]] || fail "Claude hook rejected a safe handoff alias"
+[[ $(hook_decision "$TMP/handoff-alias/reviewer-id") == deny ]] || fail "Claude hook allowed an alias to the reviewer manifest"
+sibling_handoff=$(make_handoff)
+[[ $(hook_decision "$TMP/handoff-alias/../${sibling_handoff##*/}/reviewer-id") == deny ]] ||
+  fail "Claude hook allowed alias-plus-parent traversal to a reviewer manifest"
+rm -rf -- "$sibling_handoff"
+rm -- "$TMP/handoff-alias"
+ln -s -- "$handoff/reviewer-id" "$TMP/manifest-alias"
+[[ $(hook_decision "$TMP/manifest-alias") == deny ]] || fail "Claude hook allowed a direct alias to the reviewer manifest"
+rm -- "$TMP/manifest-alias"
+ln -s -- "$handoff" "$TMP/handoff-chain"
+ln -s -- /var/tmp "$handoff/out"
+[[ $(hook_decision "$TMP/handoff-chain/out/escape.md") == deny ]] || fail "Claude hook allowed an alias entering and escaping the handoff"
+rm -- "$handoff/out" "$TMP/handoff-chain"
+ln -s -- /var/tmp "$handoff/sub"
+[[ $(hook_decision "$handoff/sub/escape.md") == deny ]] || fail "Claude hook allowed an alias escaping the handoff"
+rm -- "$handoff/sub"
 chmod 755 "$handoff"
 [[ $(hook_decision "$handoff/spar-plan.md") == deny ]] || fail "Claude hook did not deny unsafe handoff metadata"
 rm -rf -- "$handoff"
@@ -170,9 +207,61 @@ for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin
   run_bridge "$bridge" "Review the handoff." $'diff --git a/.env.production b/.env.production\n--- a/.env.production\n+++ b/.env.production\n'
   [[ $BRIDGE_RC != 0 && $BRIDGE_CALLED == 0 ]] || fail "sensitive diff path reached ${bridge##*/}"
 
+  run_bridge "$bridge" "Review the handoff." $'diff --git i/.env.production w/.env.production\n--- i/.env.production\n+++ w/.env.production\n'
+  [[ $BRIDGE_RC != 0 && $BRIDGE_CALLED == 0 ]] || fail "mnemonic-prefix sensitive diff reached ${bridge##*/}"
+
+  run_bridge "$bridge" "Review the handoff." $'diff --git .env.production .env.production\n--- .env.production\n+++ .env.production\n'
+  [[ $BRIDGE_RC != 0 && $BRIDGE_CALLED == 0 ]] || fail "no-prefix sensitive diff reached ${bridge##*/}"
+
+  run_bridge "$bridge" "Review the handoff." $'--- \'a/.env.production\'\n+++ \'b/.env.production\'\n'
+  [[ $BRIDGE_RC != 0 && $BRIDGE_CALLED == 0 ]] || fail "quoted sensitive diff reached ${bridge##*/}"
+
+  run_bridge "$bridge" "Review the handoff." $'diff --git a/config.txt b/config.txt\n--- a/config.txt\n+++ b/config.txt\n@@ -1 +1 @@\n+PASSWORD=actual-secret-value\n'
+  [[ $BRIDGE_RC != 0 && $BRIDGE_CALLED == 0 ]] || fail "credential assignment in a diff reached ${bridge##*/}"
+
   run_bridge "$bridge" "Review the handoff." $'Read(~/.codex/auth.json) = deny\n.env.* = deny\n**/*.key = deny\n'
   [[ $BRIDGE_RC == 0 && $BRIDGE_CALLED == 1 ]] || fail "policy text was falsely rejected by ${bridge##*/}"
 done
+
+handoff=$(make_handoff)
+printf '2026-08-17T00:00:00+00:00\tcodex\tprimary\tcompleted\t11111111-1111-4111-8111-111111111111\n' >"$handoff/reviewer-id"
+calls="$TMP/cross-bridge-resume"
+if SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
+  resume 11111111-1111-4111-8111-111111111111 "$handoff" "Review wrong bridge." \
+  >/dev/null 2>/dev/null; then
+  fail "spar-claude resumed a Codex reviewer session"
+fi
+[[ ! -s $calls ]] || fail "spar-claude invoked a cross-bridge reviewer session"
+rm -rf -- "$handoff"
+
+legacy_sid=33333333-3333-4333-8333-333333333333
+handoff=$(make_handoff)
+printf '2026-08-17T00:00:00+00:00\tprimary\tallocated\t%s\n' "$legacy_sid" >"$handoff/reviewer-id"
+calls="$TMP/legacy-claude-resume"
+SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
+  resume "$legacy_sid" "$handoff" "Resume legacy Claude session." >/dev/null 2>/dev/null ||
+  fail "spar-claude rejected its bridge-specific legacy manifest"
+wrong_calls="$TMP/legacy-claude-via-codex"
+if SPAR_TEST_CALLS=$wrong_calls PATH="$TMP/bin:$PATH" "$ROOT/codex/.local/bin/spar-codex" \
+  resume "$legacy_sid" "$handoff" "Resume wrong legacy bridge." >/dev/null 2>/dev/null; then
+  fail "spar-codex accepted a legacy Claude manifest"
+fi
+[[ ! -s $wrong_calls ]] || fail "spar-codex invoked a legacy Claude session"
+rm -rf -- "$handoff"
+
+handoff=$(make_handoff)
+printf '2026-08-17T00:00:00+00:00\tprimary\tstarted\t%s\n' "$legacy_sid" >"$handoff/reviewer-id"
+calls="$TMP/legacy-codex-resume"
+SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/codex/.local/bin/spar-codex" \
+  resume "$legacy_sid" "$handoff" "Resume legacy Codex session." >/dev/null 2>/dev/null ||
+  fail "spar-codex rejected its bridge-specific legacy manifest"
+wrong_calls="$TMP/legacy-codex-via-claude"
+if SPAR_TEST_CALLS=$wrong_calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
+  resume "$legacy_sid" "$handoff" "Resume wrong legacy bridge." >/dev/null 2>/dev/null; then
+  fail "spar-claude accepted a legacy Codex manifest"
+fi
+[[ ! -s $wrong_calls ]] || fail "spar-claude invoked a legacy Codex session"
+rm -rf -- "$handoff"
 
 handoff=$(make_handoff)
 calls="$TMP/codex-plugin-leak"
@@ -306,33 +395,50 @@ done
 
 handoff=$(make_handoff)
 calls="$TMP/codex-flags"
-SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/codex/.local/bin/spar-codex" \
+pwds="$TMP/codex-pwds"
+SPAR_TEST_CALLS=$calls SPAR_TEST_PWDS=$pwds PATH="$TMP/bin:$PATH" "$ROOT/codex/.local/bin/spar-codex" \
   new "$handoff" "Review flags." >/dev/null 2>/dev/null
 new_flags=$(<"$calls")
 rm -f "$calls"
-SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/codex/.local/bin/spar-codex" \
+SPAR_TEST_CALLS=$calls SPAR_TEST_PWDS=$pwds PATH="$TMP/bin:$PATH" "$ROOT/codex/.local/bin/spar-codex" \
   resume 11111111-1111-4111-8111-111111111111 "$handoff" "Review flags." >/dev/null 2>/dev/null
 resume_flags=$(<"$calls")
-for flag in --ignore-user-config --ignore-rules --strict-config --json 'default_permissions="spar-reviewer"' \
+codex_runtime=$(realpath -e -- "$TMP/bin/codex")
+for flag in --ignore-user-config --ignore-rules --strict-config --skip-git-repo-check --json 'default_permissions="spar-reviewer"' \
   'forced_login_method="chatgpt"' 'model_provider="openai"' 'model="gpt-5.6-sol"' \
   'model_reasoning_effort="max"' 'model_reasoning_summary="none"' \
   'web_search="disabled"' 'network={enabled=false}' \
-  'features.plugins=false' 'features.remote_plugin=false' 'service_tier="fast"' \
-  'features.fast_mode=true'; do
+  'features.plugins=false' 'features.remote_plugin=false' 'features.skill_search=false' \
+  'skills.include_instructions=false' 'project_root_markers=[]' 'notify=[]' \
+  'check_for_update_on_startup=false' 'analytics.enabled=false' 'feedback.enabled=false' \
+  'service_tier="fast"' 'features.fast_mode=true'; do
   [[ $new_flags == *"$flag"* && $resume_flags == *"$flag"* ]] || fail "Codex new/resume isolation parity missing: $flag"
 done
+for flags in "$new_flags" "$resume_flags"; do
+  [[ $flags == *'-C '"$handoff"* && $flags == *'filesystem={":root"="deny",":minimal"="read",":tmpdir"="deny",":slash_tmp"="deny"'* && \
+    $flags == *'"'"$codex_runtime"'"="read"'* && $flags == *'"'"$handoff"'"="read"'* ]] ||
+    fail "Codex reviewer lacks its runtime or handoff read grant: $flags"
+  [[ $flags == *'projects={"'"$handoff"'"={trust_level="untrusted"}}'* ]] ||
+    fail "Codex reviewer handoff trust isolation missing"
+  [[ $flags != *'extends=":read-only"'* && $flags != *'":workspace_roots"'* ]] ||
+    fail "Codex reviewer retained inherited repository reads"
+done
+[[ $(wc -l <"$pwds") == 2 && $(sort -u "$pwds") == "$handoff" ]] ||
+  fail "Codex new/resume did not launch from the handoff"
 [[ $new_flags != *' -s read-only '* && $resume_flags != *'sandbox_mode'* ]] ||
   fail "legacy Codex sandbox override remains"
 rm -rf -- "$handoff"
 
 handoff=$(make_handoff)
 calls="$TMP/claude-flags"
-SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
+pwds="$TMP/claude-pwds"
+SPAR_TEST_CALLS=$calls SPAR_TEST_PWDS=$pwds PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
   new "$handoff" "Review flags." >/dev/null 2>/dev/null
 new_flags=$(<"$calls")
+claude_sid=$(awk -F '\t' '$4 == "allocated" { print $5; exit }' "$handoff/reviewer-id")
 rm -f "$calls"
-SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
-  resume 11111111-1111-4111-8111-111111111111 "$handoff" "Review flags." >/dev/null 2>/dev/null
+SPAR_TEST_CALLS=$calls SPAR_TEST_PWDS=$pwds PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
+  resume "$claude_sid" "$handoff" "Review flags." >/dev/null 2>/dev/null
 resume_flags=$(<"$calls")
 [[ $new_flags == *'--effort max'* && $resume_flags == *'--effort max'* ]] ||
   fail "Claude new/resume maximum effort pin missing"
@@ -340,12 +446,33 @@ resume_flags=$(<"$calls")
   fail "Claude new/resume read-only tool whitelist missing"
 [[ $new_flags == *'--model opus'* && $resume_flags == *'--model opus'* ]] ||
   fail "Claude new/resume latest-Opus alias missing"
-[[ $new_flags == *'--setting-sources user'* && $resume_flags == *'--setting-sources user'* ]] ||
+[[ $new_flags == *'--permission-mode dontAsk'* && $resume_flags == *'--permission-mode dontAsk'* ]] ||
+  fail "Claude new/resume fail-closed permission mode missing"
+[[ $new_flags == *'--setting-sources='* && $resume_flags == *'--setting-sources='* ]] ||
   fail "Claude new/resume setting-source isolation missing"
+read_rule="Read(/$handoff/**)"
+[[ $new_flags == *'--allowedTools '"$read_rule"* && $resume_flags == *'--allowedTools '"$read_rule"* ]] ||
+  fail "Claude new/resume handoff-only Read allow missing"
+[[ $new_flags != *'--permission-mode plan'* && $resume_flags != *'--setting-sources user'* ]] ||
+  fail "Claude reviewer retained ambient read permissions"
 reviewer_settings='--settings {"env":{"ANTHROPIC_DEFAULT_OPUS_MODEL":""}}'
 [[ $new_flags == *"$reviewer_settings"* && $resume_flags == *"$reviewer_settings"* ]] ||
   fail "Claude new/resume alias-clear settings missing"
+[[ $(wc -l <"$pwds") == 2 && $(sort -u "$pwds") == "$handoff" ]] ||
+  fail "Claude new/resume did not launch from the handoff"
 rm -rf -- "$handoff"
+
+for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin/spar-codex"; do
+  handoff=$(make_handoff)
+  calls="$TMP/unbound-${bridge##*/}"
+  if SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$bridge" \
+    resume 22222222-2222-4222-8222-222222222222 "$handoff" "Review unbound resume." \
+    >/dev/null 2>/dev/null; then
+    fail "${bridge##*/} resumed a session not recorded in its handoff"
+  fi
+  [[ ! -s $calls ]] || fail "${bridge##*/} invoked a reviewer for an unbound session"
+  rm -rf -- "$handoff"
+done
 
 handoff=$(make_handoff)
 calls="$TMP/claude-env"
@@ -379,10 +506,105 @@ fi
 rm -rf -- "$handoff"
 
 handoff=$(make_handoff)
+calls="$TMP/codex-sqlite-env"
+if env SPAR_TEST_CALLS="$calls" PATH="$TMP/bin:$PATH" CODEX_SQLITE_HOME="$ROOT" \
+  "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review state isolation." \
+  >/dev/null 2>/dev/null; then
+  fail "Codex bridge accepted a caller-directed SQLite state path"
+fi
+[[ ! -s $calls ]] || fail "Codex reviewer was invoked after SQLite state-path rejection"
+rm -rf -- "$handoff"
+
+for variable in CODEX_HOME CODEX_ACCESS_TOKEN OPENAI_BASE_URL HTTPS_PROXY; do
+  handoff=$(make_handoff)
+  calls="$TMP/codex-override-$variable"
+  if env SPAR_TEST_CALLS="$calls" PATH="$TMP/bin:$PATH" "$variable=sentinel" \
+    "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review environment isolation." \
+    >/dev/null 2>/dev/null; then
+    fail "Codex bridge accepted $variable"
+  fi
+  [[ ! -s $calls ]] || fail "Codex reviewer was invoked after $variable rejection"
+  rm -rf -- "$handoff"
+done
+
+for variable in HTTPS_PROXY ANTHROPIC_BETAS ANTHROPIC_CUSTOM_HEADERS \
+  NODE_TLS_REJECT_UNAUTHORIZED CLAUDE_CODE_CERT_STORE \
+  CLAUDE_CODE_CLIENT_CERT CLAUDE_CODE_CLIENT_KEY CLAUDE_CODE_CLIENT_KEY_PASSPHRASE \
+  CLAUDE_CODE_DISABLE_MTLS_RELOAD_ON_STALE_CONNECTION; do
+  handoff=$(make_handoff)
+  calls="$TMP/claude-routing-$variable"
+  if env SPAR_TEST_CALLS="$calls" PATH="$TMP/bin:$PATH" "$variable=sentinel" \
+    "$ROOT/claude-code/.local/bin/spar-claude" new "$handoff" "Review routing isolation." \
+    >/dev/null 2>/dev/null; then
+    fail "Claude bridge accepted $variable"
+  fi
+  [[ ! -s $calls ]] || fail "Claude reviewer was invoked after $variable rejection"
+  rm -rf -- "$handoff"
+done
+
+printf 'printf sourced >"$%s"\n' 'SPAR_TEST_BASH_ENV_HIT' >"$TMP/hostile-bash-env"
+for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin/spar-codex"; do
+  handoff=$(make_handoff)
+  calls="$TMP/bash-env-calls-${bridge##*/}"
+  hit="$TMP/bash-env-hit-${bridge##*/}"
+  BASH_ENV="$TMP/hostile-bash-env" SPAR_TEST_BASH_ENV_HIT=$hit SPAR_TEST_CALLS=$calls \
+    PATH="$TMP/bin:$PATH" "$bridge" new "$handoff" "Review startup isolation." \
+    >/dev/null 2>/dev/null || fail "${bridge##*/} failed under a hostile BASH_ENV"
+  [[ ! -e $hit ]] || fail "${bridge##*/} executed caller-supplied Bash startup code"
+  rm -rf -- "$handoff"
+done
+
+for bridge_name in claude codex; do
+  handoff=$(make_handoff)
+  calls="$TMP/cwd-substitution-$bridge_name"
+  printf '#!/bin/sh\nexit 99\n' >"$handoff/$bridge_name"
+  chmod 755 "$handoff/$bridge_name"
+  SPAR_TEST_CALLS=$calls PATH=".:$TMP/bin:$PATH" \
+    "$ROOT/${bridge_name/claude/claude-code}/.local/bin/spar-$bridge_name" \
+    new "$handoff" "Review executable pinning." >/dev/null 2>/dev/null ||
+    fail "spar-$bridge_name selected a reviewer executable after changing cwd"
+  rm -rf -- "$handoff"
+done
+
+handoff=$(make_handoff)
 printf 'binary\0content' >"$handoff/payload.bin"
 if printf 'Review.' | "$ROOT/claude-code/.local/bin/spar-payload-scan" "$handoff" >/dev/null 2>&1; then
   fail "binary handoff passed scanner"
 fi
+rm -rf -- "$handoff"
+
+for name in .env .netrc private.pem.bak AGENTS.md CLAUDE.md; do
+  handoff=$(make_handoff)
+  printf 'harmless\n' >"$handoff/$name"
+  if printf 'Review.' | "$ROOT/claude-code/.local/bin/spar-payload-scan" "$handoff" >/dev/null 2>&1; then
+    fail "sensitive or reviewer-instruction handoff filename passed scanner: $name"
+  fi
+  rm -rf -- "$handoff"
+done
+
+for content in \
+  'PASSWORD=actual-example-secret-value' \
+  'PASSWORD="my actual secret passphrase"' \
+  "PASSWORD=\"\"'my actual secret passphrase'" \
+  'PASSWORD=example#actual-secret' \
+  'PASSWORD=#actual-secret' \
+  'GITHUB_TOKEN=github_pat_0123456789abcdef0123456789abcdef' \
+  '//registry.npmjs.org/:_authToken=0123456789abcdef' \
+  $'diff --git a/config.txt b/config.txt\n+//registry.npmjs.org/:_authToken=0123456789abcdef' \
+  $'diff --git a/config.txt b/config.txt\n+machine example.com\n+password actual-secret' \
+  $'machine example.com\nlogin user\npassword actual-secret'; do
+  handoff=$(make_handoff)
+  printf '%s\n' "$content" >"$handoff/payload.md"
+  if printf 'Review.' | "$ROOT/claude-code/.local/bin/spar-payload-scan" "$handoff" >/dev/null 2>&1; then
+    fail "credential-shaped handoff content passed scanner"
+  fi
+  rm -rf -- "$handoff"
+done
+
+handoff=$(make_handoff)
+printf 'PASSWORD="example value"\nPASSWORD=""\n' >"$handoff/payload.md"
+printf 'Review.' | "$ROOT/claude-code/.local/bin/spar-payload-scan" "$handoff" >/dev/null 2>&1 ||
+  fail "placeholder credential was falsely rejected"
 rm -rf -- "$handoff"
 
 for bridge in "$ROOT/claude-code/.local/bin/spar-claude" "$ROOT/codex/.local/bin/spar-codex"; do
@@ -406,12 +628,19 @@ handoff=$(make_handoff)
 calls="$TMP/manifest-claude"
 SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
   new "$handoff" "Review manifest." >/dev/null 2>/dev/null || fail "spar-claude manifest run failed"
-grep -q $'\tprimary\tallocated\t' "$handoff/reviewer-id" || fail "spar-claude manifest missing allocated"
-grep -q $'\tprimary\tcompleted\t' "$handoff/reviewer-id" || fail "spar-claude manifest missing completed"
+grep -q $'\tclaude\tprimary\tallocated\t' "$handoff/reviewer-id" || fail "spar-claude manifest missing allocated"
+grep -q $'\tclaude\tprimary\tcompleted\t' "$handoff/reviewer-id" || fail "spar-claude manifest missing completed"
 SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
   new "$handoff" "Review manifest." cold >/dev/null 2>/dev/null || fail "spar-claude cold-role run failed"
 [[ $(grep -c . "$handoff/reviewer-id") == 4 ]] || fail "spar-claude manifest is not append-only"
-grep -q $'\tcold\tcompleted\t' "$handoff/reviewer-id" || fail "spar-claude cold role missing"
+grep -q $'\tclaude\tcold\tcompleted\t' "$handoff/reviewer-id" || fail "spar-claude cold role missing"
+cold_sid=$(awk -F '\t' '$3 == "cold" && $4 == "allocated" { print $5; exit }' "$handoff/reviewer-id")
+rm -f "$calls"
+if SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
+  resume "$cold_sid" "$handoff" "Improper cold resume." >/dev/null 2>/dev/null; then
+  fail "spar-claude resumed a cold reviewer"
+fi
+[[ ! -s $calls ]] || fail "spar-claude invoked a cold reviewer resume"
 if SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/claude-code/.local/bin/spar-claude" \
   new "$handoff" "Review manifest." wrongrole >/dev/null 2>/dev/null; then
   fail "spar-claude accepted an invalid reviewer role"
@@ -422,8 +651,8 @@ handoff=$(make_handoff)
 calls="$TMP/manifest-codex"
 SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/codex/.local/bin/spar-codex" \
   new "$handoff" "Review manifest." >/dev/null 2>/dev/null || fail "spar-codex manifest run failed"
-grep -q $'\tprimary\tstarted\t' "$handoff/reviewer-id" || fail "spar-codex manifest missing started"
-grep -q $'\tprimary\tcompleted\t' "$handoff/reviewer-id" || fail "spar-codex manifest missing completed"
+grep -q $'\tcodex\tprimary\tstarted\t' "$handoff/reviewer-id" || fail "spar-codex manifest missing started"
+grep -q $'\tcodex\tprimary\tcompleted\t' "$handoff/reviewer-id" || fail "spar-codex manifest missing completed"
 if SPAR_TEST_CALLS=$calls PATH="$TMP/bin:$PATH" "$ROOT/codex/.local/bin/spar-codex" \
   new "$handoff" "Review manifest." wrongrole >/dev/null 2>/dev/null; then
   fail "spar-codex accepted an invalid reviewer role"
@@ -435,7 +664,7 @@ handoff=$(make_handoff)
 calls="$TMP/manifest-codex-failure"
 SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=stderr-failure PATH="$TMP/bin:$PATH" \
   "$ROOT/codex/.local/bin/spar-codex" new "$handoff" "Review manifest." >/dev/null 2>/dev/null || true
-grep -q $'\tprimary\tstarted\t11111111-1111-4111-8111-111111111111' "$handoff/reviewer-id" ||
+grep -q $'\tcodex\tprimary\tstarted\t11111111-1111-4111-8111-111111111111' "$handoff/reviewer-id" ||
   fail "spar-codex failure path did not persist the started thread id"
 if grep -q $'\tcompleted\t' "$handoff/reviewer-id"; then
   fail "spar-codex failure path recorded a completed state"
@@ -446,7 +675,7 @@ handoff=$(make_handoff)
 calls="$TMP/manifest-claude-failure"
 SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=eof PATH="$TMP/bin:$PATH" \
   "$ROOT/claude-code/.local/bin/spar-claude" new "$handoff" "Review manifest." >/dev/null 2>/dev/null || true
-grep -q $'\tprimary\tallocated\t' "$handoff/reviewer-id" ||
+grep -q $'\tclaude\tprimary\tallocated\t' "$handoff/reviewer-id" ||
   fail "spar-claude failure path did not persist the allocated session id"
 if grep -q $'\tcompleted\t' "$handoff/reviewer-id"; then
   fail "spar-claude failure path recorded a completed state"
@@ -457,7 +686,7 @@ rm -rf -- "$handoff"
 # invalid entries individually without using them.
 h1=$(make_handoff)
 printf '# Task Alpha probe\n' >"$h1/spar-plan.md"
-printf '2026-08-17T00:00:00+00:00\tprimary\tcompleted\t11111111-1111-4111-8111-111111111111\n' >"$h1/reviewer-id"
+printf '2026-08-17T00:00:00+00:00\tclaude\tprimary\tcompleted\t11111111-1111-4111-8111-111111111111\n' >"$h1/reviewer-id"
 h2=$(make_handoff)
 chmod 755 "$h2"
 h3=$(make_handoff)
