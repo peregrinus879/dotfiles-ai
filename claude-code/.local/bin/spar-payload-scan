@@ -1,38 +1,91 @@
 #!/usr/bin/python3 -I
-"""Fail closed when a spar prompt or handoff contains sensitive material."""
+"""Bound and scan spar payloads without exposing rejected bytes."""
 
+from __future__ import annotations
+
+import bisect
+import hashlib
+import os
 import re
 import shlex
+import stat
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 
-PRIVATE_KEY = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")
-OPENAI_KEY = re.compile(r"\bsk-[A-Za-z0-9_-]{16,}\b")
-GITHUB_TOKEN = re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b")
-GITHUB_FINE_GRAINED = re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b")
-AWS_KEY = re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")
-SECRET_ASSIGNMENT = re.compile(
+DETECTOR_SCHEMA = "spar-content-v1"
+PROMPT_MAX = 256 * 1024
+ENTRY_MAX = 512 * 1024
+TOTAL_MAX = 1024 * 1024
+ENTRY_COUNT_MAX = 128
+FINDING_REPORT_MAX = 8
+HANDOFF_RE = re.compile(r"^/var/tmp/spar-[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
+
+PATTERN_ENVELOPE = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")
+PATTERN_PROVIDER_A = re.compile(r"\bsk-[A-Za-z0-9_-]{16,}\b")
+PATTERN_PROVIDER_B = re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b")
+PATTERN_PROVIDER_C = re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b")
+PATTERN_CLOUD_ID = re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")
+PATTERN_ASSIGNMENT = re.compile(
     r"""(?im)^[ \t+\-]*(?:export\s+)?["']?"""
     r"[A-Z0-9_]*(?:API_KEY|AUTH_TOKEN|ACCESS_TOKEN|CLIENT_SECRET|PASSWORD|PASSWD|PRIVATE_KEY)"
     r"""[A-Z0-9_]*["']?\s*[:=]\s*(.*?)\s*$"""
 )
-SAFE_VALUE = re.compile(
+PATTERN_SAFE_VALUE = re.compile(
     r"(?i)(?:example(?:[-_ ][a-z0-9]+)*|placeholder(?:[-_ ][a-z0-9]+)*|redacted|"
     r"not[-_ ]?set|replace[-_ ]?me|change[-_ ]?me|dummy(?:[-_ ][a-z0-9]+)*|"
     r"fake(?:[-_ ][a-z0-9]+)*|test(?:[-_ ][a-z0-9]+)*|your[-_ ][a-z0-9_-]+|"
     r"\$\{[A-Z_][A-Z0-9_]*\}|\{env:[^}\r\n]+\}|<[^>\r\n]{1,80}>)"
 )
-NPM_TOKEN = re.compile(r"(?im)^[ \t+\-]*//[^\r\n]*:_authToken\s*=\s*([^\s#]+)")
-NETRC_PASSWORD = re.compile(r"(?im)^[ \t+\-]*password\s+\S+")
-NETRC_MACHINE = re.compile(r"(?im)^[ \t+\-]*machine\s+\S+")
+PATTERN_PACKAGE_AUTH = re.compile(
+    r"(?im)^[ \t+\-]*//[^\r\n]*:_authToken\s*=\s*([^\s#]+)"
+)
+PATTERN_NETRC_VALUE = re.compile(r"(?im)^[ \t+\-]*password\s+(\S+)")
+PATTERN_NETRC_HOST = re.compile(r"(?im)^[ \t+\-]*machine\s+\S+")
+
 RESERVED_HANDOFF_NAMES = {
     ".git",
     "agents.md",
     "agents.override.md",
     "claude.md",
     "claude.local.md",
+    "reviewer-id",
 }
+
+# These detector-span digests identify public synthetic values already present
+# in this repository. Any changed span remains blocked.
+PUBLIC_FINDINGS = frozenset(
+    {
+        ("provider-c-token-v1", "f9a6ae28ec3a6ec93bd3e0854df808528823669b3a2d89f628a5e0c395eb26cc"),
+        ("credential-assignment-v1", "88410c8e88290dedce53fdfe0050b07db6813a02b0196b746554273b6172eae5"),
+    }
+)
+
+
+@dataclass(frozen=True)
+class Finding:
+    label: str
+    line: int
+    rule: str
+    span: bytes
+
+    @property
+    def digest(self) -> str:
+        payload = b"\0".join(
+            (
+                b"spar-public-vector-v1",
+                DETECTOR_SCHEMA.encode(),
+                self.rule.encode(),
+                self.span,
+            )
+        )
+        return hashlib.sha256(payload).hexdigest()
+
+
+def abort(message: str) -> None:
+    print(f"SPAR-PAYLOAD ABORT: {message}", file=sys.stderr)
+    raise SystemExit(2)
 
 
 def reject(label: str, rule: str) -> None:
@@ -46,22 +99,24 @@ def safe_assignment_value(value: str) -> bool:
     except ValueError:
         return False
     return not tokens or (
-        len(tokens) == 1 and (tokens[0] == "" or SAFE_VALUE.fullmatch(tokens[0]) is not None)
+        len(tokens) == 1
+        and (tokens[0] == "" or PATTERN_SAFE_VALUE.fullmatch(tokens[0]) is not None)
     )
 
 
 def sensitive_path(value: str) -> bool:
-    path = value.replace("\\", "/").lower().strip("\"'")
-    parts = path.split("/")
+    normalized = value.replace("\\", "/").lower().strip("\"'")
+    parts = normalized.split("/")
     name = parts[-1]
     return (
         name == ".env"
         or name.startswith(".env.")
-        or re.search(r"\.(?:key|pem)(?:[._~-].*)?$", name) is not None
+        or re.search(r"\.(?:key|pem|p12|pfx)(?:[._~-].*)?$", name) is not None
         or any(re.fullmatch(r"secrets?(?:[._~-].*)?", part) for part in parts)
-        or "credentials" in name
+        or any("credentials" in part for part in parts)
         or re.fullmatch(r"auth\.json(?:[._~-].*)?", name) is not None
         or re.fullmatch(r"\.(?:netrc|npmrc|pypirc)(?:[._~-].*)?", name) is not None
+        or re.fullmatch(r"id_(?:rsa|dsa|ecdsa|ed25519)(?:[._~-].*)?", name) is not None
     )
 
 
@@ -89,58 +144,203 @@ def diff_paths(text: str):
                 break
 
 
-def scan(label: str, data: bytes) -> None:
+def decode_text(label: str, data: bytes) -> str:
     if b"\0" in data:
         reject(label, "binary content")
     try:
-        text = data.decode("utf-8")
+        return data.decode("utf-8")
     except UnicodeDecodeError:
         reject(label, "non-UTF-8 content")
 
-    for path in diff_paths(text):
-        if sensitive_path(path):
-            reject(label, "sensitive diff path")
-    if PRIVATE_KEY.search(text):
-        reject(label, "private-key envelope")
-    if OPENAI_KEY.search(text):
-        reject(label, "API-key shape")
-    if GITHUB_TOKEN.search(text):
-        reject(label, "GitHub-token shape")
-    if GITHUB_FINE_GRAINED.search(text):
-        reject(label, "GitHub fine-grained token shape")
-    if AWS_KEY.search(text):
-        reject(label, "AWS-key shape")
-    for match in SECRET_ASSIGNMENT.finditer(text):
-        if not safe_assignment_value(match.group(1)):
-            reject(label, "credential assignment")
-    for match in NPM_TOKEN.finditer(text):
-        if not SAFE_VALUE.fullmatch(match.group(1)):
-            reject(label, "npm auth-token assignment")
-    if NETRC_MACHINE.search(text) and NETRC_PASSWORD.search(text):
-        reject(label, "netrc credential shape")
+
+def content_findings(label: str, data: bytes, check_paths: bool) -> list[Finding]:
+    text = decode_text(label, data)
+    newline_offsets = [match.start() for match in re.finditer("\n", text)]
+
+    def line_number(offset: int) -> int:
+        return bisect.bisect_left(newline_offsets, offset) + 1
+
+    findings: list[Finding] = []
+    if check_paths:
+        for path in diff_paths(text):
+            if sensitive_path(path):
+                reject(label, "sensitive diff path")
+
+    for rule, pattern in (
+        ("key-envelope-v1", PATTERN_ENVELOPE),
+        ("provider-a-token-v1", PATTERN_PROVIDER_A),
+        ("provider-b-token-v1", PATTERN_PROVIDER_B),
+        ("provider-c-token-v1", PATTERN_PROVIDER_C),
+        ("cloud-access-id-v1", PATTERN_CLOUD_ID),
+    ):
+        for match in pattern.finditer(text):
+            findings.append(
+                Finding(label, line_number(match.start()), rule, match.group(0).encode())
+            )
+
+    for match in PATTERN_ASSIGNMENT.finditer(text):
+        value = match.group(1)
+        if not safe_assignment_value(value):
+            findings.append(
+                Finding(
+                    label,
+                    line_number(match.start()),
+                    "credential-assignment-v1",
+                    value.encode(),
+                )
+            )
+    for match in PATTERN_PACKAGE_AUTH.finditer(text):
+        value = match.group(1)
+        if PATTERN_SAFE_VALUE.fullmatch(value) is None:
+            findings.append(
+                Finding(
+                    label,
+                    line_number(match.start()),
+                    "package-auth-value-v1",
+                    value.encode(),
+                )
+            )
+    if PATTERN_NETRC_HOST.search(text):
+        for match in PATTERN_NETRC_VALUE.finditer(text):
+            findings.append(
+                Finding(
+                    label,
+                    line_number(match.start()),
+                    "netrc-value-v1",
+                    match.group(1).encode(),
+                )
+            )
+    return findings
+
+
+def enforce_findings(findings: list[Finding], allow_public: bool) -> None:
+    blocked = [
+        finding
+        for finding in findings
+        if not allow_public or (finding.rule, finding.digest) not in PUBLIC_FINDINGS
+    ]
+    if not blocked:
+        return
+    for finding in blocked[:FINDING_REPORT_MAX]:
+        print(
+            f"SPAR-PAYLOAD FINDING: {finding.label}:{finding.line}: {finding.rule}",
+            file=sys.stderr,
+        )
+    if len(blocked) > FINDING_REPORT_MAX:
+        print(
+            f"SPAR-PAYLOAD FINDING: {len(blocked) - FINDING_REPORT_MAX} additional findings omitted",
+            file=sys.stderr,
+        )
+    reject(blocked[0].label, blocked[0].rule)
+
+
+def open_handoff(root: Path) -> tuple[int, list[str]]:
+    if not root.is_absolute() or HANDOFF_RE.fullmatch(str(root)) is None:
+        abort("handoff path must be /var/tmp/spar-<UUID>")
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_DIRECTORY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(root, flags)
+        metadata = os.fstat(descriptor)
+    except OSError:
+        abort("cannot open handoff directory")
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+    ):
+        os.close(descriptor)
+        abort("handoff ownership or mode is unsafe")
+    try:
+        entries = sorted(os.listdir(descriptor))
+    except OSError:
+        os.close(descriptor)
+        abort("cannot list handoff directory")
+    if len(entries) > ENTRY_COUNT_MAX:
+        os.close(descriptor)
+        reject("handoff", "too many handoff entries")
+    return descriptor, entries
+
+
+def read_entry(root_descriptor: int, name: str, label: str) -> bytes:
+    flags = os.O_RDONLY | os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(name, flags, dir_fd=root_descriptor)
+        metadata = os.fstat(descriptor)
+    except OSError:
+        reject(label, "cannot open handoff entry safely")
+    try:
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or metadata.st_nlink != 1
+        ):
+            reject(label, "handoff entry ownership, type, or link count is unsafe")
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            data = stream.read(ENTRY_MAX + 1)
+    finally:
+        os.close(descriptor)
+    if len(data) > ENTRY_MAX:
+        reject(label, "handoff entry exceeds the review limit")
+    return data
+
+
+def scan_outbound(root: Path) -> None:
+    prompt = sys.stdin.buffer.read(PROMPT_MAX + 1)
+    if not prompt:
+        abort("review prompt is empty")
+    if len(prompt) > PROMPT_MAX:
+        reject("prompt", "prompt exceeds the review limit")
+    enforce_findings(content_findings("prompt", prompt, True), True)
+    total = len(prompt)
+    root_descriptor, entries = open_handoff(root)
+    try:
+        for index, name in enumerate(entries, start=1):
+            label = f"handoff entry {index}"
+            try:
+                name_bytes = name.encode("utf-8")
+            except UnicodeEncodeError:
+                reject(label, "non-UTF-8 path")
+            enforce_findings(content_findings(f"{label} name", name_bytes, False), False)
+            folded = name.casefold()
+            if folded == "reviewer-id":
+                if name != "reviewer-id":
+                    reject(label, "reviewer manifest alias")
+            elif folded in RESERVED_HANDOFF_NAMES:
+                reject(label, "reviewer instruction or repository marker")
+            if sensitive_path(name):
+                reject(label, "sensitive handoff path")
+            data = read_entry(root_descriptor, name, label)
+            if folded == "reviewer-id":
+                continue
+            total += len(data)
+            if total > TOTAL_MAX:
+                reject("handoff", "payload exceeds the aggregate review limit")
+            enforce_findings(content_findings(label, data, True), True)
+    finally:
+        os.close(root_descriptor)
+    sys.stdout.buffer.write(prompt)
+
+
+def scan_reply() -> None:
+    data = sys.stdin.buffer.read(TOTAL_MAX + 1)
+    if len(data) > TOTAL_MAX:
+        reject("reply", "reply exceeds the review limit")
+    enforce_findings(content_findings("reply", data, False), True)
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        print("usage: spar-payload-scan <handoff-dir>", file=sys.stderr)
-        raise SystemExit(64)
-
-    root = Path(sys.argv[1])
-    scan("prompt", sys.stdin.buffer.read())
-    try:
-        entries = sorted(root.iterdir())
-    except OSError:
-        reject("handoff", "unreadable directory")
-    for entry in entries:
-        if entry.name.casefold() in RESERVED_HANDOFF_NAMES:
-            reject(entry.name, "reviewer instruction or repository marker")
-        if sensitive_path(entry.name):
-            reject(entry.name, "sensitive handoff path")
-        try:
-            data = entry.read_bytes()
-        except OSError:
-            reject(entry.name, "unreadable file")
-        scan(entry.name, data)
+    if len(sys.argv) == 3 and sys.argv[1] == "outbound":
+        scan_outbound(Path(sys.argv[2]))
+        return
+    if len(sys.argv) == 2 and sys.argv[1] == "reply":
+        scan_reply()
+        return
+    print("usage: spar-payload-scan outbound <handoff-dir> | reply", file=sys.stderr)
+    raise SystemExit(64)
 
 
 if __name__ == "__main__":

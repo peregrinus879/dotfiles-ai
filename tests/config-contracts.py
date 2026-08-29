@@ -83,12 +83,134 @@ scanner_source = (ROOT / "claude-code/.local/bin/spar-payload-scan").read_text(
 )
 for marker in (
     "#!/usr/bin/python3 -I",
+    'DETECTOR_SCHEMA = "spar-content-v1"',
+    "PROMPT_MAX = 256 * 1024",
+    "ENTRY_MAX = 512 * 1024",
+    "TOTAL_MAX = 1024 * 1024",
+    "ENTRY_COUNT_MAX = 128",
+    "FINDING_REPORT_MAX = 8",
     '"claude.local.md",',
+    '"reviewer-id",',
     "def diff_paths(text: str):",
     "def safe_assignment_value(value: str)",
-    "SAFE_VALUE.fullmatch",
+    "PATTERN_SAFE_VALUE.fullmatch",
+    "def scan_outbound(root: Path)",
+    "def scan_reply()",
+    'sys.argv[1] == "outbound"',
+    'sys.argv[1] == "reply"',
+    "sys.stdout.buffer.write(prompt)",
+    "PUBLIC_FINDINGS = frozenset",
 ):
     require(marker in scanner_source, f"spar payload scanner control drifted: {marker}")
+require(
+    "public-vectors.json" not in scanner_source,
+    "spar scanner regained an external public-vector registry",
+)
+
+claude_bridge_source = (ROOT / "claude-code/.local/bin/spar-claude").read_text(
+    encoding="utf-8"
+)
+codex_bridge_source = (ROOT / "codex/.local/bin/spar-codex").read_text(encoding="utf-8")
+for name, source in (("Claude", claude_bridge_source), ("Codex", codex_bridge_source)):
+    for marker in (
+        "canonical_repo_root()",
+        'printf \'%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n\'',
+        'NF != 6 || $2 != bridge || $6 != repo',
+        '"$SCANNER" outbound',
+        '"$SCANNER" reply',
+        "interrupt_stream()",
+        "trap interrupt_stream INT TERM HUP",
+        'exit 130',
+    ):
+        require(marker in source, f"{name} repository reviewer control drifted: {marker}")
+
+for marker in (
+    '--add-dir "$HANDOFF"',
+    '--tools "Read,Glob,Grep"',
+    '--safe-mode',
+    '--setting-sources=',
+    '--strict-mcp-config',
+    '"Read(/" + $repo + "/.git)"',
+    '"Read(/" + $repo + "/.git/**)"',
+    '"Read(/" + $handoff + "/reviewer-id)"',
+    '"Read(./.git)"',
+    '"Read(./**/.git)"',
+    '"Read(./secrets)"',
+    '"Read(./**/secrets)"',
+    "CLAUDE_CODE_USE_ANTHROPIC_AWS",
+    "CLAUDE_CODE_USE_MANTLE",
+    "CLAUDE_CODE_SKIP_ANTHROPIC_AWS_AUTH",
+    "CLAUDE_CODE_SKIP_MANTLE_AUTH",
+    '/usr/bin/env -C "$REPO_ROOT" "$REVIEWER_BIN"',
+    "--safe-mode --setting-sources= auth status",
+    '--arg home "$account_home"',
+    '"Read(/" + $home + "/.ssh/**)"',
+    '"Read(/" + $home + "/.config/gh/hosts.yml)"',
+):
+    require(marker in claude_bridge_source, f"Claude reviewer isolation drifted: {marker}")
+
+for marker in (
+    '\\":root\\"=\\"deny\\"',
+    '\\":minimal\\"=\\"read\\"',
+    '\\":tmpdir\\"=\\"deny\\"',
+    '\\":slash_tmp\\"=\\"deny\\"',
+    '\\":workspace_roots\\"',
+    '\\"$escaped_repo\\"=\\"read\\"',
+    '\\"$escaped_repo/.git\\"=\\"deny\\"',
+    '\\"$HANDOFF/reviewer-id\\"=\\"deny\\"',
+    "project_doc_max_bytes=0",
+    "project_doc_fallback_filenames=[]",
+    'network={enabled=false}',
+    '--ignore-user-config',
+    '--ignore-rules',
+    "project_root_markers=[]",
+    'PROJECT_ISOLATION="projects={\\"$REPO_ROOT\\"={trust_level=\\"untrusted\\"}}"',
+):
+    require(marker in codex_bridge_source, f"Codex reviewer isolation drifted: {marker}")
+
+require(
+    '"**/.git/**"="deny"' not in codex_bridge_source,
+    "Codex recursive Git deny would break native sandbox startup",
+)
+
+for name, source in (("Claude", claude_bridge_source), ("Codex", codex_bridge_source)):
+    for marker in (
+        "compgen -A variable GIT_",
+        "repository contains a hard-linked file outside denied directories",
+        "repository contains a nested mount boundary",
+        "REPO_ROOT != /",
+        "findmnt -R -J -o TARGET",
+        "INIT_HANDOFF=$root",
+        "cannot report the handoff directory",
+        "child_rc == 124 || $child_rc == 137",
+        'rm -rf -- "$workdir" || true',
+        "trap '' INT TERM HUP",
+    ):
+        require(marker in source, f"{name} repository boundary drifted: {marker}")
+
+require("EXPECTED_SESSION_ID" in claude_bridge_source, "Claude session-result binding drifted")
+require(
+    "A reviewer descendant may outlive its leader" in claude_bridge_source,
+    "Claude normal-exit descendant cleanup drifted",
+)
+for marker in (
+    "EXPECTED_THREAD_ID",
+    "-mindepth 65",
+    '(.installed | type) == "array"',
+    "REPORT_THREAD=1",
+):
+    require(marker in codex_bridge_source, f"Codex session or depth boundary drifted: {marker}")
+
+for path in (
+    ".gitignore",
+    "scripts/activate-spar-gate.sh",
+    "tests/spar-gate.sh",
+):
+    require(not (ROOT / path).exists(), f"activation artifact remains: {path}")
+require(
+    not any(path.is_file() or path.is_symlink() for path in (ROOT / "spar-gate").rglob("*")),
+    "activation files remain under spar-gate",
+)
 reviewed_writes_source = (
     ROOT / "opencode/.config/opencode/plugins/reviewed-writes.ts"
 ).read_text(encoding="utf-8")

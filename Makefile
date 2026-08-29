@@ -66,13 +66,10 @@ verify:
 	  "$$HOME/.claude/rules/shared-guidance.md=claude-code/.claude/rules/shared-guidance.md" \
 	  "$$HOME/.claude/skills/commit/SKILL.md=claude-code/.claude/skills/commit/SKILL.md" \
 	  "$$HOME/.claude/skills/spar/SKILL.md=claude-code/.claude/skills/spar/SKILL.md" \
-	  "$$HOME/.local/bin/spar-claude=claude-code/.local/bin/spar-claude" \
-	  "$$HOME/.local/bin/spar-payload-scan=claude-code/.local/bin/spar-payload-scan" \
 	  "$$HOME/.codex/config.toml=codex/.codex/config.toml" \
 	  "$$HOME/.codex/AGENTS.md=codex/.codex/AGENTS.md" \
 	  "$$HOME/.agents/skills/commit/SKILL.md=codex/.agents/skills/commit/SKILL.md" \
 	  "$$HOME/.agents/skills/spar/SKILL.md=codex/.agents/skills/spar/SKILL.md" \
-	  "$$HOME/.local/bin/spar-codex=codex/.local/bin/spar-codex" \
 	  "$$HOME/.config/opencode/opencode.json=opencode/.config/opencode/opencode.json" \
 	  "$$HOME/.config/opencode/package.json=opencode/.config/opencode/package.json" \
 	  "$$HOME/.config/opencode/package-lock.json=opencode/.config/opencode/package-lock.json" \
@@ -93,18 +90,24 @@ verify:
 	done; \
 	if bash -n claude-code/.claude/statusline.sh; then echo "ok:   bash -n statusline.sh"; else echo "FAIL: bash -n statusline.sh"; fail=1; fi; \
 	bash -n tests/statusline-state.sh && bash tests/statusline-state.sh || { echo "FAIL: statusline runtime-state controls"; fail=1; }; \
-	if bash -n scripts/prepare-stow.sh tests/prepare-stow.sh && bash tests/prepare-stow.sh; then \
-	  echo "ok:   non-destructive stow preparation"; \
-	else echo "FAIL: non-destructive stow preparation"; fail=1; fi; \
+	bash -n scripts/prepare-stow.sh tests/prepare-stow.sh tests/spar-bridges.sh || { echo "FAIL: managed shell syntax"; fail=1; }; \
+	bash tests/prepare-stow.sh || { echo "FAIL: non-destructive stow preparation"; fail=1; }; \
+	if python3 -I -c 'from pathlib import Path; p=Path("claude-code/.local/bin/spar-payload-scan"); compile(p.read_bytes(), str(p), "exec")'; then \
+	  echo "ok:   spar payload scanner syntax"; \
+	else echo "FAIL: spar payload scanner syntax"; fail=1; fi; \
 	bash -n tests/spar-bridges.sh && bash tests/spar-bridges.sh || { echo "FAIL: spar bridge payload controls"; fail=1; }; \
 	bash -n tests/project-config-isolation.sh && bash tests/project-config-isolation.sh || { echo "FAIL: project config isolation"; fail=1; }; \
-	for b in spar-claude spar-codex spar-payload-scan; do \
-	  if [[ -x "$$HOME/.local/bin/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
-	done; \
 	if [[ $$(grep -Fc -- '--tools ' claude-code/.local/bin/spar-claude) == 1 ]] && \
-	  grep -Fqx '    --tools "Read,Glob,Grep" --allowedTools "$$READ_RULE" \' claude-code/.local/bin/spar-claude; then \
+	  grep -Fqx '    --tools "Read,Glob,Grep" \' claude-code/.local/bin/spar-claude && \
+	  ! grep -Fq -- '--allowedTools' claude-code/.local/bin/spar-claude; then \
 	  echo "ok:   spar-claude read-only tool whitelist"; \
 	else echo "FAIL: spar-claude read-only tool whitelist missing"; fail=1; fi; \
+	for path in .gitignore scripts/activate-spar-gate.sh tests/spar-gate.sh \
+	  spar-gate/bin/spar-claude spar-gate/bin/spar-codex spar-gate/bin/spar-payload-scan \
+	  spar-gate/launcher spar-gate/public-vectors.json; do \
+	  if [[ ! -e $$path && ! -L $$path ]]; then echo "ok:   activation artifact absent: $$path"; \
+	  else echo "FAIL: activation artifact remains: $$path"; fail=1; fi; \
+	done; \
 	if grep -Fqx '#!/bin/bash -p' claude-code/.local/bin/spar-claude && \
 	  grep -Fqx '#!/bin/bash -p' codex/.local/bin/spar-codex && \
 	  grep -Fqx '#!/usr/bin/python3 -I' claude-code/.local/bin/spar-payload-scan; then \
