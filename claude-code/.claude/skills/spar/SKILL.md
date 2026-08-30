@@ -14,6 +14,8 @@ Requires: the `codex` CLI and the directly stowed `spar-codex` bridge (this repo
 
 Filesystem-root repositories fail before grant construction, and plugin preflight accepts only a structurally empty `installed` array.
 
+Repository path preflight validates every canonical-root component's spelling and every contained name without reading file contents. It rejects nested `.git` directories, sensitive directories without exact subtree denies, sensitive-named symlinks, symlinks below nested `secrets` trees whose deny depends on glob expansion, case variants of sensitive names, non-UTF-8 names, and control-, quote-, or backslash-bearing names while preserving ordinary public symlinks. The scanner parses LF-delimited Git records, preserves significant path whitespace, rejects decoded NUL, and strictly decodes C-quoted paths before applying the sensitive-name grammar to every path component shared with reviewer policies and native handoff-write gates.
+
 The reviewer is Codex (model pinned inside the bridge; update it there when the preferred model changes):
 
 - Handoff: run `spar-codex init`, record its output as `HANDOFF`, and use only that exact path for the run. Recovery discovery: `spar-codex status` lists validated handoffs with task title, mtime, and reviewer manifest.

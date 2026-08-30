@@ -10,6 +10,7 @@ import re
 import shlex
 import stat
 import sys
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -105,42 +106,280 @@ def safe_assignment_value(value: str) -> bool:
 
 
 def sensitive_path(value: str) -> bool:
-    normalized = value.replace("\\", "/").lower().strip("\"'")
-    parts = normalized.split("/")
-    name = parts[-1]
-    return (
-        any(re.fullmatch(r"\.env(?:[._~-].*)?", part) for part in parts)
-        or re.search(r"\.(?:key|pem|p12|pfx)(?:[._~-].*)?$", name) is not None
-        or any(re.fullmatch(r"secrets?(?:[._~-].*)?", part) for part in parts)
-        or any("credentials" in part for part in parts)
-        or re.fullmatch(r"auth\.json(?:[._~-].*)?", name) is not None
-        or re.fullmatch(r"\.(?:netrc|npmrc|pypirc)(?:[._~-].*)?", name) is not None
-        or re.fullmatch(r"id_(?:rsa|dsa|ecdsa|ed25519)(?:[._~-].*)?", name) is not None
-    )
+    parts = value.lower().split("/")
+
+    def sensitive_component(name: str) -> bool:
+        return (
+            re.fullmatch(r"\.env(?:[._~-].*)?", name) is not None
+            or re.search(r"\.(?:key|pem|p12|pfx)(?:[._~-].*)?$", name) is not None
+            or re.fullmatch(r"secrets?(?:[._~-].*)?", name) is not None
+            or "credentials" in name
+            or re.fullmatch(r"auth\.json(?:[._~-].*)?", name) is not None
+            or re.fullmatch(r"\.(?:netrc|npmrc|pypirc)(?:[._~-].*)?", name) is not None
+            or re.fullmatch(r"id_(?:rsa|dsa|ecdsa|ed25519)(?:[._~-].*)?", name) is not None
+        )
+
+    return any(sensitive_component(part) for part in parts)
+
+
+def validate_repository_paths(root: Path) -> None:
+    try:
+        metadata = root.lstat()
+    except OSError:
+        reject("repository", "cannot inspect repository root")
+    if not stat.S_ISDIR(metadata.st_mode) or root.is_symlink():
+        reject("repository", "repository root is not a real directory")
+
+    def walk_error(_error: OSError) -> None:
+        reject("repository", "cannot enumerate repository paths")
+
+    def validate_spelling(name: str) -> None:
+        try:
+            name.encode("utf-8")
+        except UnicodeEncodeError:
+            reject("repository", "non-UTF-8 repository path")
+        if any(character in name for character in ("\\", "'", '"')) or any(
+            unicodedata.category(character) == "Cc" for character in name
+        ):
+            reject("repository", "repository path cannot be represented safely")
+
+    def validate_name(name: str) -> tuple[str, bool]:
+        validate_spelling(name)
+        folded = name.lower()
+        sensitive = sensitive_path(name)
+        if (sensitive or folded == ".git") and name != folded:
+            reject("repository", "case-variant sensitive repository path")
+        return folded, sensitive
+
+    for component in root.parts:
+        if component != root.anchor:
+            validate_spelling(component)
+
+    for current, directories, files in os.walk(root, topdown=True, followlinks=False, onerror=walk_error):
+        relative_parent = os.path.relpath(current, root)
+        inside_recursive_secrets = "secrets" in Path(relative_parent).parts
+        retained = []
+        for name in directories:
+            folded, sensitive = validate_name(name)
+            relative = name if relative_parent == "." else f"{relative_parent}/{name}"
+            candidate = Path(current, name)
+            if candidate.is_symlink():
+                if folded == ".git" or sensitive or inside_recursive_secrets:
+                    reject("repository", "repository symlink cannot be covered by reviewer deny globs")
+                continue
+            if folded == ".git":
+                if relative != ".git":
+                    reject("repository", "nested Git metadata directory")
+                continue
+            if inside_recursive_secrets:
+                retained.append(name)
+                continue
+            if sensitive:
+                if name == "secrets":
+                    if relative == "secrets":
+                        continue
+                    retained.append(name)
+                    continue
+                reject("repository", "sensitive repository directory needs an exact subtree deny")
+            retained.append(name)
+        directories[:] = retained
+
+        for name in files:
+            folded, sensitive = validate_name(name)
+            if Path(current, name).is_symlink() and (
+                folded == ".git" or sensitive or inside_recursive_secrets
+            ):
+                reject("repository", "repository symlink cannot be covered by reviewer deny globs")
+
+
+GIT_C_ESCAPES = {
+    "a": 7,
+    "b": 8,
+    "t": 9,
+    "n": 10,
+    "v": 11,
+    "f": 12,
+    "r": 13,
+    '"': 34,
+    "\\": 92,
+}
+
+
+def decode_quoted_git_path(value: str, start: int = 0) -> tuple[str, int]:
+    decoded = bytearray()
+    index = start + 1
+    while index < len(value):
+        character = value[index]
+        if character == '"':
+            try:
+                path = decoded.decode("utf-8")
+            except UnicodeDecodeError as error:
+                raise ValueError("non-UTF-8 Git path") from error
+            if "\0" in path:
+                raise ValueError("NUL in Git path")
+            return path, index + 1
+        if character != "\\":
+            decoded.extend(character.encode("utf-8"))
+            index += 1
+            continue
+        index += 1
+        if index >= len(value):
+            raise ValueError("truncated Git path escape")
+        escaped = value[index]
+        if escaped in GIT_C_ESCAPES:
+            decoded.append(GIT_C_ESCAPES[escaped])
+            index += 1
+            continue
+        digits = value[index : index + 3]
+        if (
+            escaped not in "0123"
+            or len(digits) != 3
+            or any(digit not in "01234567" for digit in digits[1:])
+        ):
+            raise ValueError("invalid Git path escape")
+        decoded.append(int(digits, 8))
+        index += 3
+
+    raise ValueError("unterminated Git path")
+
+
+def decode_git_path(value: str) -> str:
+    if not value:
+        raise ValueError("empty Git path")
+    if not value.startswith('"'):
+        if '"' in value or "\\" in value or any(
+            unicodedata.category(character) == "Cc" for character in value
+        ):
+            raise ValueError("malformed Git path quoting")
+        return value
+
+    path, end = decode_quoted_git_path(value)
+    if end != len(value):
+        raise ValueError("extra Git path data")
+    return path
+
+
+def split_git_header_paths(value: str) -> list[str] | None:
+    if not value:
+        raise ValueError("missing Git path")
+
+    if value.startswith('"'):
+        first, end = decode_quoted_git_path(value)
+        rest = value[end:]
+        if not rest.startswith(" "):
+            raise ValueError("missing Git path")
+        rest = rest[1:]
+        if not rest:
+            raise ValueError("missing Git path")
+        return [first, decode_git_path(rest)]
+
+    quote = value.find('"')
+    if quote >= 0:
+        if quote == 0 or value[quote - 1] != " ":
+            raise ValueError("malformed Git path quoting")
+        first = value[: quote - 1]
+        if not first or "\\" in first:
+            raise ValueError("malformed Git path quoting")
+        return [decode_git_path(first), decode_git_path(value[quote:])]
+
+    if "\\" in value:
+        raise ValueError("malformed Git path quoting")
+
+    candidates = []
+    if value.startswith("a/"):
+        for index in range(2, len(value) - 2):
+            if value[index : index + 3] != " b/":
+                continue
+            first = value[:index]
+            second = value[index + 1 :]
+            if first.removeprefix("a/") == second.removeprefix("b/"):
+                candidates.append([first, second])
+    else:
+        for index, character in enumerate(value):
+            if character != " ":
+                continue
+            first = value[:index]
+            second = value[index + 1 :]
+            if first and first == second:
+                candidates.append([first, second])
+    if len(candidates) == 1:
+        return [decode_git_path(path) for path in candidates[0]]
+    return None
+
+
+def resolve_ambiguous_git_header(value: str, paths: dict[str, list[str]]) -> list[str]:
+    def matches(header_path: str, path: str) -> bool:
+        return header_path == path or header_path.endswith(f"/{path}")
+
+    candidates = []
+    for index, character in enumerate(value):
+        if character != " ":
+            continue
+        if value.startswith("a/") and value[index : index + 3] != " b/":
+            continue
+        first = value[:index]
+        second = value[index + 1 :]
+        if not first or not second:
+            continue
+        if any(matches(first, path) for path in paths["old"]) and any(
+            matches(second, path) for path in paths["new"]
+        ):
+            candidates.append([first, second])
+    if len(candidates) != 1:
+        raise ValueError("unresolved Git diff header")
+    return [decode_git_path(path) for path in candidates[0]]
 
 
 def diff_paths(text: str):
-    for line in text.splitlines():
+    pending_header = None
+    pending_paths = {"old": [], "new": []}
+    path_prefixes = {
+        "--- ": "old",
+        "+++ ": "new",
+        "rename from ": "old",
+        "rename to ": "new",
+        "rename old ": "old",
+        "rename new ": "new",
+        "copy from ": "old",
+        "copy to ": "new",
+    }
+
+    for line in text.split("\n"):
         if line.startswith("diff --git "):
-            try:
-                parts = shlex.split(line)
-            except ValueError:
-                parts = line.split()
-            yield from parts[2:]
+            if pending_header is not None:
+                yield from resolve_ambiguous_git_header(pending_header, pending_paths)
+            pending_header = None
+            pending_paths = {"old": [], "new": []}
+            value = line[len("diff --git ") :]
+            paths = split_git_header_paths(value)
+            if paths is None:
+                pending_header = value
+            else:
+                yield from paths
             continue
-        for prefix in (
-            "diff --cc ",
-            "diff --combined ",
-            "--- ",
-            "+++ ",
-            "rename from ",
-            "rename to ",
-            "copy from ",
-            "copy to ",
-        ):
+        for prefix in ("diff --cc ", "diff --combined "):
             if line.startswith(prefix):
-                yield line[len(prefix) :].split("\t", 1)[0].strip()
+                if pending_header is not None:
+                    yield from resolve_ambiguous_git_header(pending_header, pending_paths)
+                pending_header = None
+                pending_paths = {"old": [], "new": []}
+                yield decode_git_path(line[len(prefix) :])
                 break
+        else:
+            for prefix, side in path_prefixes.items():
+                if not line.startswith(prefix):
+                    continue
+                value = line[len(prefix) :]
+                if prefix in ("--- ", "+++ "):
+                    value = value.split("\t", 1)[0]
+                path = decode_git_path(value)
+                if pending_header is not None:
+                    pending_paths[side].append(path)
+                yield path
+                break
+
+    if pending_header is not None:
+        yield from resolve_ambiguous_git_header(pending_header, pending_paths)
 
 
 def decode_text(label: str, data: bytes) -> str:
@@ -161,9 +400,12 @@ def content_findings(label: str, data: bytes, check_paths: bool) -> list[Finding
 
     findings: list[Finding] = []
     if check_paths:
-        for path in diff_paths(text):
-            if sensitive_path(path):
-                reject(label, "sensitive diff path")
+        try:
+            for path in diff_paths(text):
+                if sensitive_path(path):
+                    reject(label, "sensitive diff path")
+        except ValueError:
+            reject(label, "malformed Git diff path")
 
     for rule, pattern in (
         ("key-envelope-v1", PATTERN_ENVELOPE),
@@ -332,13 +574,19 @@ def scan_reply() -> None:
 
 
 def main() -> None:
+    if len(sys.argv) == 3 and sys.argv[1] == "repository":
+        validate_repository_paths(Path(sys.argv[2]))
+        return
     if len(sys.argv) == 3 and sys.argv[1] == "outbound":
         scan_outbound(Path(sys.argv[2]))
         return
     if len(sys.argv) == 2 and sys.argv[1] == "reply":
         scan_reply()
         return
-    print("usage: spar-payload-scan outbound <handoff-dir> | reply", file=sys.stderr)
+    print(
+        "usage: spar-payload-scan repository <repo-dir> | outbound <handoff-dir> | reply",
+        file=sys.stderr,
+    )
     raise SystemExit(64)
 
 

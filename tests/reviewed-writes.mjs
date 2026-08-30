@@ -93,6 +93,7 @@ try {
   await expectEditRejected("dotenv handoff backup", `${handoff}/.env_bak`)
   await expectEditRejected("mixed-case instruction injection", `${handoff}/Agents.md`)
   await expectEditRejected("PKCS handoff backup", `${handoff}/private.p12~`)
+  await expectEditRejected("OpenSSH key backup", `${handoff}/id_ed25519.bak`)
 
   fs.symlinkSync(handoff, `${aliasWorkspace}/handoff`)
   await expectEditAccepted("workspace alias to handoff content", `${aliasWorkspace}/handoff/spar-plan.md`)

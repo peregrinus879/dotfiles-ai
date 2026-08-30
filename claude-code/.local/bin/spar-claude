@@ -77,7 +77,8 @@ canonical_repo_root() {
   [[ $REPO_ROOT != / ]] || abort "repository root cannot be the filesystem root"
   [[ $REPO_ROOT != *$'\t'* && $REPO_ROOT != *$'\n'* && $REPO_ROOT != *$'\r'* ]] ||
     abort "repository root contains a manifest delimiter"
-  [[ $REPO_ROOT != *\\* && $REPO_ROOT != *'*'* && $REPO_ROOT != *'?'* &&
+  [[ $REPO_ROOT != *\\* && $REPO_ROOT != *'"'* && $REPO_ROOT != *"'"* &&
+    $REPO_ROOT != *'*'* && $REPO_ROOT != *'?'* &&
     $REPO_ROOT != *'['* && $REPO_ROOT != *']'* && $REPO_ROOT != *'('* &&
     $REPO_ROOT != *')'* ]] || abort "repository root cannot be represented safely in permission rules"
   validate_repo_metadata
@@ -93,8 +94,10 @@ validate_repo_metadata() {
     abort "cannot validate repository mount boundaries"
   fi
   [[ $nested_mounts == 0 ]] || abort "repository contains a nested mount boundary"
+  resolve_scanner
+  "$SCANNER" repository "$REPO_ROOT" || abort "repository path validation failed"
   if ! unsafe=$(find -P "$REPO_ROOT" -xdev -mindepth 1 \
-    \( -type d \( -name .git -o -name secrets \) \) -prune -o \
+    \( -type d \( -path "$REPO_ROOT/.git" -o -name secrets \) \) -prune -o \
     -type f -links +1 -printf 'unsafe\n' -quit); then
     abort "cannot validate repository file metadata"
   fi
@@ -267,14 +270,22 @@ preflight() {
           "Read(./.git)", "Read(./.git/**)", "Read(./**/.git)", "Read(./**/.git/**)",
           "Read(./.env)", "Read(./.env.*)", "Read(./.env-*)", "Read(./.env_*)", "Read(./.env~*)",
           "Read(./**/.env)", "Read(./**/.env.*)", "Read(./**/.env-*)", "Read(./**/.env_*)", "Read(./**/.env~*)",
-          "Read(./secrets)", "Read(./secrets/**)", "Read(./**/secrets)", "Read(./**/secrets/**)",
+          "Read(./secret)", "Read(./secret.*)", "Read(./secret-*)", "Read(./secret_*)", "Read(./secret~*)",
+          "Read(./secrets)", "Read(./secrets.*)", "Read(./secrets-*)", "Read(./secrets_*)", "Read(./secrets~*)", "Read(./secrets/**)",
+          "Read(./**/secret)", "Read(./**/secret.*)", "Read(./**/secret-*)", "Read(./**/secret_*)", "Read(./**/secret~*)",
+          "Read(./**/secrets)", "Read(./**/secrets.*)", "Read(./**/secrets-*)", "Read(./**/secrets_*)", "Read(./**/secrets~*)", "Read(./**/secrets/**)",
           "Read(./**/*.key)", "Read(./**/*.key.*)", "Read(./**/*.key-*)", "Read(./**/*.key_*)", "Read(./**/*.key~*)",
           "Read(./**/*.pem)", "Read(./**/*.pem.*)", "Read(./**/*.pem-*)", "Read(./**/*.pem_*)", "Read(./**/*.pem~*)",
           "Read(./**/*.p12)", "Read(./**/*.p12.*)", "Read(./**/*.p12-*)", "Read(./**/*.p12_*)", "Read(./**/*.p12~*)",
           "Read(./**/*.pfx)", "Read(./**/*.pfx.*)", "Read(./**/*.pfx-*)", "Read(./**/*.pfx_*)", "Read(./**/*.pfx~*)",
-          "Read(./**/*credentials*)", "Read(./**/auth.json)",
-          "Read(./**/.netrc)", "Read(./**/.npmrc)", "Read(./**/.pypirc)",
-          "Read(./**/id_rsa*)", "Read(./**/id_dsa*)", "Read(./**/id_ecdsa*)", "Read(./**/id_ed25519*)",
+          "Read(./**/*credentials*)", "Read(./**/auth.json)", "Read(./**/auth.json.*)", "Read(./**/auth.json-*)", "Read(./**/auth.json_*)", "Read(./**/auth.json~*)",
+          "Read(./**/.netrc)", "Read(./**/.netrc.*)", "Read(./**/.netrc-*)", "Read(./**/.netrc_*)", "Read(./**/.netrc~*)",
+          "Read(./**/.npmrc)", "Read(./**/.npmrc.*)", "Read(./**/.npmrc-*)", "Read(./**/.npmrc_*)", "Read(./**/.npmrc~*)",
+          "Read(./**/.pypirc)", "Read(./**/.pypirc.*)", "Read(./**/.pypirc-*)", "Read(./**/.pypirc_*)", "Read(./**/.pypirc~*)",
+          "Read(./**/id_rsa)", "Read(./**/id_rsa.*)", "Read(./**/id_rsa-*)", "Read(./**/id_rsa_*)", "Read(./**/id_rsa~*)",
+          "Read(./**/id_dsa)", "Read(./**/id_dsa.*)", "Read(./**/id_dsa-*)", "Read(./**/id_dsa_*)", "Read(./**/id_dsa~*)",
+          "Read(./**/id_ecdsa)", "Read(./**/id_ecdsa.*)", "Read(./**/id_ecdsa-*)", "Read(./**/id_ecdsa_*)", "Read(./**/id_ecdsa~*)",
+          "Read(./**/id_ed25519)", "Read(./**/id_ed25519.*)", "Read(./**/id_ed25519-*)", "Read(./**/id_ed25519_*)", "Read(./**/id_ed25519~*)",
           "Read(/" + $home + "/.aws)", "Read(/" + $home + "/.aws/**)",
           "Read(/" + $home + "/.claude/.credentials.json)",
           "Read(/" + $home + "/.codex/auth.json)",

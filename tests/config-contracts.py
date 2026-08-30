@@ -77,6 +77,7 @@ for marker in (
     "reviewer-id | agents.md | agents.override.md | claude.md | claude.local.md | .git",
     ".env | .env.* | .env-* | .env_* | .env~*",
     ".netrc | .netrc.* | .netrc-* | .netrc_* | .netrc~*",
+    "id_ed25519 | id_ed25519.* | id_ed25519~* | id_ed25519-* | id_ed25519_*",
     "HANDOFF_RE='^/var/tmp/spar-",
 ):
     require(marker in hook_source, f"spar gate hook control drifted: {marker}")
@@ -91,7 +92,16 @@ for marker in (
     "TOTAL_MAX = 1024 * 1024",
     "ENTRY_COUNT_MAX = 128",
     "FINDING_REPORT_MAX = 8",
-    're.fullmatch(r"\\.env(?:[._~-].*)?", part)',
+    're.fullmatch(r"\\.env(?:[._~-].*)?", name)',
+    "return any(sensitive_component(part) for part in parts)",
+    "def validate_repository_paths(root: Path)",
+    "for component in root.parts:",
+    "repository symlink cannot be covered by reviewer deny globs",
+    'inside_recursive_secrets = "secrets" in Path(relative_parent).parts',
+    "def decode_quoted_git_path(value: str, start: int = 0)",
+    'raise ValueError("NUL in Git path")',
+    "def decode_git_path(value: str)",
+    "def split_git_header_paths(value: str)",
     '"claude.local.md",',
     '"reviewer-id",',
     "def diff_paths(text: str):",
@@ -101,6 +111,8 @@ for marker in (
     "def scan_reply()",
     'sys.argv[1] == "outbound"',
     'sys.argv[1] == "reply"',
+    'sys.argv[1] == "repository"',
+    'text.split("\\n")',
     "sys.stdout.buffer.write(prompt)",
     "PUBLIC_FINDINGS = frozenset",
 ):
@@ -126,6 +138,10 @@ for name, source in (("Claude", claude_bridge_source), ("Codex", codex_bridge_so
         'exit 130',
     ):
         require(marker in source, f"{name} repository reviewer control drifted: {marker}")
+    require(
+        '"$SCANNER" repository "$REPO_ROOT"' in source,
+        f"{name} repository path preflight drifted",
+    )
 
 for marker in (
     '--add-dir "$HANDOFF"',
@@ -138,11 +154,15 @@ for marker in (
     '"Read(/" + $handoff + "/reviewer-id)"',
     '"Read(./.git)"',
     '"Read(./**/.git)"',
-    '"Read(./secrets)"',
-    '"Read(./**/secrets)"',
+    '"Read(./secret~*)"',
+    '"Read(./**/secrets/**)"',
     '"Read(./**/.env~*)"',
     '"Read(./**/*.pem.*)"',
     '"Read(./**/*.p12~*)"',
+    '"Read(./**/auth.json_*)"',
+    '"Read(./**/.netrc~*)"',
+    '"Read(./**/.npmrc-*)"',
+    '"Read(./**/.pypirc.*)"',
     "CLAUDE_CODE_USE_ANTHROPIC_AWS",
     "CLAUDE_CODE_USE_MANTLE",
     "CLAUDE_CODE_SKIP_ANTHROPIC_AWS_AUTH",
@@ -169,6 +189,12 @@ for marker in (
     "**/.env~*",
     "**/*.pem.*",
     "**/*.p12~*",
+    "secret~*",
+    "**/secrets/**",
+    "**/auth.json_*",
+    "**/.netrc~*",
+    "**/.npmrc-*",
+    "**/.pypirc.*",
     'network={enabled=false}',
     '--ignore-user-config',
     '--ignore-rules',
@@ -176,6 +202,53 @@ for marker in (
     'PROJECT_ISOLATION="projects={\\"$REPO_ROOT\\"={trust_level=\\"untrusted\\"}}"',
 ):
     require(marker in codex_bridge_source, f"Codex reviewer isolation drifted: {marker}")
+
+for stem in (
+    ".env",
+    "*.key",
+    "*.pem",
+    "*.p12",
+    "*.pfx",
+    "auth.json",
+    ".netrc",
+    ".npmrc",
+    ".pypirc",
+    "id_rsa",
+    "id_dsa",
+    "id_ecdsa",
+    "id_ed25519",
+):
+    for suffix in (".*", "-*", "_*", "~*"):
+        require(
+            f'"Read(./**/{stem}{suffix})"' in claude_bridge_source,
+            f"Claude sensitive backup deny drifted: {stem}{suffix}",
+        )
+        require(
+            f"**/{stem}{suffix}" in codex_bridge_source,
+            f"Codex sensitive backup deny drifted: {stem}{suffix}",
+        )
+
+for stem in ("secret", "secrets"):
+    for suffix in ("", ".*", "-*", "_*", "~*"):
+        require(
+            f'"Read(./**/{stem}{suffix})"' in claude_bridge_source,
+            f"Claude secret-name deny drifted: {stem}{suffix}",
+        )
+        require(
+            f"**/{stem}{suffix}" in codex_bridge_source,
+            f"Codex secret-name deny drifted: {stem}{suffix}",
+        )
+
+for source in (claude_bridge_source, codex_bridge_source):
+    require(
+        "secret*/**" not in source,
+        "reviewer policy overmatches public secret-prefixed paths",
+    )
+    for stem in ("id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"):
+        require(
+            f"{stem}*" not in source,
+            f"reviewer policy overmatches public {stem}-prefixed paths",
+        )
 
 require(
     '"**/.git/**"="deny"' not in codex_bridge_source,
@@ -190,6 +263,7 @@ for name, source in (("Claude", claude_bridge_source), ("Codex", codex_bridge_so
         "REPO_ROOT != /",
         "findmnt -R -J -o TARGET",
         "-xdev -mindepth 1",
+        '-path "$REPO_ROOT/.git"',
         "INIT_HANDOFF=$root",
         "cannot report the handoff directory",
         "child_rc == 124 || $child_rc == 137",
@@ -242,6 +316,7 @@ for marker in (
     "reviewer-instruction",
     "env(?:[._~-].*)?",
     "key|pem|p12|pfx",
+    "rsa|dsa|ecdsa|ed25519",
 ):
     require(marker in reviewed_writes_source, f"OpenCode handoff write gate drifted: {marker}")
 require(

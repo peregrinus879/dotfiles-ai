@@ -39,7 +39,28 @@ build_reviewer_profile() {
   escaped_runtime=${escaped_runtime//\"/\\\"}
   escaped_repo=${REPO_ROOT//\\/\\\\}
   escaped_repo=${escaped_repo//\"/\\\"}
-  REVIEWER_PROFILE="permissions.spar-reviewer={description=\"Repository-scoped read-only spar reviewer\",filesystem={\":root\"=\"deny\",\":minimal\"=\"read\",\":tmpdir\"=\"deny\",\":slash_tmp\"=\"deny\",\"$escaped_runtime\"=\"read\",\"$escaped_repo\"=\"read\",\"$HANDOFF\"=\"read\",\"$escaped_repo/.git\"=\"deny\",\"$HANDOFF/reviewer-id\"=\"deny\",\"~/.aws\"=\"deny\",\"~/.claude/.credentials.json\"=\"deny\",\"~/.codex/auth.json\"=\"deny\",\"~/.config/gh/hosts.yml\"=\"deny\",\"~/.docker/config.json\"=\"deny\",\"~/.gnupg\"=\"deny\",\"~/.kube\"=\"deny\",\"~/.local/share/opencode/auth.json\"=\"deny\",\"~/.netrc\"=\"deny\",\"~/.npmrc\"=\"deny\",\"~/.pypirc\"=\"deny\",\"~/.ssh\"=\"deny\",glob_scan_max_depth=64,\":workspace_roots\"={\".\"=\"read\",\".git\"=\"deny\",\"**/.git\"=\"deny\",\".env\"=\"deny\",\".env.*\"=\"deny\",\".env-*\"=\"deny\",\".env_*\"=\"deny\",\".env~*\"=\"deny\",\"**/.env\"=\"deny\",\"**/.env.*\"=\"deny\",\"**/.env-*\"=\"deny\",\"**/.env_*\"=\"deny\",\"**/.env~*\"=\"deny\",\"secrets\"=\"deny\",\"secrets/**\"=\"deny\",\"**/secrets\"=\"deny\",\"**/secrets/**\"=\"deny\",\"**/*.key\"=\"deny\",\"**/*.key.*\"=\"deny\",\"**/*.key-*\"=\"deny\",\"**/*.key_*\"=\"deny\",\"**/*.key~*\"=\"deny\",\"**/*.pem\"=\"deny\",\"**/*.pem.*\"=\"deny\",\"**/*.pem-*\"=\"deny\",\"**/*.pem_*\"=\"deny\",\"**/*.pem~*\"=\"deny\",\"**/*.p12\"=\"deny\",\"**/*.p12.*\"=\"deny\",\"**/*.p12-*\"=\"deny\",\"**/*.p12_*\"=\"deny\",\"**/*.p12~*\"=\"deny\",\"**/*.pfx\"=\"deny\",\"**/*.pfx.*\"=\"deny\",\"**/*.pfx-*\"=\"deny\",\"**/*.pfx_*\"=\"deny\",\"**/*.pfx~*\"=\"deny\",\"**/*credentials*\"=\"deny\",\"**/auth.json\"=\"deny\",\"**/.netrc\"=\"deny\",\"**/.npmrc\"=\"deny\",\"**/.pypirc\"=\"deny\",\"**/id_rsa*\"=\"deny\",\"**/id_dsa*\"=\"deny\",\"**/id_ecdsa*\"=\"deny\",\"**/id_ed25519*\"=\"deny\"}},network={enabled=false}}"
+  REVIEWER_PROFILE="permissions.spar-reviewer={description=\"Repository-scoped read-only spar reviewer\",filesystem={\":root\"=\"deny\",\":minimal\"=\"read\",\":tmpdir\"=\"deny\",\":slash_tmp\"=\"deny\",\"$escaped_runtime\"=\"read\",\"$escaped_repo\"=\"read\",\"$HANDOFF\"=\"read\",\"$escaped_repo/.git\"=\"deny\",\"$HANDOFF/reviewer-id\"=\"deny\",\"~/.aws\"=\"deny\",\"~/.claude/.credentials.json\"=\"deny\",\"~/.codex/auth.json\"=\"deny\",\"~/.config/gh/hosts.yml\"=\"deny\",\"~/.docker/config.json\"=\"deny\",\"~/.gnupg\"=\"deny\",\"~/.kube\"=\"deny\",\"~/.local/share/opencode/auth.json\"=\"deny\",\"~/.netrc\"=\"deny\",\"~/.npmrc\"=\"deny\",\"~/.pypirc\"=\"deny\",\"~/.ssh\"=\"deny\",glob_scan_max_depth=64,"
+  REVIEWER_PROFILE+="\":workspace_roots\"={"
+  REVIEWER_PROFILE+='"."="read",".git"="deny","**/.git"="deny",'
+  REVIEWER_PROFILE+='".env"="deny",".env.*"="deny",".env-*"="deny",".env_*"="deny",".env~*"="deny",'
+  REVIEWER_PROFILE+='"**/.env"="deny","**/.env.*"="deny","**/.env-*"="deny","**/.env_*"="deny","**/.env~*"="deny",'
+  REVIEWER_PROFILE+='"secret"="deny","secret.*"="deny","secret-*"="deny","secret_*"="deny","secret~*"="deny",'
+  REVIEWER_PROFILE+='"secrets"="deny","secrets.*"="deny","secrets-*"="deny","secrets_*"="deny","secrets~*"="deny","secrets/**"="deny",'
+  REVIEWER_PROFILE+='"**/secret"="deny","**/secret.*"="deny","**/secret-*"="deny","**/secret_*"="deny","**/secret~*"="deny",'
+  REVIEWER_PROFILE+='"**/secrets"="deny","**/secrets.*"="deny","**/secrets-*"="deny","**/secrets_*"="deny","**/secrets~*"="deny","**/secrets/**"="deny",'
+  REVIEWER_PROFILE+='"**/*.key"="deny","**/*.key.*"="deny","**/*.key-*"="deny","**/*.key_*"="deny","**/*.key~*"="deny",'
+  REVIEWER_PROFILE+='"**/*.pem"="deny","**/*.pem.*"="deny","**/*.pem-*"="deny","**/*.pem_*"="deny","**/*.pem~*"="deny",'
+  REVIEWER_PROFILE+='"**/*.p12"="deny","**/*.p12.*"="deny","**/*.p12-*"="deny","**/*.p12_*"="deny","**/*.p12~*"="deny",'
+  REVIEWER_PROFILE+='"**/*.pfx"="deny","**/*.pfx.*"="deny","**/*.pfx-*"="deny","**/*.pfx_*"="deny","**/*.pfx~*"="deny",'
+  REVIEWER_PROFILE+='"**/*credentials*"="deny","**/auth.json"="deny","**/auth.json.*"="deny","**/auth.json-*"="deny","**/auth.json_*"="deny","**/auth.json~*"="deny",'
+  REVIEWER_PROFILE+='"**/.netrc"="deny","**/.netrc.*"="deny","**/.netrc-*"="deny","**/.netrc_*"="deny","**/.netrc~*"="deny",'
+  REVIEWER_PROFILE+='"**/.npmrc"="deny","**/.npmrc.*"="deny","**/.npmrc-*"="deny","**/.npmrc_*"="deny","**/.npmrc~*"="deny",'
+  REVIEWER_PROFILE+='"**/.pypirc"="deny","**/.pypirc.*"="deny","**/.pypirc-*"="deny","**/.pypirc_*"="deny","**/.pypirc~*"="deny",'
+  REVIEWER_PROFILE+='"**/id_rsa"="deny","**/id_rsa.*"="deny","**/id_rsa-*"="deny","**/id_rsa_*"="deny","**/id_rsa~*"="deny",'
+  REVIEWER_PROFILE+='"**/id_dsa"="deny","**/id_dsa.*"="deny","**/id_dsa-*"="deny","**/id_dsa_*"="deny","**/id_dsa~*"="deny",'
+  REVIEWER_PROFILE+='"**/id_ecdsa"="deny","**/id_ecdsa.*"="deny","**/id_ecdsa-*"="deny","**/id_ecdsa_*"="deny","**/id_ecdsa~*"="deny",'
+  REVIEWER_PROFILE+='"**/id_ed25519"="deny","**/id_ed25519.*"="deny","**/id_ed25519-*"="deny","**/id_ed25519_*"="deny","**/id_ed25519~*"="deny"'
+  REVIEWER_PROFILE+='}},network={enabled=false}}'
 }
 PLUGIN_DISABLE_OVERRIDES=(
   -c 'features.plugins=false'
@@ -135,7 +156,7 @@ canonical_repo_root() {
   [[ -d $REPO_ROOT && ! -L $REPO_ROOT ]] || abort "repository root is not a real directory"
   [[ $REPO_ROOT != / ]] || abort "repository root cannot be the filesystem root"
   [[ $REPO_ROOT != *$'\t'* && $REPO_ROOT != *$'\n'* && $REPO_ROOT != *$'\r'* &&
-    $REPO_ROOT != *'"'* && $REPO_ROOT != *\\* && $REPO_ROOT != *'*'* &&
+    $REPO_ROOT != *'"'* && $REPO_ROOT != *"'"* && $REPO_ROOT != *\\* && $REPO_ROOT != *'*'* &&
     $REPO_ROOT != *'?'* && $REPO_ROOT != *'['* && $REPO_ROOT != *']'* &&
     $REPO_ROOT != *'('* && $REPO_ROOT != *')'* ]] ||
     abort "repository root cannot be represented safely in the reviewer profile"
@@ -152,8 +173,10 @@ validate_repo_metadata() {
     abort "cannot validate repository mount boundaries"
   fi
   [[ $nested_mounts == 0 ]] || abort "repository contains a nested mount boundary"
+  resolve_scanner
+  "$SCANNER" repository "$REPO_ROOT" || abort "repository path validation failed"
   if ! unsafe=$(find -P "$REPO_ROOT" -xdev -mindepth 1 \
-    \( -type d \( -name .git -o -name secrets \) \) -prune -o \
+    \( -type d \( -path "$REPO_ROOT/.git" -o -name secrets \) \) -prune -o \
     -type f -links +1 -printf 'hardlink\n' -quit); then
     abort "cannot validate repository file metadata"
   fi

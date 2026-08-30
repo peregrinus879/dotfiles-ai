@@ -79,6 +79,10 @@ case ${name,,} in
     *.p12 | *.p12.* | *.p12~* | *.p12-* | *.p12_* | \
     *.pfx | *.pfx.* | *.pfx~* | *.pfx-* | *.pfx_* | \
     *credentials* | auth.json | auth.json.* | auth.json~* | auth.json-* | auth.json_* | \
+    id_rsa | id_rsa.* | id_rsa~* | id_rsa-* | id_rsa_* | \
+    id_dsa | id_dsa.* | id_dsa~* | id_dsa-* | id_dsa_* | \
+    id_ecdsa | id_ecdsa.* | id_ecdsa~* | id_ecdsa-* | id_ecdsa_* | \
+    id_ed25519 | id_ed25519.* | id_ed25519~* | id_ed25519-* | id_ed25519_* | \
     secret | secret.* | secret~* | secret-* | secret_* | \
     secrets | secrets.* | secrets~* | secrets-* | secrets_*)
     emit deny "sensitive-shaped spar handoff target" ;;

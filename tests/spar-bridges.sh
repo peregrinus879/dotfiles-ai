@@ -105,6 +105,15 @@ if [[ ${1:-} == plugin && ${2:-} == list ]]; then
   exit
 fi
 [[ ${1:-} == exec ]] || exit 90
+args=("$@")
+reviewer_profile=""
+for ((index = 0; index + 1 < ${#args[@]}; index++)); do
+  if [[ ${args[index]} == -c && ${args[index + 1]} == permissions.spar-reviewer=* ]]; then
+    reviewer_profile=${args[index + 1]}
+  fi
+done
+[[ -n $reviewer_profile ]] || exit 95
+python3 -c 'import sys, tomllib; tomllib.loads(sys.argv[1])' "$reviewer_profile" || exit 96
 prompt=$(cat)
 [[ -z ${SPAR_TEST_STDIN:-} ]] || printf '%s' "$prompt" >"$SPAR_TEST_STDIN"
 [[ -z ${SPAR_TEST_PWDS:-} ]] || printf '%s\n' "$PWD" >>"$SPAR_TEST_PWDS"
@@ -304,12 +313,95 @@ for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
 done
 rm -- "$TMP/root-name/secrets/public-alias.md" "$TMP/root-name-source"
 
+repository_path_cases=(
+  'file:Secrets'
+  'file:.ENV_BAK'
+  'file:PRIVATE.PEM~OLD'
+  'file:odd"name'
+  "file:odd'name"
+  'file:odd\name'
+  $'file:control\nname'
+  $'file:control\u0085name'
+  $'file:nonutf8-\xff'
+  'dir:.env-old'
+  'dir:service-credentials'
+  'dir:vendor/.git'
+)
+case_index=0
+for entry in "${repository_path_cases[@]}"; do
+  ((case_index += 1))
+  kind=${entry%%:*}
+  path=${entry#*:}
+  repo="$TMP/repository-path-$case_index"
+  git init -q "$repo"
+  parent=${path%/*}
+  [[ $parent == "$path" ]] || mkdir -p "$repo/$parent"
+  if [[ $kind == dir ]]; then
+    mkdir -p "$repo/$path"
+  else
+    printf 'harmless\n' >"$repo/$path"
+  fi
+  for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
+    unexpected=""
+    if unexpected=$(/usr/bin/env -C "$repo" "$bridge" init 2>/dev/null); then
+      [[ -z $unexpected ]] || track_handoff "$unexpected"
+      fail "${bridge##*/} accepted unsafe repository path spelling: $path"
+    fi
+  done
+done
+
+unsafe_root="$TMP/"$'repository-root-\a'
+git init -q "$unsafe_root"
+for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
+  unexpected=""
+  if unexpected=$(/usr/bin/env -C "$unsafe_root" "$bridge" init 2>/dev/null); then
+    [[ -z $unexpected ]] || track_handoff "$unexpected"
+    fail "${bridge##*/} accepted an unsafe canonical-root component"
+  fi
+done
+
+repository_symlink_cases=(
+  'vendor/.git:../public-dir'
+  'vendor/id_rsa:../public.txt'
+  'vendor/secrets/public-link:../../public.txt'
+)
+case_index=0
+for entry in "${repository_symlink_cases[@]}"; do
+  ((case_index += 1))
+  path=${entry%%:*}
+  target=${entry#*:}
+  repo="$TMP/repository-symlink-$case_index"
+  git init -q "$repo"
+  mkdir -p "$repo/${path%/*}" "$repo/public-dir"
+  printf 'harmless\n' >"$repo/public.txt"
+  ln -s -- "$target" "$repo/$path"
+  for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
+    unexpected=""
+    if unexpected=$(/usr/bin/env -C "$repo" "$bridge" init 2>/dev/null); then
+      [[ -z $unexpected ]] || track_handoff "$unexpected"
+      fail "${bridge##*/} accepted an unsupported repository symlink: $path"
+    fi
+  done
+done
+
+git init -q "$TMP/public-path-repo"
+printf 'harmless\n' >"$TMP/public-path-repo/secretary.md"
+printf 'harmless\n' >"$TMP/public-path-repo/id_rsa2-test-vector.txt"
+mkdir -p "$TMP/public-path-repo/vendor/secrets"
+printf 'harmless\n' >"$TMP/public-path-repo/vendor/secrets/public.txt"
+ln -s -- secretary.md "$TMP/public-path-repo/public-link.md"
+for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
+  handoff=$(/usr/bin/env -C "$TMP/public-path-repo" "$bridge" init) ||
+    fail "${bridge##*/} rejected public separator-free repository names"
+  track_handoff "$handoff"
+done
+
 # Native handoff writes reserve control and instruction filenames through aliases.
 handoff=$(raw_handoff)
 [[ $(hook_decision "$handoff/spar-plan.md") == allow ]] || fail "hook rejected a valid handoff write"
 for target in "$handoff/reviewer-id" "$handoff/.env" "$handoff/.env~" "$handoff/.env-old" \
   "$handoff/.env_bak" "$handoff/AGENTS.md" "$handoff/Agents.md" "$handoff/CLAUDE.md" \
-  "$handoff/private.p12~"; do
+  "$handoff/private.p12~" "$handoff/id_ed25519.bak"; do
   [[ $(hook_decision "$target") == deny ]] || fail "hook allowed reserved target: $target"
 done
 ln -s -- "$handoff" "$TMP/handoff-alias"
@@ -354,7 +446,7 @@ if printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1; then
 fi
 chmod 700 "$handoff"
 
-for name in .env .env~ .env-old .env_bak .netrc private.pem.bak private.p12~ \
+for name in .env .env~ .env-old .env_bak .netrc private.pem.bak private.p12~ id_rsa~ \
   AGENTS.md CLAUDE.md Reviewer-ID; do
   handoff=$(raw_handoff)
   printf 'harmless\n' >"$handoff/$name"
@@ -362,6 +454,13 @@ for name in .env .env~ .env-old .env_bak .netrc private.pem.bak private.p12~ \
     fail "sensitive handoff filename passed scanner: $name"
   fi
 done
+
+handoff=$(raw_handoff)
+for name in secretary.md id_rsa2-test-vector.txt "'auth.json'" 'notes\.env'; do
+  printf 'harmless\n' >"$handoff/$name"
+done
+printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1 ||
+  fail "public separator-free or literal-path names were rejected"
 
 handoff=$(raw_handoff)
 mkdir -p "$handoff/a/.env-old"
@@ -414,12 +513,19 @@ finding_count=$(grep -c '^SPAR-PAYLOAD FINDING:' <<<"$diagnostic")
 diff_headers=(
   'diff --git a/.env.production b/.env.production'
   'diff --git a/a/.env-old/config b/a/.env-old/config'
+  'diff --git a/private.pem/key.txt b/private.pem/key.txt'
+  'diff --git "a/\056env" "b/\056env"'
   'diff --cc secrets/config'
+  'diff --cc .netrc/token'
   'diff --combined private.pem'
   '--- a/.netrc'
   '+++ b/auth.json'
+  '+++ b/auth.json/config'
   'rename from credentials.old'
   'rename to credentials.new'
+  'rename old .env-old'
+  'rename new auth.json.bak'
+  'rename to id_rsa/public.txt'
   'copy from id_ed25519'
   'copy to .env_bak'
 )
@@ -430,6 +536,100 @@ for header in "${diff_headers[@]}"; do
     fail "sensitive diff header passed scanner: $header"
   fi
 done
+
+malformed_git_headers=(
+  'diff --git "a/.env"x" "b/public"'
+  'diff --git "a/.env\000x" "b/.env\000x"'
+  'diff --git "a/public" "b/public"   '
+  'diff --git a/public old b/public new'
+  'rename to ".env"x"'
+  '--- "a/.env"x"'
+)
+for header in "${malformed_git_headers[@]}"; do
+  handoff=$(raw_handoff)
+  printf '%s\n' "$header" >"$handoff/payload.md"
+  if printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1; then
+    fail "malformed Git diff header passed scanner: $header"
+  fi
+done
+
+handoff=$(raw_handoff)
+printf '%s\n' 'diff --git "a/public\040file" "b/public\040file"' >"$handoff/payload.md"
+printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1 ||
+  fail "safe Git C-quoted diff path was rejected"
+
+handoff=$(raw_handoff)
+printf '%s\n' 'diff --git a/public file b/public file' >"$handoff/payload.md"
+printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1 ||
+  fail "safe unquoted Git diff path with spaces was rejected"
+
+handoff=$(raw_handoff)
+printf '%s\n' 'diff --git a/public .env-old/config b/public .env-old/config' \
+  'diff --git "a/caf\303\251.txt" b/public file.txt' \
+  'diff --git a/public file.txt "b/caf\303\251.txt"' \
+  'diff --git a/public old b/public new' \
+  'similarity index 100%' \
+  'rename from public old' \
+  'rename to public new' >"$handoff/payload.md"
+printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1 ||
+  fail "safe spaced or mixed-quoted Git diff path was rejected"
+
+handoff=$(raw_handoff)
+printf '%s\n' 'diff --git a/public  b/public ' $'--- a/public \t' \
+  $'+++ b/public \t' 'rename from  .env' >"$handoff/payload.md"
+printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1 ||
+  fail "safe significant-whitespace Git path was rejected"
+
+handoff=$(raw_handoff)
+printf '%s\n' 'diff --git a/public old b/public new/.env' \
+  'similarity index 100%' \
+  'rename from public old' \
+  'rename to public new/.env' >"$handoff/payload.md"
+if printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1; then
+  fail "sensitive unquoted Git rename passed scanner"
+fi
+
+handoff=$(raw_handoff)
+printf '%s\n' 'diff --git a/public private.pem b/public' \
+  'similarity index 100%' \
+  'rename from public private.pem' \
+  'rename to public' >"$handoff/payload.md"
+if printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1; then
+  fail "false Git header split hid a sensitive path"
+fi
+
+handoff=$(raw_handoff)
+printf '%s\n' 'diff --git a/public private.pem b/public' \
+  'similarity index 100%' \
+  'rename from public' \
+  'rename to private.pem b/public' >"$handoff/payload.md"
+if printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1; then
+  fail "mismatched Git headers selected a false split"
+fi
+
+handoff=$(raw_handoff)
+printf '%s\n' 'diff --git a/public old b/public new/.env' \
+  'similarity index 100%' \
+  'rename from public old' \
+  'rename to public new' >"$handoff/payload.md"
+if printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1; then
+  fail "mismatched Git rename headers resolved an ambiguous path"
+fi
+
+unicode_repo="$TMP/unicode-diff-repo"
+unicode_directory=$'public\u2028'
+git init -q "$unicode_repo"
+printf 'harmless\n' >"$unicode_repo/public"
+git -C "$unicode_repo" add public
+mkdir -p "$unicode_repo/$unicode_directory"
+git -C "$unicode_repo" mv -- public "$unicode_directory/.env"
+handoff=$(raw_handoff)
+git -C "$unicode_repo" -c core.quotePath=false diff --cached --binary >"$handoff/payload.md"
+[[ $(<"$handoff/payload.md") == *$'\u2028'* ]] ||
+  fail "Git did not emit the literal Unicode line-separator fixture"
+if printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1; then
+  fail "Unicode line separator split a sensitive Git path"
+fi
 
 public_token=$(printf '%s%s' 'github_pat_' 'PUBLICFIXTURE0123456789ABCDEF')
 handoff=$(raw_handoff)
@@ -632,14 +832,20 @@ done
 for rule in "Read(/$REPO_ROOT/**)" "Read(/$handoff/**)" "Read(/$REPO_ROOT/.git)" \
   "Read(/$REPO_ROOT/.git/**)" "Read(/$handoff/reviewer-id)" 'Read(./.git)' \
   'Read(./**/.git)' 'Read(./**/.env)' 'Read(./**/.env-*)' 'Read(./**/.env_*)' \
-  'Read(./**/.env~*)' 'Read(./secrets)' 'Read(./**/secrets)' \
+  'Read(./**/.env~*)' 'Read(./secret~*)' 'Read(./**/secrets/**)' \
   'Read(./**/*.pem.*)' 'Read(./**/*.p12~*)' \
+  'Read(./**/auth.json_*)' 'Read(./**/.netrc~*)' 'Read(./**/.npmrc-*)' \
+  'Read(./**/.pypirc.*)' 'Read(./**/id_rsa~*)' 'Read(./**/id_ed25519_*)' \
   'Read(./**/*credentials*)' "Read(/$HOME/.aws/**)" "Read(/$HOME/.claude/.credentials.json)" \
   "Read(/$HOME/.config/gh/hosts.yml)" "Read(/$HOME/.docker/config.json)" \
   "Read(/$HOME/.gnupg/**)" "Read(/$HOME/.kube/**)" \
   "Read(/$HOME/.local/share/opencode/auth.json)" "Read(/$HOME/.ssh/**)"; do
   [[ $claude_new == *"$rule"* && $claude_resume == *"$rule"* ]] || fail "Claude permission rule missing: $rule"
 done
+[[ $claude_new != *'Read(./**/secret*)'* && $claude_resume != *'Read(./**/secret*)'* ]] ||
+  fail "Claude policy overmatched public secret-prefixed paths"
+[[ $claude_new != *'Read(./**/id_rsa*)'* && $claude_resume != *'Read(./**/id_rsa*)'* ]] ||
+  fail "Claude policy overmatched public OpenSSH-prefix paths"
 [[ $(sort -u "$pwds") == "$REPO_ROOT" && $(wc -l <"$pwds") == 2 ]] ||
   fail "Claude did not launch new and resume from the canonical repository"
 [[ $(<"$stdin_file") == 'Resume Claude flags.' ]] || fail "Claude did not receive its scanned prompt on stdin"
@@ -688,9 +894,16 @@ for rule in "\"$REPO_ROOT\"=\"read\"" "\"$handoff\"=\"read\"" \
   "\"$REPO_ROOT/.git\"=\"deny\"" "\"$handoff/reviewer-id\"=\"deny\"" \
   '":workspace_roots"' '"**/.env"="deny"' '"**/.env-*"="deny"' \
   '"**/.env_*"="deny"' '"**/.env~*"="deny"' '"**/*.pem.*"="deny"' \
-  '"**/*.p12~*"="deny"' '"**/*credentials*"="deny"'; do
+  '"**/*.p12~*"="deny"' '"secret~*"="deny"' '"**/secrets/**"="deny"' \
+  '"**/auth.json_*"="deny"' '"**/.netrc~*"="deny"' \
+  '"**/.npmrc-*"="deny"' '"**/.pypirc.*"="deny"' \
+  '"**/id_rsa~*"="deny"' '"**/id_ed25519_*"="deny"' '"**/*credentials*"="deny"'; do
   [[ $codex_new == *"$rule"* && $codex_resume == *"$rule"* ]] || fail "Codex permission rule missing: $rule"
 done
+[[ $codex_new != *'"**/secret*"="deny"'* && $codex_resume != *'"**/secret*"="deny"'* ]] ||
+  fail "Codex policy overmatched public secret-prefixed paths"
+[[ $codex_new != *'"**/id_rsa*"="deny"'* && $codex_resume != *'"**/id_rsa*"="deny"'* ]] ||
+  fail "Codex policy overmatched public OpenSSH-prefix paths"
 [[ $codex_new == *'-C '"$REPO_ROOT"* && $codex_resume == *'-C '"$REPO_ROOT"* ]] ||
   fail "Codex repository directory flag is missing"
 [[ $(sort -u "$pwds") == "$REPO_ROOT" && $(wc -l <"$pwds") == 2 ]] ||
