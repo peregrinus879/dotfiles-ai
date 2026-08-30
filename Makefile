@@ -135,7 +135,8 @@ verify:
 	  grep -Fq 'Execute one approved commit unit at a time.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Before every commit, run `/commit`' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Commit only after H approves that exact candidate.' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Approve and commit (Recommended) | Revise with comments | Reject with comments' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Approve, commit, continue (Recommended) | Approve, commit, discuss | Revise | Reject' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Continue only with remaining work authorized by H' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'A clear task request authorizes value-based read-only spar reviewer calls inside its scope.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Plan and build are the primary `/spar` checkpoints, not mandatory gates' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'treat `/spar` build review as a primary checkpoint before push' claude-code/.claude/rules/shared-guidance.md && \
@@ -143,17 +144,18 @@ verify:
 	  echo "ok:   autonomous-work commit checkpoints"; \
 	else echo "FAIL: autonomous-work commit checkpoints drifted"; fail=1; fi; \
 	if grep -Fq 'do not alter, stage, or temporarily revert the unrelated hunks' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Approve and commit (Recommended)` first, followed by `Revise with comments` and `Reject with comments`' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Approve, commit, continue (Recommended)` first, followed by `Approve, commit, discuss`, `Revise`, and `Reject`' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'Any change to one of them requires a refreshed packet and selector.' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'Repeat this complete compact cheat sheet in every review packet' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq '`<M-w>`: cycle the input, hunk list, and preview panes.' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq '`<M-p>`: toggle the preview. `<M-m>`: maximize or restore' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq '`<Enter>`: open the selected file and close the picker.' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'Avoid `<Tab>`, which stages, and `<C-r>`, which restores' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'A comment-bearing choice triggers a free-form follow-up when its comment is not already present.' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq '`Revise with comments` updates the current candidate but never authorizes a commit' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'remove all candidate-owned changes, build a new candidate from the comments' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'built-in custom answer is the discussion path' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'A `Revise` or `Reject` choice triggers a free-form follow-up when comments are not already present.' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq '`Revise` updates the current candidate but never authorizes a commit' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'remove all candidate-owned changes, then stop or build a new candidate from the comments' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'built-in custom answer is the comment path' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Proceed only after `Approve, commit, continue` or `Approve, commit, discuss`' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'read-only terminal fallback' claude-code/.claude/skills/commit/SKILL.md && \
 	  ! grep -Fq '`<C-f>`' claude-code/.claude/skills/commit/SKILL.md && \
 	  ! grep -Fq '`<C-c>`' claude-code/.claude/skills/commit/SKILL.md && \
@@ -161,9 +163,34 @@ verify:
 	  ! grep -Fq '`<C-u>`' claude-code/.claude/skills/commit/SKILL.md && \
 	  ! grep -Fq '`<C-w>`' claude-code/.claude/skills/commit/SKILL.md && \
 	  ! grep -Fq '`<C-b>`' claude-code/.claude/skills/commit/SKILL.md && \
-	  ! grep -Fq 'temporarily revert the unrelated hunks with the file edit tools' claude-code/.claude/skills/commit/SKILL.md; then \
+	  ! grep -Fq 'temporarily revert the unrelated hunks with the file edit tools' claude-code/.claude/skills/commit/SKILL.md && \
+	  ! grep -Fq 'Approve and commit (Recommended)' claude-code/.claude/skills/commit/SKILL.md; then \
 	  echo "ok:   exact-diff commit review and LazyVim guidance"; \
 	else echo "FAIL: exact-diff commit review drifted"; fail=1; fi; \
+	if grep -Fq 'Screen the message, paths, complete diff, and intended new-file contents' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'A binary or opaque candidate artifact that cannot be reviewed semantically' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Bind the review to a credential-free logical destination and audience' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'A destination state can narrow the review only when it is confirmed current' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'never through `!` or pasted session content' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'transient authenticated transfer endpoints remain opaque transport data' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Reconcile every inventoried commit-metadata, tag-metadata, path-version, action-metadata, and external-artifact record' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq '## Candidate privacy screen' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq '## Publication review and push hint' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'A no-ref-update pull request or release is valid when stated explicitly.' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Use it to narrow the review only when it is confirmed current' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'every included commit and annotated tag' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'every action-metadata field and value' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Any count mismatch, unmatched record, truncation, decode failure, unsupported object' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Never rely on a bare `git push`, a mutable local source ref, `push.default`, or `remote.*.push`' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'A differential-history review also requires an execution-time expected-old-value guard' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'message, audience, and scratch disposition' AGENTS.md && \
+	  grep -Fq 'withholds publication-ready claims and push hints' AGENTS.md && \
+	  grep -Fq 'withholds any publication-ready claim or push hint' README.md && \
+	  grep -Fq 'Destination state narrows the review only when confirmed current' README.md && \
+	  grep -Fq 'publication-review decision 2026-08-30' docs/maintenance.md && \
+	  ! grep -Fq 'After committing, show the push command' claude-code/.claude/skills/commit/SKILL.md; then \
+	  echo "ok:   commit privacy and publication review contracts"; \
+	else echo "FAIL: commit privacy or publication review drifted"; fail=1; fi; \
 	if ! grep -Fq 'disable-model-invocation' claude-code/.claude/skills/commit/SKILL.md && \
 	  ! grep -Fq 'disable-model-invocation' claude-code/.claude/skills/spar/SKILL.md; then \
 	  echo "ok:   Claude managed skills are model-invocable"; \

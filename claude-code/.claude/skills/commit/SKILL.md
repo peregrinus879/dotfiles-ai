@@ -1,6 +1,6 @@
 ---
 name: commit
-description: Prepare, review, and commit an exact atomic diff with documentation and scratch checks.
+description: Prepare, review, and commit an exact atomic diff with documentation, privacy, and publication checks.
 ---
 
 # Commit Conventions
@@ -34,12 +34,19 @@ Before review, inspect untracked files (`git ls-files --others --exclude-standar
 - Delete or ignore only the items covered by H's approval. Never auto-delete an untracked repository file.
 - If none exist, skip silently.
 
+## Candidate privacy screen
+
+Before presenting the candidate, screen the proposed message, intended paths, complete diff, and intended new-file contents for context inappropriate to the intended audience. Use H's declared audience when available; otherwise assume world-readable publication. Check for machine, user, and host identifiers; local paths; security posture; private correspondence; and session metadata. This is separate from code review and secret scanning.
+
+Inventory path names before content. Semantically review each readable text or supported binary artifact. Never open a path barred by the shared Safety rules; treat any other binary or opaque artifact that cannot be reviewed semantically the same way. Report only safe path and object metadata and require H to inspect the exact artifact in a separate terminal pane, never through `!` or pasted session content, then rule on it for the candidate and audience. The ruling permits neither an agent read nor staging or commit.
+
 ## Review gate
 
-Before staging, prepare one complete candidate from `git status --short`, unstaged and staged binary diffs, and the full contents of intended untracked files. Report:
+Before staging, prepare one complete candidate from `git status --short`, unstaged and staged binary diffs, and the full contents of readable intended untracked files. Represent a Safety-barred intended file only by the safe metadata and H ruling defined above. Report:
 
 - the exact intended paths and diff, including deletions, binary changes, and new files;
 - verification results, literal warnings, and anything not run;
+- the intended audience, candidate privacy-screen result, and any unreadable or opaque artifact rulings;
 - the proposed commit message; and
 - the proposed disposition of every scratch-looking untracked file.
 
@@ -52,19 +59,23 @@ Repeat this complete compact cheat sheet in every review packet until H asks to 
 5. `<Space>gs`: open Git Status for intended untracked files. Highlight each file to inspect its preview; use `<Enter>` only when it must be opened, then `<Space>sR` to resume.
 6. Avoid `<Tab>`, which stages, and `<C-r>`, which restores, in both Git pickers.
 
-Offer the read-only terminal fallback `git status --short`, `git diff --stat HEAD`, `git diff HEAD`, and `git diff HEAD -- path/to/file`. Then use the tool's interactive selector with `Approve and commit (Recommended)` first, followed by `Revise with comments` and `Reject with comments`; its built-in custom answer is the discussion path. A comment-bearing choice triggers a free-form follow-up when its comment is not already present. `Revise with comments` updates the current candidate but never authorizes a commit: incorporate the comments, verify, and present a refreshed packet. `Reject with comments` rejects the candidate: preserve unrelated and user-authored changes, remove all candidate-owned changes, build a new candidate from the comments, verify, and present a refreshed packet. A custom discussion answer changes nothing: answer it, then present the same packet and selector again.
+Offer the read-only terminal fallback `git status --short`, `git diff --stat HEAD`, `git diff HEAD`, and `git diff HEAD -- path/to/file`. Then use the tool's interactive selector with `Approve, commit, continue (Recommended)` first, followed by `Approve, commit, discuss`, `Revise`, and `Reject`; its built-in custom answer is the comment path. A `Revise` or `Reject` choice triggers a free-form follow-up when comments are not already present. `Revise` updates the current candidate but never authorizes a commit: incorporate the comments, verify, and present a refreshed packet. `Reject` rejects the candidate: preserve unrelated and user-authored changes, remove all candidate-owned changes, then stop or build a new candidate from the comments, verify, and present a refreshed packet. A custom comment changes nothing: answer it, then present the same packet and selector again.
 
-Plan approval and skill invocation do not authorize a commit. Approval covers only the presented content, intended paths, message, and scratch disposition. Any change to one of them requires a refreshed packet and selector. Interruption leaves the current worktree intact.
+Plan approval and skill invocation do not authorize a commit. Approval covers only the presented content, intended paths, message, audience, and scratch disposition. Any change to one of them requires a refreshed packet and selector. Interruption leaves the current worktree intact.
 
 ## Staging and commit
 
-- Proceed only after `Approve and commit` for the current packet.
+- Proceed only after `Approve, commit, continue` or `Approve, commit, discuss` for the current packet.
 - Apply only the approved scratch disposition.
 - Stage specific files by name (`git add <file>`). Do not use `git add -A` or `git add .`.
 - If a file mixes the current commit with unrelated changes, do not alter, stage, or temporarily revert the unrelated hunks. Defer the file or stop and ask the user how to split the work.
 - If the index already contains unrelated staged changes, stop rather than unstaging, replacing, or committing them.
 - Never stage sensitive files (.env, credentials, private keys).
 - Verify the staged patch and staged path set match the approved candidate exactly before committing. Any mismatch requires a new review.
+
+## Post-commit routing
+
+After the approved commit, verify and report its hash and title. `Approve, commit, continue` proceeds only with remaining work authorized by H's active request or approved plan. It authorizes no further commit or publication; if no next action is clearly authorized, report completion and stop. `Approve, commit, discuss` reports status and pauses for discussion.
 
 ## Rules
 
@@ -77,6 +88,16 @@ Plan approval and skill invocation do not authorize a commit. Approval covers on
 - Never amend unless H explicitly requests it for the exact current commit.
 - Push: user handles manually (SSH passphrase required). Do not push.
 
-## Push hint
+## Publication review and push hint
 
-After committing, show the push command matching the branch's upstream state: `git push` with an upstream, `git push -u origin <branch>` when `origin` exists without one, or add the remote first when there is no `origin`.
+Run this review after all approved commit units and before presenting a push, release, pull request, or other publication as ready.
+
+1. Define a publication descriptor with a credential-free logical destination, intended audience, exact local ref set and tips, immutable source object IDs, any ref updates and expected destination values, full source-to-destination refspecs, implicit publication behavior, referenced Git LFS objects, and the complete set of action-specific metadata fields and values, bodies, and asset digests. A no-ref-update pull request or release is valid when stated explicitly. Use H's declared audience or assume world-readable publication; never infer privacy from a remote name or URL. Never read or display endpoint credentials; H confirms credential-bearing destination details in a separate terminal pane, and transient authenticated transfer endpoints remain opaque transport data.
+2. Record how and when destination state was observed. Use it to narrow the review only when it is confirmed current and the effective operation enforces that exact expected value at execution. Otherwise review the complete history of the refs being published. A named destination ref with no recorded tip also requires complete-history review. With no logical destination, a complete-history review is provisional only: withhold the publication-ready claim and hint until H names one and the descriptor is rebound. An audience expansion at unchanged tips likewise requires complete-history review of the refs being published. Do not fetch unasked.
+3. Before opening content, inventory every included commit and annotated tag's metadata and message; every path/version's name, type, mode, size, object identifier, and containing commits; every referenced Git LFS object; every action-metadata field and value, body, and asset name and digest; every configured push option; and every active client-side publication hook. If submodule recursion is not suppressed, give each submodule publication its own complete descriptor and history review. Record commit-metadata, tag-metadata, path/version, action-metadata, unique content-object, and external-artifact counts.
+4. Never open an artifact barred by the shared Safety rules; treat any other binary or opaque artifact that cannot be reviewed semantically the same way. Report only safe metadata and require H to inspect the exact path and object in a separate terminal pane, never through `!` or pasted session content. H must rule explicitly on that artifact's suitability for the bound descriptor. The ruling permits neither an agent read nor commit or publication and becomes invalid with the descriptor. Treat unreadable hook or push-option effects the same way without exposing sensitive values.
+5. Review metadata, messages, path names, action fields, and every readable artifact version for the candidate screen's privacy classes, including intermediate or later-deleted planning, review, and documentation material. Code review and secret scanning neither satisfy nor are replaced by this review. Process large inventories in bounded chunks without silent truncation.
+6. Reconcile every commit-metadata, tag-metadata, path/version, action-metadata, and external-artifact record to reviewed readable content, an exact H ruling, or a blocking finding. A unique readable object may be reviewed once if every occurrence maps to it. Any count mismatch, unmatched record, truncation, decode failure, unsupported object, unruled unreadable or opaque artifact, unresolved implicit ref, hook, option, destination, or asset, or incomplete review blocks publication readiness.
+7. Show H the descriptor, effective operation, immutable source IDs and asset digests, counts, rulings, omissions, destination-state freshness, and pass or blocker. Any destination, audience, ref-set, source ID, expected destination value, action field, asset digest, implicit behavior, or observed destination-state change invalidates the result.
+
+Only after a passing review, show an explicit publication command bound to immutable source IDs, reviewed logical destinations, full destination ref names, exact action metadata, and asset-digest prechecks. Never rely on a bare `git push`, a mutable local source ref, `push.default`, or `remote.*.push`; suppress unreviewed implicit tag and submodule publication, use exact tag object IDs and refspecs when tags are reviewed, and account for every configured push destination, push option, and active client-side publication hook without bypassing safety checks. A differential-history review also requires an execution-time expected-old-value guard; otherwise use complete-history coverage. If the effective operation cannot be expressed exactly, withhold the hint. With no logical destination, ask H to name one and rerun descriptor binding before offering a command.

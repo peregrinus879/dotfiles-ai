@@ -67,7 +67,7 @@ eyragents/
 │   │   ├── rules/                        # organized instruction files
 │   │   │   └── shared-guidance.md        # canonical shared instructions
 │   │   └── skills/                       # custom skills (SKILL.md files)
-│   │       ├── commit/                   # commit workflow (doc sync, scratch cleanup)
+│   │       ├── commit/                   # candidate and publication review workflow
 │   │       └── spar/                     # cross-model sparring and gates (reviewer: spar-codex)
 │   └── .local/
 │       └── bin/
@@ -76,7 +76,7 @@ eyragents/
 ├── codex/                                # stow package -> ~/.codex/, ~/.agents/, ~/.local/bin/
 │   ├── .agents/
 │   │   └── skills/                       # agent skills (documented user scope)
-│   │       ├── commit/                   # commit workflow (doc sync, scratch cleanup)
+│   │       ├── commit/                   # candidate and publication review workflow
 │   │       └── spar/                     # cross-model sparring and gates (reviewer: spar-claude)
 │   ├── .codex/
 │   │   ├── .gitignore                    # excludes Codex runtime state
@@ -98,7 +98,7 @@ eyragents/
             ├── package.json              # compatible-major plugin dependency
             ├── package-lock.json         # reproducible npm dependency graph
             ├── skills/                   # agent skills
-            │   ├── commit/               # commit workflow (doc sync, scratch cleanup)
+            │   ├── commit/               # candidate and publication review workflow
             │   └── spar/                 # cross-model sparring and gates (reviewer: spar-claude)
 ```
 
@@ -128,7 +128,7 @@ Shared guidance lives in `claude-code/.claude/rules/shared-guidance.md`. Claude 
 
 Read `docs/maintenance.md` before a tool or plugin major-version upgrade, permission or reviewer-bridge changes, cross-host validation, `/doctor`, deferred work, or investigation of changed tool behavior.
 
-OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps `/commit` and `/spar` wrappers and folds documentation sync and scratch file cleanup into the commit workflow instead of maintaining a separate `/update` command. Commit boundaries never alter, stage, or temporarily revert unrelated hunks; a mixed file is deferred or escalated to H. The spar skill copies share protocol wording but each carries only its own tool's reviewer incantations. Claude Code spars with Codex through `spar-codex`; Codex's automated Claude route remains deferred under its strict permission profile, while OpenCode spars with Claude through `spar-claude`.
+OpenCode skills are loaded by the agent, while custom slash commands live under `commands/`; this repo keeps `/commit` and `/spar` wrappers and folds documentation sync, privacy screening, scratch handling, and publication review into the commit workflow instead of maintaining a separate `/update` command. Commit boundaries never alter, stage, or temporarily revert unrelated hunks; a mixed file is deferred or escalated to H. The spar skill copies share protocol wording but each carries only its own tool's reviewer incantations. Claude Code spars with Codex through `spar-codex`; Codex's automated Claude route remains deferred under its strict permission profile, while OpenCode spars with Claude through `spar-claude`.
 
 Before authentication or reviewer network access, each bridge scans one bounded prompt and the complete bounded handoff; rejects alternate authentication, caller-directed state and routing, Git-control variables, repository hard-link aliases, and nested repository mounts; validates one private mode-700 `/var/tmp/spar-<session-id>/` directory; canonicalizes the caller's Git root; and resolves the reviewer executable once before changing directories. The bridge writes six-field timestamp, bridge, role, state, id, and repository-root records to `reviewer-id`; prior manifest shapes and cross-repository resumes fail closed, and cold sessions never resume. `spar-codex` ignores user config and rules, marks the active project untrusted, sets project-instruction bytes to zero with no fallback filenames, suppresses skill catalogs, disables plugins, and preflights an empty effective plugin inventory. Its inline OS profile denies root and temp, grants runtime-minimal paths plus the repository and handoff read-only, narrows those grants with Git, credential-path, and manifest denies, rejects repository entries beyond the 64-level deny-glob bound, and disables command network. `spar-claude` selects the current `opus` alias, adds the handoff to the repository launch, uses safe mode with no user, project, or local setting sources or extension tools, combines `dontAsk` with explicit repository and handoff read allows plus later sensitive-path denies, exposes only `Read`, `Glob`, and `Grep`, validates every served-model key as Opus-family, and disables nonessential traffic and updater activity; higher-precedence managed policy remains in force. A call succeeds only after one valid terminal event for the requested session or thread with a nonempty locally rescanned reply. Bounded Codex diagnostics use the reply scanner before relay. Each bridge owns the reviewer process group so repeated signals, stalls, ceilings, and normal exits terminate remaining descendants before returning.
 
@@ -155,7 +155,9 @@ Before every commit, the assistant repeats this complete compact cheat sheet. Op
 5. `<Space>gs`: open Git Status for intended untracked files. Highlight a file for its preview; use `<Enter>` only when it must be opened, then `<Space>sR` to resume.
 6. Avoid `<Tab>`, which stages, and `<C-r>`, which restores, in both Git pickers.
 
-The assistant selector offers `Approve and commit (Recommended)`, `Revise with comments`, and `Reject with comments`; its built-in custom answer is the discussion path. `Revise with comments` updates the current candidate without authorizing a commit. `Reject with comments` preserves unrelated and user-authored work, removes all candidate-owned changes, and builds a new candidate from the comments. Both comments choices produce a refreshed packet. A custom discussion answer changes nothing: the assistant answers, then repeats the same candidate and selector. Only `Approve and commit` authorizes staging and commit of the exact packet.
+The assistant first screens the proposed message, paths, complete diff, and intended new-file contents against the intended audience, defaulting to world-readable publication. Its selector offers `Approve, commit, continue (Recommended)`, `Approve, commit, discuss`, `Revise`, and `Reject`; the built-in custom answer is the comment path. Either approve choice authorizes staging and one commit of the exact packet. Continue proceeds only with remaining work already covered by H's active request or approved plan; discuss pauses after commit verification and status. Revise and any replacement after rejection require a refreshed packet, while a custom comment changes nothing and repeats the unchanged candidate after the answer.
+
+After all approved units, the managed `/commit` workflow withholds any publication-ready claim or push hint until it reviews the exact history and artifacts the destination, audience, ref set, and effective operation would expose. Destination state narrows the review only when confirmed current and enforced as an execution-time expected value; otherwise the complete history of the published refs is reviewed. Coverage includes commit and annotated-tag metadata, path names, intermediate or later-deleted planning, review, and documentation versions, referenced Git LFS objects, every action-metadata field and value, every action body and asset digest, configured push options, and active client-side hooks. Paths are inventoried before content, Safety-barred or opaque artifacts remain unread, and every record reconciles to reviewed content, an exact H ruling, or a blocker. H inspects an unreadable artifact in a separate terminal pane, never through `!` or pasted session content. The result reports its credential-free logical destination, immutable source IDs and asset digests, exact operation, destination-state freshness, coverage, rulings, and omissions; endpoint credentials and transient authenticated transfer URLs never enter the descriptor. Any bound-value change, unresolved implicit behavior, or incomplete coverage invalidates it. Code review and secret scanning remain separate checks.
 
 Read-only terminal fallback: `git status --short` lists the candidate, `git diff --stat HEAD` summarizes it, `git diff HEAD` shows the complete tracked diff, and `git diff HEAD -- path/to/file` isolates one path.
 
