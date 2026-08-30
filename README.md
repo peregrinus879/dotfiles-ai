@@ -68,7 +68,7 @@ eyragents/
 │   │   │   └── shared-guidance.md        # canonical shared instructions
 │   │   └── skills/                       # custom skills (SKILL.md files)
 │   │       ├── commit/                   # candidate and publication review workflow
-│   │       └── spar/                     # cross-model sparring and gates (reviewer: spar-codex)
+│   │       └── spar/                     # cross-model sparring and reviews (reviewer: spar-codex)
 │   └── .local/
 │       └── bin/
 │           ├── spar-claude               # latest-Opus read-only reviewer bridge for spar
@@ -77,7 +77,7 @@ eyragents/
 │   ├── .agents/
 │   │   └── skills/                       # agent skills (documented user scope)
 │   │       ├── commit/                   # candidate and publication review workflow
-│   │       └── spar/                     # cross-model sparring and gates (reviewer: spar-claude)
+│   │       └── spar/                     # cross-model sparring and reviews (reviewer: spar-claude)
 │   ├── .codex/
 │   │   ├── .gitignore                    # excludes Codex runtime state
 │   │   ├── AGENTS.md                     # symlink chain to the canonical shared guidance
@@ -99,7 +99,7 @@ eyragents/
             ├── package-lock.json         # reproducible npm dependency graph
             ├── skills/                   # agent skills
             │   ├── commit/               # candidate and publication review workflow
-            │   └── spar/                 # cross-model sparring and gates (reviewer: spar-claude)
+            │   └── spar/                 # cross-model sparring and reviews (reviewer: spar-claude)
 ```
 
 Tracked `.gitkeep` placeholders (claude-code agents; opencode agents, themes, and tools) are omitted from the tree.
@@ -134,7 +134,7 @@ Before authentication or reviewer network access, each bridge scans one bounded 
 
 Filesystem-root repositories fail before any read grant. Claude authentication preflight uses the review's safe-mode setting-source isolation and rejects ambient third-party provider, endpoint, and auth-skip controls; absolute account-home credential denies remain later than any overlapping repository allow. Codex accepts its disabled-plugin preflight only when `installed` is structurally an empty array. Failure cleanup removes private diagnostic work before best-effort identifier reporting.
 
-Repository path preflight validates every canonical-root component's spelling and every contained name without reading file contents. It rejects nested `.git` directories, sensitive directory names that lack an exact subtree deny, sensitive-named symlinks, symlinks below nested `secrets` trees whose deny depends on glob expansion, case variants of sensitive names, non-UTF-8 names, and names containing control characters, quotes, or backslashes. Ordinary public symlinks remain reviewable. Hard-link validation prunes only the root Git metadata subtree and exact lowercase `secrets` directories. The scanner parses LF-delimited Git records and strictly decodes C-quoted paths before applying the same sensitive-name grammar to every path component used by the reviewer policies and native handoff-write gates.
+Repository path preflight validates every canonical-root component's spelling and every repository entry name it enumerates without reading file contents. It prunes the repository-root `.git` and exact repository-root `secrets` subtrees and does not follow directory symlinks. It rejects nested `.git` directories, sensitive directory names that lack an exact subtree deny, sensitive-named symlinks, symlinks below nested `secrets` trees whose deny depends on glob expansion, case variants of sensitive names, non-UTF-8 names, and names containing control characters, quotes, or backslashes. Ordinary public symlinks remain reviewable. Hard-link validation prunes only the root Git metadata subtree and exact lowercase `secrets` directories. The scanner parses LF-delimited Git records and strictly decodes C-quoted paths before applying the same sensitive-name grammar to every path component used by the reviewer policies and native handoff-write gates.
 
 OpenCode's host environment disables automatic external skill discovery so its managed commit and spar copies are selected instead of the colliding Claude and Codex copies. The tracked `skills.paths` restores only the Omarchy skill. The Omarchy `.bashrc` owner covers terminal-first interactive descendants; non-interactive OpenCode launchers must set `OPENCODE_DISABLE_EXTERNAL_SKILLS=1` themselves.
 
@@ -230,7 +230,7 @@ The three `~/.local/bin/spar-*` endpoints resolve directly to their package file
 
 ### Reviewer Bridges
 
-Run `spar-claude init` or `spar-codex init` from the repository that will be reviewed. The returned handoff is bound to that canonical Git root immediately. Git-control environment variables, repository hard-linked files outside denied directories, nested repository mounts, unsupported repository path spellings or sensitive directories, unrepresentable permission-pattern roots, and Codex repository entries deeper than its deny-glob bound fail closed. Add the exact target and supporting material with native file tools, run the same bridge's `flush` mode after every write, then use `new` or `resume` as documented by the `/spar` skill. The reviewer receives the repository and handoff read-only but cannot read `reviewer-id`, Git internals, or the configured credential-shaped paths.
+Run `spar-claude init` or `spar-codex init` from the repository that will be reviewed. The returned handoff is bound to that canonical Git root immediately. Git-control environment variables, repository hard-linked files outside denied directories, nested repository mounts, unsupported repository path spellings or sensitive directories without an exact subtree deny, unrepresentable permission-pattern roots, and Codex repository entries deeper than its deny-glob bound fail closed. Add the exact target and supporting material with native file tools, run the same bridge's `flush` mode after every write, then use `new` or `resume` as documented by the `/spar` skill. The reviewer receives the repository and handoff read-only but cannot read `reviewer-id`, Git internals, or the configured credential-shaped paths.
 
 The scanner permits at most a 256 KiB prompt, 128 handoff entries, 512 KiB per handoff file, 1 MiB across the prompt and visible handoff files, and eight detailed rejection findings. Outbound scans decode Git C-quoted paths and reject sensitive filenames, reviewer-instruction filenames, sensitive Git diff paths, malformed path encodings, binary or non-UTF-8 content, unsafe links, and credential-value shapes. Embedded public exceptions identify only exact synthetic finding spans by detector schema, rule, and digest; a changed span rejects. Rejection diagnostics expose the label, line, and rule but no matched span or span-derived digest. The reply and diagnostic channel rejects credential values while allowing discussion of names such as `.env`.
 
