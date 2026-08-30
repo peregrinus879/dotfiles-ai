@@ -480,18 +480,34 @@ fi
 [[ $diagnostic != *"$unknown_token"* && ! $diagnostic =~ [0-9a-f]{64} ]] ||
   fail "scanner diagnostic exposed a credential value or derived digest"
 
-scanner_vectors=(
-  '-----BEGIN TEST PRIVATE KEY-----'
-  'ghp_PUBLICFIXTURE0123456789AB'
-  'AKIAPUBLICFIXTURE123'
+blocked_scanner_vectors=(
   '//registry.example.invalid/:_authToken=PUBLICPACKAGEAUTH123'
   $'machine example.invalid\npassword PUBLICNETRC123'
 )
-for content in "${scanner_vectors[@]}"; do
+for content in "${blocked_scanner_vectors[@]}"; do
   handoff=$(raw_handoff)
   printf '%s\n' "$content" >"$handoff/payload.md"
   if printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1; then
     fail "credential detector accepted its public-placeholder fixture"
+  fi
+done
+
+public_scanner_vectors=(
+  '-----BEGIN TEST PRIVATE KEY-----|-----BEGIN TESTX |PRIVATE KEY-----'
+  'ghp_PUBLICFIXTURE0123456789AB|ghp_MUTATEDFIXTURE|0123456789AB'
+  'AKIAPUBLICFIXTURE123|AKIAMUTATED|FIXTURE12'
+)
+for entry in "${public_scanner_vectors[@]}"; do
+  content=${entry%%|*}
+  mutation_parts=${entry#*|}
+  mutated=$(printf '%s%s' "${mutation_parts%%|*}" "${mutation_parts#*|}")
+  handoff=$(raw_handoff)
+  printf '%s\n' "$content" >"$handoff/payload.md"
+  printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1 ||
+    fail "exact public detector fixture was rejected"
+  printf '%s\n' "$mutated" >"$handoff/payload.md"
+  if printf 'Review.' | "$SCANNER" outbound "$handoff" >/dev/null 2>&1; then
+    fail "mutated public detector fixture passed scanner"
   fi
 done
 

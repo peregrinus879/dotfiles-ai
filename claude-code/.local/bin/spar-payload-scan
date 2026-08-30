@@ -58,8 +58,13 @@ RESERVED_HANDOFF_NAMES = {
 # in this repository. Any changed span remains blocked.
 PUBLIC_FINDINGS = frozenset(
     {
+        ("cloud-access-id-v1", "90df53b892f02c56a9ac257e62b03dec2b71b1b92005e62a12c9eb7365a658f0"),
+        ("credential-assignment-v1", "35073e528e7a1e75b3dfdfcd6737e4d505fbe0d61ecaffb854affae141599a54"),
+        ("credential-assignment-v1", "3a190e6f2167eace506544001d96cbccd41b60c154d3d554f65afe6538617ff0"),
         ("provider-c-token-v1", "f9a6ae28ec3a6ec93bd3e0854df808528823669b3a2d89f628a5e0c395eb26cc"),
         ("credential-assignment-v1", "88410c8e88290dedce53fdfe0050b07db6813a02b0196b746554273b6172eae5"),
+        ("key-envelope-v1", "2bbbd02db29ea579a75b63dd32d112600c61b73232b210a613bf6c17e58ae3ff"),
+        ("provider-b-token-v1", "e75d8f87b5e64a0cc6970fca5b675619a1429eb0cb4e6d8b9d0c6ecc2dd76770"),
     }
 )
 

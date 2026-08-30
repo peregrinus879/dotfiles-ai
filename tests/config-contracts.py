@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
+import ast
 import json
 import os
+import runpy
 import tomllib
 from pathlib import Path
 
@@ -81,9 +83,8 @@ for marker in (
     "HANDOFF_RE='^/var/tmp/spar-",
 ):
     require(marker in hook_source, f"spar gate hook control drifted: {marker}")
-scanner_source = (ROOT / "claude-code/.local/bin/spar-payload-scan").read_text(
-    encoding="utf-8"
-)
+scanner_path = ROOT / "claude-code/.local/bin/spar-payload-scan"
+scanner_source = scanner_path.read_text(encoding="utf-8")
 for marker in (
     "#!/usr/bin/python3 -I",
     'DETECTOR_SCHEMA = "spar-content-v1"',
@@ -120,6 +121,70 @@ for marker in (
 require(
     "public-vectors.json" not in scanner_source,
     "spar scanner regained an external public-vector registry",
+)
+scanner_tree = ast.parse(scanner_source)
+public_findings_assignments = [
+    node
+    for node in scanner_tree.body
+    if isinstance(node, ast.Assign)
+    and any(isinstance(target, ast.Name) and target.id == "PUBLIC_FINDINGS" for target in node.targets)
+]
+require(
+    len(public_findings_assignments) == 1,
+    "spar scanner must assign public findings exactly once",
+)
+public_findings_assignment = public_findings_assignments[0]
+require(
+    len(public_findings_assignment.targets) == 1
+    and isinstance(public_findings_assignment.targets[0], ast.Name),
+    "spar scanner public findings assignment target is malformed",
+)
+public_findings_bindings = [
+    node
+    for node in ast.walk(scanner_tree)
+    if isinstance(node, ast.Name)
+    and node.id == "PUBLIC_FINDINGS"
+    and not isinstance(node.ctx, ast.Load)
+]
+require(
+    public_findings_bindings == public_findings_assignment.targets,
+    "spar scanner must bind public findings exactly once",
+)
+public_findings_call = public_findings_assignment.value
+require(
+    isinstance(public_findings_call, ast.Call)
+    and isinstance(public_findings_call.func, ast.Name)
+    and public_findings_call.func.id == "frozenset"
+    and len(public_findings_call.args) == 1
+    and not public_findings_call.keywords,
+    "spar scanner public findings are malformed",
+)
+try:
+    public_findings = ast.literal_eval(public_findings_call.args[0])
+except (TypeError, ValueError):
+    public_findings = None
+require(isinstance(public_findings, set), "spar scanner public findings must be literal")
+expected_public_findings = frozenset(
+    {
+        ("cloud-access-id-v1", "90df53b892f02c56a9ac257e62b03dec2b71b1b92005e62a12c9eb7365a658f0"),
+        ("credential-assignment-v1", "35073e528e7a1e75b3dfdfcd6737e4d505fbe0d61ecaffb854affae141599a54"),
+        ("credential-assignment-v1", "3a190e6f2167eace506544001d96cbccd41b60c154d3d554f65afe6538617ff0"),
+        ("credential-assignment-v1", "88410c8e88290dedce53fdfe0050b07db6813a02b0196b746554273b6172eae5"),
+        ("key-envelope-v1", "2bbbd02db29ea579a75b63dd32d112600c61b73232b210a613bf6c17e58ae3ff"),
+        ("provider-b-token-v1", "e75d8f87b5e64a0cc6970fca5b675619a1429eb0cb4e6d8b9d0c6ecc2dd76770"),
+        ("provider-c-token-v1", "f9a6ae28ec3a6ec93bd3e0854df808528823669b3a2d89f628a5e0c395eb26cc"),
+    }
+)
+require(
+    frozenset(public_findings) == expected_public_findings,
+    "spar scanner public finding set drifted",
+)
+scanner_runtime = runpy.run_path(str(scanner_path), run_name="spar_payload_scan_contract")
+runtime_public_findings = scanner_runtime.get("PUBLIC_FINDINGS")
+require(
+    type(runtime_public_findings) is frozenset
+    and runtime_public_findings == expected_public_findings,
+    "spar scanner runtime public finding set drifted",
 )
 
 claude_bridge_source = (ROOT / "claude-code/.local/bin/spar-claude").read_text(
