@@ -88,6 +88,9 @@ verify:
 	    echo "FAIL: $$target does not resolve into the repo"; fail=1; \
 	  fi; \
 	done; \
+	for b in spar-claude spar-codex spar-payload-scan; do \
+	  if [[ -x "$$HOME/.local/bin/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
+	done; \
 	if bash -n claude-code/.claude/statusline.sh; then echo "ok:   bash -n statusline.sh"; else echo "FAIL: bash -n statusline.sh"; fail=1; fi; \
 	bash -n tests/statusline-state.sh && bash tests/statusline-state.sh || { echo "FAIL: statusline runtime-state controls"; fail=1; }; \
 	bash -n scripts/prepare-stow.sh tests/prepare-stow.sh tests/spar-bridges.sh || { echo "FAIL: managed shell syntax"; fail=1; }; \
