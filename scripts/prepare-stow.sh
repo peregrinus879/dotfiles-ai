@@ -10,6 +10,119 @@ abort() {
   exit 1
 }
 
+MIGRATION_TMP=
+
+cleanup_migration_temp() {
+  if [[ -n "${MIGRATION_TMP:-}" ]]; then
+    rm -f -- "$MIGRATION_TMP"
+  fi
+}
+
+require_owner_controlled_directory() {
+  local path=$1
+  local label=$2
+  local canonical mode owner
+
+  [[ -d "$path" && ! -L "$path" ]] || abort "$label must be a real directory: $path"
+  canonical=$(realpath -e -- "$path") || abort "cannot resolve $label: $path"
+  [[ "$canonical" == "$path" ]] || abort "$label must not use a filesystem alias: $path"
+  owner=$(stat -c '%u' -- "$path") || abort "cannot inspect $label owner: $path"
+  [[ "$owner" == "$(id -u)" ]] || abort "$label is not owned by the current user: $path"
+  mode=$(stat -c '%a' -- "$path") || abort "cannot inspect $label mode: $path"
+  (( (8#$mode & 8#022) == 0 )) || abort "$label is writable by another user: $path"
+}
+
+require_safe_regular_file() {
+  local path=$1
+  local label=$2
+  local links owner
+
+  [[ -f "$path" && ! -L "$path" ]] || abort "$label must be a regular file: $path"
+  owner=$(stat -c '%u' -- "$path") || abort "cannot inspect $label owner: $path"
+  [[ "$owner" == "$(id -u)" ]] || abort "$label is not owned by the current user: $path"
+  links=$(stat -c '%h' -- "$path") || abort "cannot inspect $label link count: $path"
+  [[ "$links" == 1 ]] || abort "$label must have exactly one hard link: $path"
+}
+
+write_migration_temp() {
+  local source=$1
+  local codex_root=$2
+
+  MIGRATION_TMP=$(mktemp -- "$codex_root/.config.toml.migrate.XXXXXX") || abort "cannot create migration temporary file"
+  require_safe_regular_file "$MIGRATION_TMP" "migration temporary file"
+  chmod 600 -- "$MIGRATION_TMP" || abort "cannot secure migration temporary file"
+  cat -- "$source" >"$MIGRATION_TMP" || abort "cannot copy migration source"
+  sync -f -- "$MIGRATION_TMP" || abort "cannot flush migration temporary file"
+  cmp -s -- "$MIGRATION_TMP" "$source" || abort "migration copy differs from its source"
+}
+
+migrate_codex_config() {
+  local dependency script_dir repository_root template
+  local home_path codex_root config target mode
+
+  for dependency in cat chmod cmp id mktemp mv realpath rm stat sync; do
+    command -v "$dependency" >/dev/null 2>&1 || abort "required command not found: $dependency"
+  done
+
+  [[ -n "${HOME:-}" ]] || abort 'HOME is not set'
+  home_path=${HOME%/}
+  [[ -n "$home_path" && "$home_path" != / ]] || abort 'HOME must name a non-root directory'
+
+  script_dir=$(dirname -- "${BASH_SOURCE[0]}")
+  repository_root=$(realpath -e -- "$script_dir/..") || abort 'cannot resolve repository root'
+  template="$repository_root/templates/codex/config.toml"
+  require_safe_regular_file "$template" "Codex portable template"
+
+  require_owner_controlled_directory "$home_path" 'HOME'
+  codex_root="$home_path/.codex"
+  require_owner_controlled_directory "$codex_root" 'Codex runtime root'
+  config="$codex_root/config.toml"
+
+  umask 077
+  trap cleanup_migration_temp EXIT
+  trap 'exit 130' HUP INT TERM
+
+  if [[ ! -e "$config" && ! -L "$config" ]]; then
+    write_migration_temp "$template" "$codex_root"
+    [[ ! -e "$config" && ! -L "$config" ]] || abort "Codex config appeared during migration: $config"
+    cmp -s -- "$MIGRATION_TMP" "$template" || abort "Codex portable template changed during migration"
+    mv -T -- "$MIGRATION_TMP" "$config" || abort "cannot install migrated Codex config"
+    MIGRATION_TMP=
+    printf 'prepare-stow: seeded host-local Codex config from the portable template\n'
+    return
+  fi
+
+  if [[ -L "$config" ]]; then
+    target=$(realpath -e -- "$config") || abort "Codex config symlink is dangling: $config"
+    case "$target" in
+      */codex/.codex/config.toml) ;;
+      *) abort "Codex config symlink is not a recognized managed leaf: $config" ;;
+    esac
+    require_safe_regular_file "$target" "managed Codex config source"
+    write_migration_temp "$target" "$codex_root"
+    [[ -L "$config" ]] || abort "Codex config changed during migration: $config"
+    [[ "$(realpath -e -- "$config")" == "$target" ]] || abort "Codex config target changed during migration: $config"
+    cmp -s -- "$MIGRATION_TMP" "$target" || abort "managed Codex config changed during migration"
+    mv -T -- "$MIGRATION_TMP" "$config" || abort "cannot install migrated Codex config"
+    MIGRATION_TMP=
+    printf 'prepare-stow: converted managed Codex config to a host-local regular file\n'
+    return
+  fi
+
+  require_safe_regular_file "$config" "host-local Codex config"
+  mode=$(stat -c '%a' -- "$config") || abort "cannot inspect host-local Codex config mode: $config"
+  [[ "$mode" == 400 || "$mode" == 600 ]] || abort "host-local Codex config must have owner-only non-executable mode: $config"
+  printf 'prepare-stow: preserved existing host-local Codex config\n'
+}
+
+if (( $# > 0 )); then
+  if [[ "$1" == --migrate-codex-config && $# == 1 ]]; then
+    migrate_codex_config
+    exit 0
+  fi
+  abort "unsupported arguments: $*"
+fi
+
 queue_link() { # path, expected package suffix, optional canonical target suffix
   local path=$1 suffix=$2 canonical_suffix=${3:-$2} target
   if [[ -L $path ]]; then

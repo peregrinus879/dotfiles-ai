@@ -45,6 +45,9 @@ eyragents/
 │   └── maintenance.md                    # on-demand limitations, probes, and deferred work
 ├── scripts/
 │   └── prepare-stow.sh                   # non-destructive Stow preparation
+├── templates/
+│   └── codex/
+│       └── config.toml                   # frozen portable Codex profile
 ├── tests/                                # security and configuration fixtures
 │   ├── config-contracts.py
 │   ├── external-context.sh
@@ -110,7 +113,7 @@ eyragents/
 
 Tracked `.gitkeep` placeholders (claude-code agents; opencode agents and themes) are omitted from the tree.
 
-Tracked runtime config primarily expresses shared behavior. `claude-code/.claude/settings.json`, `codex/.codex/config.toml`, and `opencode/.config/opencode/opencode.json` are the source of truth for each tool's model, effort, permissions, and feature toggles; read them directly rather than a prose mirror here. Trusted-repository work is autonomous until the commit boundary: Claude Code uses auto mode, Codex uses a write-capable workspace profile plus automatic approval review, and OpenCode allows workspace edits and shell commands behind native-tool sensitive and external path denials plus direct destructive, privileged, upload, and remote-mutation command denials. OpenCode has no classifier or OS sandbox; its external-directory guard covers only Bash commands recognized by the upstream path scanner, so unrecognized direct readers, dynamic path arguments, wrappers, and scripts remain instruction-governed residuals. Every commit requires H's editor review and approval of the exact candidate before staging. Session handoffs use private disk-backed OS temp (`/var/tmp/spar-<session-id>/`) so an in-flight review survives reboots; the Claude hook and OpenCode plugin validate handoff writes without reintroducing ordinary per-file prompts. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
+Tracked runtime config primarily expresses shared behavior. `claude-code/.claude/settings.json` and `opencode/.config/opencode/opencode.json` are their tools' managed sources of truth. `templates/codex/config.toml` freezes the portable Codex profile; while `codex/.codex/config.toml` remains tracked, verification requires that runtime config to contain the complete template plus its app-managed host state. Trusted-repository work is autonomous until the commit boundary: Claude Code uses auto mode, Codex uses a write-capable workspace profile plus automatic approval review, and OpenCode allows workspace edits and shell commands behind native-tool sensitive and external path denials plus direct destructive, privileged, upload, and remote-mutation command denials. OpenCode has no classifier or OS sandbox; its external-directory guard covers only Bash commands recognized by the upstream path scanner, so unrecognized direct readers, dynamic path arguments, wrappers, and scripts remain instruction-governed residuals. Every commit requires H's editor review and approval of the exact candidate before staging. Session handoffs use private disk-backed OS temp (`/var/tmp/spar-<session-id>/`) so an in-flight review survives reboots; the Claude hook and OpenCode plugin validate handoff writes without reintroducing ordinary per-file prompts. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
 
 When H names one exact existing non-sensitive absolute path for the current task, the primary agent can request one bounded external read without broadening ordinary workspace permissions. Claude Code validates the target in `PreToolUse` and asks on the exact native `Read`, `Grep`, or `Glob` call. Codex keeps filesystem root denied, validates one exact `request_permissions` filesystem read, and limits approval to the current turn. OpenCode retains its native external-directory deny and exposes the build-only `external_context` tool for one bounded UTF-8 file or one directory level. All three reject sensitive-shaped paths, aliases, hard links, writes, recursion, subagents, reviewers, and spar handoffs; the approval grants neither future nor session access.
 
@@ -128,7 +131,7 @@ OpenCode's in-app updater is disabled because the host installation wrapper owns
 
 Nested payload ignore files protect fresh clones if a state directory is accidentally folded into the repository.
 
-Three payload-side exceptions exist. Claude Code writes app-managed keys and key ordering into its tracked `settings.json`; commit those rewrites as-is. Codex and the ChatGPT desktop app write project trust, notice keys, marketplace and plugin state, MCP/runtime entries, and desktop preferences into the tracked `config.toml`; preserve and commit those rewrites, while its nested `.gitignore` excludes other runtime files. Generated runtime paths must be revalidated on each host. OpenCode keeps its generated root manifest, lockfiles, and dependency tree host-local beneath a real `~/.config/opencode`; the package source tracks nested private ESM markers for the managed plugins and tools, and root-anchored ignores keep generated root state out of Git without hiding accidental nested state. Routine OpenCode updates require no repository package-state edit.
+Three payload-side exceptions exist. Claude Code writes app-managed keys and key ordering into its tracked `settings.json`; commit those rewrites as-is. While Codex runtime config remains tracked, Codex and the ChatGPT desktop app write project trust, notice keys, marketplace and plugin state, MCP/runtime entries, and desktop preferences into that tracked file; preserve and commit those rewrites, while its nested `.gitignore` excludes other runtime files. The portable template never receives host state, and generated runtime paths must be revalidated on each host. OpenCode keeps its generated root manifest, lockfiles, and dependency tree host-local beneath a real `~/.config/opencode`; the package source tracks nested private ESM markers for the managed plugins and tools, and root-anchored ignores keep generated root state out of Git without hiding accidental nested state. Routine OpenCode updates require no repository package-state edit.
 
 Repo-root instruction files exist only to maintain EyrAgents itself; they are not part of the stowed payload. `AGENTS.md` keeps the always-loaded operational invariants concise, while `docs/maintenance.md` preserves dated probe evidence, limitations, deferred work, and watch items for on-demand use. Probe versions do not track installed releases, so routine tool updates require no documentation synchronization.
 
@@ -205,7 +208,7 @@ Checklist before stowing:
 
 - Stow is installed
 - EyrAgents was cloned locally
-- Any existing conflicting config files were compared and their needed content was merged or adopted
+- Any existing conflicting config files were identified and retained for explicit reconciliation
 
 From the repository root, prepare the state directories and remove only symlinks that resolve to this package layout:
 
@@ -215,9 +218,11 @@ make clean
 
 The cleanup preflights every endpoint before changing anything. It refuses regular files and directories at managed leaf endpoints and symlinks outside the recognized package layout. It keeps `~/.claude`, `~/.claude/skills`, `~/.codex`, `~/.agents`, `~/.agents/skills`, `~/.local`, `~/.local/bin`, `~/.config`, and `~/.config/opencode` as real directories. OpenCode generated package files and `node_modules/` remain host-local when they are regular files/directories; recognized legacy package links, including dangling links to an old clone, are removed, while unmanaged generated-state links abort the complete preflight before mutation.
 
-`make stow` and `make restow` invoke the same preparation automatically before creating managed child links. OpenCode may then reconcile its host-local package state without writing generated files into the repository.
+`make stow` and `make restow` invoke the same preparation automatically before creating managed child links. OpenCode may then reconcile its host-local package state without writing generated files into the repository. Normal preparation still treats `~/.codex/config.toml` as a managed Stow endpoint while the tracked runtime file exists.
 
-Codex stores per-host project trust inside `config.toml`. If `~/.codex/config.toml` already exists, merge its `[projects]` entries into `codex/.codex/config.toml` before stowing, then remove the real file; do not simply delete it.
+The explicit `make migrate-codex-config` target prepares Codex runtime ownership without running ordinary cleanup or Stow. It requires `HOME` and `~/.codex` to be real, current-user-owned directories that are not writable by another user. An absent config is atomically seeded from `templates/codex/config.toml`; a recognized Stow-managed leaf is atomically replaced with an owner-only regular file containing identical bytes; an existing single-link regular file with owner-only, non-executable mode 400 or 600 is preserved without rewriting. Dangling or unmanaged links, filesystem aliases, unsafe ownership or modes, multiple hard links, and unsupported file types fail before replacement. The same-directory temporary file is mode 600, flushed before rename, and removed on failure without deleting similarly named files.
+
+Migration is an explicit cross-host transition step and never runs from `make clean`, `make stow`, or `make restow`. This tooling does not migrate the current host automatically. While the tracked runtime endpoint remains in the Codex Stow package, do not run `make clean`, `make stow`, `make restow`, or `make verify` after a successful migration; the first three intentionally refuse the host-local regular config, and verification continues to require the tracked deployment until the separately reviewed runtime-retirement step removes that endpoint.
 
 ### Stow
 
@@ -228,6 +233,7 @@ make stow      # create symlinks for all packages
 make unstow    # remove all package symlinks
 make dry-run   # preview raw Stow actions without preparation
 make restow    # update symlinks after repo content changes
+make migrate-codex-config  # explicitly prepare host-local Codex runtime ownership
 ```
 
 Each target uses the ordinary package invocation:

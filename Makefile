@@ -10,7 +10,7 @@ SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
   codex/.local/bin/spar-codex \
   $(wildcard scripts/*.sh tests/*.sh)
 
-.PHONY: help stow unstow dry-run restow verify clean lint
+.PHONY: help stow unstow dry-run restow migrate-codex-config verify clean lint
 
 help:
 	@echo "Targets:"
@@ -18,6 +18,7 @@ help:
 	@echo "  unstow    Remove all package symlinks"
 	@echo "  dry-run   Preview raw Stow actions without running preparation"
 	@echo "  restow    Re-stow after repo content changes"
+	@echo "  migrate-codex-config  Safely convert Codex config to host-local state"
 	@echo "  verify    Check every intended deployment and run the full verification suite"
 	@echo "  clean     Safely prepare managed paths for stow"
 	@echo "  lint      ShellCheck over all managed Bash scripts"
@@ -34,6 +35,9 @@ dry-run:
 restow: clean
 	stow -R -v -t ~ $(PACKAGES)
 
+migrate-codex-config:
+	bash scripts/prepare-stow.sh --migrate-codex-config
+
 # Stow may tree-fold package subdirectories, so compare resolved managed-child
 # paths rather than requiring leaf links. Preparation keeps runtime-state roots
 # such as ~/.config/opencode real.
@@ -45,7 +49,7 @@ restow: clean
 # unless re-justified there.
 verify:
 	@fail=0; \
-	for command in find git node python3 jq readlink realpath sha256sum stat stow; do \
+	for command in cmp find git id jq mktemp mv node python3 readlink realpath sha256sum stat stow sync; do \
 	  command -v "$$command" > /dev/null || { echo "FAIL: required verifier missing: $$command"; fail=1; }; \
 	done; \
 	[[ $$fail == 0 ]] || exit $$fail; \

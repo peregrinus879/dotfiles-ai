@@ -49,6 +49,10 @@ run_prepare() {
   HOME=$1 bash "$ROOT/scripts/prepare-stow.sh"
 }
 
+run_migration() {
+  HOME=$1 bash "$ROOT/scripts/prepare-stow.sh" --migrate-codex-config
+}
+
 case_fresh_home() {
   local base="$TMP/fresh" home="$TMP/fresh/home" repo="$TMP/fresh/eyragents"
   mkdir -p "$base" "$home"
@@ -87,6 +91,7 @@ case_managed_links() {
   [[ ! -e $home/.claude/settings.json && ! -L $home/.claude/settings.json ]] || fail "managed Claude link remains"
   [[ -d $home/.claude/skills/user-owned ]] || fail "user-owned skill was removed"
   [[ ! -e $home/.codex/AGENTS.md && ! -L $home/.codex/AGENTS.md ]] || fail "managed Codex instruction link remains"
+  [[ ! -e $home/.codex/config.toml && ! -L $home/.codex/config.toml ]] || fail "managed Codex config link remains"
   [[ ! -e $home/.codex/hooks.json && ! -L $home/.codex/hooks.json ]] || fail "managed Codex hooks link remains"
   [[ ! -e $home/.config/opencode/opencode.json ]] || fail "managed OpenCode link remains"
   [[ ! -e $home/.config/opencode/tools && ! -L $home/.config/opencode/tools ]] ||
@@ -258,6 +263,179 @@ case_unmanaged_opencode_root() {
   [[ -L $home/.config/opencode ]] || fail "unmanaged OpenCode root symlink was removed"
 }
 
+case_codex_migration_seed() {
+  local home="$TMP/migration-seed/home" config inode_before inode_after
+  mkdir -p "$home/.codex"
+  run_migration "$home"
+  config="$home/.codex/config.toml"
+  [[ -f $config && ! -L $config ]] || fail "seeded Codex config is not a regular file"
+  [[ $(stat -c '%a' -- "$config") == 600 ]] || fail "seeded Codex config mode is not 600"
+  [[ $(stat -c '%h' -- "$config") == 1 ]] || fail "seeded Codex config has multiple hard links"
+  cmp -s -- "$config" "$ROOT/templates/codex/config.toml" || fail "seeded Codex config differs from template"
+  inode_before=$(stat -c '%i' -- "$config")
+  run_migration "$home"
+  inode_after=$(stat -c '%i' -- "$config")
+  [[ $inode_before == "$inode_after" ]] || fail "repeat migration rewrote a safe regular Codex config"
+  chmod 400 "$config"
+  run_migration "$home"
+  [[ $(stat -c '%i' -- "$config") == "$inode_after" ]] || fail "migration rewrote an owner-read-only Codex config"
+  [[ $(stat -c '%a' -- "$config") == 400 ]] || fail "migration changed an owner-read-only Codex config mode"
+}
+
+case_codex_migration_managed_leaf() {
+  local home="$TMP/migration-managed/home" repo="$TMP/migration-managed/eyragents"
+  local config source_before source_after
+  mkdir -p "$home/.codex"
+  make_payload "$repo"
+  printf 'host-specific tracked config\n' >"$repo/codex/.codex/config.toml"
+  config="$home/.codex/config.toml"
+  ln -s "$repo/codex/.codex/config.toml" "$config"
+  source_before=$(sha256sum "$repo/codex/.codex/config.toml")
+  run_migration "$home"
+  source_after=$(sha256sum "$repo/codex/.codex/config.toml")
+  [[ $source_before == "$source_after" ]] || fail "migration changed the managed Codex source"
+  [[ -f $config && ! -L $config ]] || fail "managed Codex leaf was not converted to a regular file"
+  [[ $(<"$config") == "host-specific tracked config" ]] || fail "managed Codex bytes were not preserved"
+  [[ $(stat -c '%a' -- "$config") == 600 ]] || fail "converted Codex config mode is not 600"
+  [[ $(stat -c '%h' -- "$config") == 1 ]] || fail "converted Codex config has multiple hard links"
+}
+
+case_codex_migration_refusals() {
+  local home repo config fake_bin real_stat
+
+  home="$TMP/migration-missing-root/home"
+  mkdir -p "$home"
+  if run_migration "$home" >/dev/null 2>&1; then
+    fail "migration accepted a missing Codex runtime root"
+  fi
+  [[ ! -e $home/.codex && ! -L $home/.codex ]] || fail "failed migration created a Codex runtime root"
+
+  home="$TMP/migration-folded-root/home"
+  repo="$TMP/migration-folded-root/eyragents"
+  mkdir -p "$home"
+  make_payload "$repo"
+  ln -s "$repo/codex/.codex" "$home/.codex"
+  if run_migration "$home" >/dev/null 2>&1; then
+    fail "migration accepted a folded Codex runtime root"
+  fi
+  [[ -L $home/.codex ]] || fail "failed migration changed a folded Codex runtime root"
+
+  home="$TMP/migration-dangling/home"
+  mkdir -p "$home/.codex"
+  ln -s "$TMP/missing/codex/.codex/config.toml" "$home/.codex/config.toml"
+  if run_migration "$home" >/dev/null 2>&1; then
+    fail "migration accepted a dangling Codex config symlink"
+  fi
+  [[ -L $home/.codex/config.toml ]] || fail "failed migration changed a dangling Codex config symlink"
+
+  home="$TMP/migration-unmanaged/home"
+  mkdir -p "$home/.codex" "$TMP/migration-unmanaged/source"
+  printf 'unmanaged\n' >"$TMP/migration-unmanaged/source/config.toml"
+  ln -s "$TMP/migration-unmanaged/source/config.toml" "$home/.codex/config.toml"
+  if run_migration "$home" >/dev/null 2>&1; then
+    fail "migration accepted an unmanaged Codex config symlink"
+  fi
+  [[ -L $home/.codex/config.toml ]] || fail "failed migration changed an unmanaged Codex config symlink"
+
+  home="$TMP/migration-aliased/home"
+  repo="$TMP/migration-aliased/eyragents"
+  mkdir -p "$home/.codex" "$TMP/migration-aliased/source"
+  make_payload "$repo"
+  printf 'aliased\n' >"$TMP/migration-aliased/source/config.toml"
+  rm -- "$repo/codex/.codex/config.toml"
+  ln -s "$TMP/migration-aliased/source/config.toml" "$repo/codex/.codex/config.toml"
+  ln -s "$repo/codex/.codex/config.toml" "$home/.codex/config.toml"
+  if run_migration "$home" >/dev/null 2>&1; then
+    fail "migration accepted an aliased managed Codex source"
+  fi
+  [[ -L $home/.codex/config.toml ]] || fail "failed migration changed an aliased Codex config"
+
+  home="$TMP/migration-unsafe-mode/home"
+  mkdir -p "$home/.codex"
+  printf 'unsafe\n' >"$home/.codex/config.toml"
+  chmod 640 "$home/.codex/config.toml"
+  if run_migration "$home" >/dev/null 2>&1; then
+    fail "migration accepted an unsafe Codex config mode"
+  fi
+  [[ $(stat -c '%a' -- "$home/.codex/config.toml") == 640 ]] || fail "failed migration changed unsafe config metadata"
+
+  home="$TMP/migration-hard-link/home"
+  mkdir -p "$home/.codex"
+  printf 'linked\n' >"$home/.codex/config.toml"
+  chmod 600 "$home/.codex/config.toml"
+  ln "$home/.codex/config.toml" "$home/.codex/config.alias"
+  if run_migration "$home" >/dev/null 2>&1; then
+    fail "migration accepted a multiply linked Codex config"
+  fi
+  [[ $(stat -c '%h' -- "$home/.codex/config.toml") == 2 ]] || fail "failed migration changed Codex hard links"
+
+  home="$TMP/migration-unsafe-root/home"
+  mkdir -p "$home/.codex"
+  chmod 777 "$home/.codex"
+  if run_migration "$home" >/dev/null 2>&1; then
+    fail "migration accepted an unsafe Codex runtime root mode"
+  fi
+  [[ ! -e $home/.codex/config.toml ]] || fail "failed migration wrote through an unsafe Codex runtime root"
+
+  home="$TMP/migration-home-alias/real-home"
+  mkdir -p "$home/.codex"
+  ln -s "$home" "$TMP/migration-home-alias/home-alias"
+  if run_migration "$TMP/migration-home-alias/home-alias" >/dev/null 2>&1; then
+    fail "migration accepted an aliased HOME"
+  fi
+  [[ ! -e $home/.codex/config.toml ]] || fail "failed migration wrote through an aliased HOME"
+
+  home="$TMP/migration-wrong-owner/home"
+  config="$home/.codex/config.toml"
+  fake_bin="$TMP/migration-wrong-owner/bin"
+  mkdir -p "$home/.codex" "$fake_bin"
+  printf 'owner fixture\n' >"$config"
+  chmod 600 "$config"
+  real_stat=$(command -v stat)
+  cat >"$fake_bin/stat" <<'EOF'
+#!/usr/bin/env bash
+if [[ $1 == -c && $2 == %u && ${4:-} == "$WRONG_OWNER_PATH" ]]; then
+  printf '999999\n'
+  exit 0
+fi
+exec "$REAL_STAT" "$@"
+EOF
+  chmod 755 "$fake_bin/stat"
+  if WRONG_OWNER_PATH="$config" REAL_STAT="$real_stat" PATH="$fake_bin:$PATH" \
+    HOME="$home" bash "$ROOT/scripts/prepare-stow.sh" --migrate-codex-config >/dev/null 2>&1; then
+    fail "migration accepted a Codex config owned by another user"
+  fi
+  [[ $(<"$config") == "owner fixture" ]] || fail "failed migration changed a wrong-owner Codex config"
+}
+
+case_codex_migration_atomic_failure() {
+  local home="$TMP/migration-atomic/home" repo="$TMP/migration-atomic/eyragents"
+  local fake_bin="$TMP/migration-atomic/bin" config path
+  mkdir -p "$home/.codex" "$fake_bin"
+  make_payload "$repo"
+  config="$home/.codex/config.toml"
+  printf 'durable source\n' >"$repo/codex/.codex/config.toml"
+  ln -s "$repo/codex/.codex/config.toml" "$config"
+  printf 'keep\n' >"$home/.codex/.config.toml.migrate.keep"
+  cat >"$fake_bin/sync" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+  chmod 755 "$fake_bin/sync"
+  if PATH="$fake_bin:$PATH" HOME="$home" \
+    bash "$ROOT/scripts/prepare-stow.sh" --migrate-codex-config >/dev/null 2>&1; then
+    fail "migration succeeded after its durability step failed"
+  fi
+  [[ -L $config ]] || fail "failed migration replaced the managed Codex symlink"
+  [[ $(<"$config") == "durable source" ]] || fail "failed migration changed managed Codex bytes"
+  shopt -s nullglob
+  for path in "$home/.codex"/.config.toml.migrate.*; do
+    [[ $path == "$home/.codex/.config.toml.migrate.keep" ]] || fail "failed migration left its temporary file"
+  done
+  shopt -u nullglob
+  [[ -f $home/.codex/.config.toml.migrate.keep ]] || fail "migration removed a pre-existing similar file"
+}
+
 case_actual_stow() {
   local home="$TMP/actual-stow/home" repo="$TMP/actual-stow/eyragents"
   local root="$TMP/actual-stow/home/.config/opencode"
@@ -304,5 +482,9 @@ case_unmanaged_opencode_link
 case_unmanaged_bun_link
 case_generated_state_wrong_types
 case_unmanaged_opencode_root
+case_codex_migration_seed
+case_codex_migration_managed_leaf
+case_codex_migration_refusals
+case_codex_migration_atomic_failure
 case_actual_stow
-printf 'ok: prepare-stow preserves generated state and normalizes real roots\n'
+printf 'ok: prepare-stow preserves state, normalizes roots, and migrates Codex config safely\n'

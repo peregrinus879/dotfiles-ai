@@ -19,6 +19,130 @@ def require(condition: bool, message: str):
         raise AssertionError(message)
 
 
+def flatten_table(table: dict, prefix: tuple[str, ...] = ()) -> dict[tuple[str, ...], object]:
+    flattened: dict[tuple[str, ...], object] = {}
+    for key, value in table.items():
+        path = (*prefix, key)
+        if isinstance(value, dict):
+            flattened.update(flatten_table(value, path))
+        else:
+            flattened[path] = value
+    return flattened
+
+
+def require_recursive_subset(expected: dict, actual: dict, prefix: tuple[str, ...] = ()) -> None:
+    for key, expected_value in expected.items():
+        path = (*prefix, key)
+        require(key in actual, f"tracked Codex runtime is missing portable key {'.'.join(path)}")
+        actual_value = actual[key]
+        if isinstance(expected_value, dict):
+            require(isinstance(actual_value, dict), f"tracked Codex runtime table changed at {'.'.join(path)}")
+            require_recursive_subset(expected_value, actual_value, path)
+        else:
+            require(actual_value == expected_value, f"tracked Codex runtime value changed at {'.'.join(path)}")
+
+
+CODEX_REVIEW_POLICY = """Approve only actions necessary for H's requested work inside the active workspace. For request_permissions, approve only one turn-scoped filesystem read for one exact, non-sensitive absolute path that H named for the current task and the trusted pre-tool gate accepted. Reject session-scoped grants, external writes, all other writes outside the workspace, subagent grants, credential access, privileged actions, destructive state changes, uploads, remote mutations, and bypasses of safety checks. A local Git commit is eligible only after H explicitly approves the exact candidate in the conversation.
+"""
+
+CODEX_PORTABLE_FILESYSTEM = {
+    ":root": "deny",
+    ":minimal": "read",
+    ":tmpdir": "write",
+    ":slash_tmp": "write",
+}
+
+for managed_read_path in (
+    "~/.claude/CLAUDE.md",
+    "~/.claude/settings.json",
+    "~/.claude/statusline.sh",
+    "~/.claude/agents",
+    "~/.claude/hooks",
+    "~/.claude/rules",
+    "~/.claude/skills/commit",
+    "~/.claude/skills/spar",
+    "~/.codex/AGENTS.md",
+    "~/.codex/config.toml",
+    "~/.codex/hooks.json",
+    "~/.agents/skills",
+    "~/.config/opencode",
+    "~/.local/bin",
+):
+    CODEX_PORTABLE_FILESYSTEM[managed_read_path] = "read"
+
+for sensitive_home_path in (
+    ".aws",
+    ".claude/.credentials.json",
+    ".config/gh/hosts.yml",
+    ".codex/auth.json",
+    ".docker/config.json",
+    ".gnupg",
+    ".kube",
+    ".local/share/opencode/auth.json",
+    ".netrc",
+    ".npmrc",
+    ".pypirc",
+    ".ssh",
+):
+    CODEX_PORTABLE_FILESYSTEM[f"~/{sensitive_home_path}"] = "deny"
+
+for sensitive_home_glob in (
+    "~/**/.env",
+    "~/**/.env.*",
+    "~/**/auth.json",
+    "~/**/secrets",
+    "~/**/secrets/**",
+    "~/**/*.key",
+    "~/**/*.pem",
+    "~/**/*.p12",
+    "~/**/*.pfx",
+    "~/**/*credentials*",
+):
+    CODEX_PORTABLE_FILESYSTEM[sensitive_home_glob] = "deny"
+
+CODEX_PORTABLE_FILESYSTEM["glob_scan_max_depth"] = 64
+
+CODEX_PORTABLE_EXPECTED = {
+    "model": "gpt-5.6-sol",
+    "model_reasoning_effort": "xhigh",
+    "model_reasoning_summary": "auto",
+    "service_tier": "fast",
+    "web_search": "live",
+    "approval_policy": "on-request",
+    "approvals_reviewer": "auto_review",
+    "default_permissions": "trusted-workspace",
+    "auto_review": {"policy": CODEX_REVIEW_POLICY},
+    "features": {
+        "fast_mode": True,
+        "js_repl": False,
+        "request_permissions_tool": True,
+    },
+    "agents": {
+        "default_subagent_model": "gpt-5.6-sol",
+        "default_subagent_reasoning_effort": "xhigh",
+    },
+    "permissions": {
+        "trusted-workspace": {
+            "description": "Writable workspace with runtime-minimal reads, managed configuration reads, sensitive paths, and command network denied.",
+            "extends": ":workspace",
+            "filesystem": {
+                **CODEX_PORTABLE_FILESYSTEM,
+                ":workspace_roots": {
+                    ".": "write",
+                    ".env": "deny",
+                    ".env.*": "deny",
+                    "secrets": "deny",
+                    "**/*.key": "deny",
+                    "**/*.pem": "deny",
+                    "**/*credentials*": "deny",
+                },
+            },
+            "network": {"enabled": False},
+        }
+    },
+}
+
+
 claude = load_json("claude-code/.claude/settings.json")
 opencode = load_json("opencode/.config/opencode/opencode.json")
 opencode_plugin_package = load_json("opencode/.config/opencode/plugins/package.json")
@@ -31,6 +155,19 @@ claude_project = load_json(".claude/settings.json")
 opencode_project = load_json("opencode.json")
 with (ROOT / "codex/.codex/config.toml").open("rb") as handle:
     codex = tomllib.load(handle)
+with (ROOT / "templates/codex/config.toml").open("rb") as handle:
+    codex_template = tomllib.load(handle)
+
+expected_portable = flatten_table(CODEX_PORTABLE_EXPECTED)
+actual_portable = flatten_table(codex_template)
+require(actual_portable.keys() == expected_portable.keys(), "Codex portable template flattened key set changed")
+for portable_path, expected_value in expected_portable.items():
+    require(
+        actual_portable[portable_path] == expected_value,
+        f"Codex portable template value changed at {'.'.join(portable_path)}",
+    )
+require_recursive_subset(codex_template, codex)
+require("H" in codex_template["auto_review"]["policy"], "Codex portable policy lost H's approval boundary")
 
 openai_attribution = "Co-Authored-By: OpenAI {official display name of current model} <noreply@openai.com>"
 model_display_rule = "Use the provider's official human-facing display name"

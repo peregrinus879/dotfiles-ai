@@ -1,0 +1,81 @@
+model = "gpt-5.6-sol"
+model_reasoning_effort = "xhigh"
+model_reasoning_summary = "auto"
+service_tier = "fast"
+web_search = "live"
+approval_policy = "on-request"
+approvals_reviewer = "auto_review"
+default_permissions = "trusted-workspace"
+
+[auto_review]
+policy = """
+Approve only actions necessary for H's requested work inside the active workspace. For request_permissions, approve only one turn-scoped filesystem read for one exact, non-sensitive absolute path that H named for the current task and the trusted pre-tool gate accepted. Reject session-scoped grants, external writes, all other writes outside the workspace, subagent grants, credential access, privileged actions, destructive state changes, uploads, remote mutations, and bypasses of safety checks. A local Git commit is eligible only after H explicitly approves the exact candidate in the conversation.
+"""
+
+[features]
+fast_mode = true
+js_repl = false
+request_permissions_tool = true
+
+[agents]
+default_subagent_model = "gpt-5.6-sol"
+default_subagent_reasoning_effort = "xhigh"
+
+[permissions.trusted-workspace]
+description = "Writable workspace with runtime-minimal reads, managed configuration reads, sensitive paths, and command network denied."
+extends = ":workspace"
+
+[permissions.trusted-workspace.filesystem]
+":root" = "deny"
+":minimal" = "read"
+":tmpdir" = "write"
+":slash_tmp" = "write"
+"~/.claude/CLAUDE.md" = "read"
+"~/.claude/settings.json" = "read"
+"~/.claude/statusline.sh" = "read"
+"~/.claude/agents" = "read"
+"~/.claude/hooks" = "read"
+"~/.claude/rules" = "read"
+"~/.claude/skills/commit" = "read"
+"~/.claude/skills/spar" = "read"
+"~/.codex/AGENTS.md" = "read"
+"~/.codex/config.toml" = "read"
+"~/.codex/hooks.json" = "read"
+"~/.agents/skills" = "read"
+"~/.config/opencode" = "read"
+"~/.local/bin" = "read"
+"~/.aws" = "deny"
+"~/.claude/.credentials.json" = "deny"
+"~/.config/gh/hosts.yml" = "deny"
+"~/.codex/auth.json" = "deny"
+"~/.docker/config.json" = "deny"
+"~/.gnupg" = "deny"
+"~/.kube" = "deny"
+"~/.local/share/opencode/auth.json" = "deny"
+"~/.netrc" = "deny"
+"~/.npmrc" = "deny"
+"~/.pypirc" = "deny"
+"~/.ssh" = "deny"
+"~/**/.env" = "deny"
+"~/**/.env.*" = "deny"
+"~/**/auth.json" = "deny"
+"~/**/secrets" = "deny"
+"~/**/secrets/**" = "deny"
+"~/**/*.key" = "deny"
+"~/**/*.pem" = "deny"
+"~/**/*.p12" = "deny"
+"~/**/*.pfx" = "deny"
+"~/**/*credentials*" = "deny"
+glob_scan_max_depth = 64
+
+[permissions.trusted-workspace.filesystem.":workspace_roots"]
+"." = "write"
+".env" = "deny"
+".env.*" = "deny"
+"secrets" = "deny"
+"**/*.key" = "deny"
+"**/*.pem" = "deny"
+"**/*credentials*" = "deny"
+
+[permissions.trusted-workspace.network]
+enabled = false
