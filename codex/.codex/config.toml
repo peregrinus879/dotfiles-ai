@@ -1,5 +1,5 @@
 model = "gpt-5.6-sol"
-model_reasoning_effort = "ultra"
+model_reasoning_effort = "xhigh"
 model_reasoning_summary = "auto"
 service_tier = "fast"
 web_search = "live"
@@ -18,7 +18,7 @@ js_repl = false
 
 [agents]
 default_subagent_model = "gpt-5.6-sol"
-default_subagent_reasoning_effort = "max"
+default_subagent_reasoning_effort = "xhigh"
 
 [permissions.trusted-workspace]
 description = "Writable workspace with sensitive paths and command network denied."

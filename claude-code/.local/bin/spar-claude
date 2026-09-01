@@ -253,7 +253,8 @@ preflight() {
     $account_home != *\\* && $account_home != *'*'* && $account_home != *'?'* &&
     $account_home != *'['* && $account_home != *']'* && $account_home != *'('* &&
     $account_home != *')'* ]] || abort "account home cannot be represented safely in permission rules"
-  auth=$(timeout --kill-after=2 30 /usr/bin/env -C "$REPO_ROOT" "$REVIEWER_BIN" \
+  auth=$(timeout --kill-after=2 30 /usr/bin/env -u CLAUDE_CODE_EFFORT_LEVEL \
+    -C "$REPO_ROOT" "$REVIEWER_BIN" \
     --safe-mode --setting-sources= auth status 2>/dev/null) ||
     abort "cannot verify Claude authentication"
   jq -e '.loggedIn == true and .authMethod == "claude.ai" and .apiProvider == "firstParty"' \
@@ -347,11 +348,12 @@ stream() { # $1 reply_fd; rest = claude session flags
   trap interrupt_stream INT TERM HUP
   workdir=$(mktemp -d) || abort "cannot create a private temp directory"
   mkfifo -m 600 "$workdir/fifo" || abort "cannot create the event fifo"
-  setsid timeout --kill-after=2 "$CEILING" /usr/bin/env -C "$REPO_ROOT" "$REVIEWER_BIN" -p "$@" \
+  setsid timeout --kill-after=2 "$CEILING" /usr/bin/env -u CLAUDE_CODE_EFFORT_LEVEL \
+    -C "$REPO_ROOT" "$REVIEWER_BIN" -p "$@" \
     --add-dir "$HANDOFF" --permission-mode dontAsk \
     --disallowedTools "Write Edit NotebookEdit Bash WebFetch WebSearch Task" \
     --tools "Read,Glob,Grep" \
-    --model "$MODEL" --effort max --safe-mode --setting-sources= \
+    --model "$MODEL" --effort xhigh --safe-mode --setting-sources= \
     --strict-mcp-config --mcp-config '{"mcpServers":{}}' \
     --settings "$REVIEWER_SETTINGS" --system-prompt "$SYSTEM_PROMPT" --output-format stream-json \
     --include-partial-messages --verbose >"$workdir/fifo" 2>/dev/null <<<"$SCANNED_PROMPT" &

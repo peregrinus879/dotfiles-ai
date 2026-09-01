@@ -44,12 +44,12 @@ claude_attribution = "Co-Authored-By: {official display name of current model} <
 require(claude_attribution in claude_skill, "Claude commit attribution drifted")
 require(model_display_rule in claude_skill, "Claude model display rule drifted")
 
-require(claude["model"] == "claude-fable-5", "Claude model pin drifted")
+require(claude["model"] == "fable", "Claude model alias drifted")
 require(
-    claude["env"]["CLAUDE_CODE_EFFORT_LEVEL"] == "max",
-    "Claude maximum effort pin drifted",
+    claude["env"]["CLAUDE_CODE_EFFORT_LEVEL"] == "xhigh",
+    "Claude xhigh effort pin drifted",
 )
-require("effortLevel" not in claude, "Claude maximum effort must use the environment pin")
+require("effortLevel" not in claude, "Claude effort must use the environment pin")
 require(claude["permissions"]["defaultMode"] == "auto", "Claude default mode drifted")
 require(
     claude["permissions"]["disableBypassPermissionsMode"] == "disable",
@@ -232,7 +232,9 @@ for marker in (
     "CLAUDE_CODE_USE_MANTLE",
     "CLAUDE_CODE_SKIP_ANTHROPIC_AWS_AUTH",
     "CLAUDE_CODE_SKIP_MANTLE_AUTH",
-    '/usr/bin/env -C "$REPO_ROOT" "$REVIEWER_BIN"',
+    "/usr/bin/env -u CLAUDE_CODE_EFFORT_LEVEL",
+    '--model "$MODEL" --effort xhigh',
+    '-C "$REPO_ROOT" "$REVIEWER_BIN"',
     "--safe-mode --setting-sources= auth status",
     '--arg home "$account_home"',
     '"Read(/" + $home + "/.ssh/**)"',
@@ -453,14 +455,14 @@ codex_profile = codex["permissions"]["trusted-workspace"]
 filesystem = codex_profile["filesystem"]
 workspace = filesystem[":workspace_roots"]
 require(codex["model"] == "gpt-5.6-sol", "Codex model pin drifted")
-require(codex["model_reasoning_effort"] == "ultra", "Codex effort drifted")
+require(codex["model_reasoning_effort"] == "xhigh", "Codex effort drifted")
 require(codex["model_reasoning_summary"] == "auto", "Codex reasoning summary drifted")
 require(codex["service_tier"] == "fast", "Codex Fast service tier drifted")
 require(codex["web_search"] == "live", "Codex primary web search drifted")
 require(codex["features"]["fast_mode"] is True, "Codex Fast feature drifted")
 require(codex["agents"]["default_subagent_model"] == "gpt-5.6-sol", "Codex subagent model drifted")
 require(
-    codex["agents"]["default_subagent_reasoning_effort"] == "max",
+    codex["agents"]["default_subagent_reasoning_effort"] == "xhigh",
     "Codex subagent effort drifted",
 )
 require(codex["approval_policy"] == "on-request", "Codex approval policy drifted")
@@ -581,15 +583,11 @@ require(
     plugin_lock["version"].split(".", 1)[0] == plugin_major,
     "OpenCode resolved plugin escaped its compatible major",
 )
+opencode_provider_id, opencode_model_id = opencode["model"].split("/", 1)
 require(
-    opencode["provider"]["openai"]["models"]["gpt-5.6-sol-fast"]["options"]["reasoningEffort"]
-    == "max",
-    "OpenCode Fast max option drifted",
-)
-require(
-    opencode["provider"]["openai"]["models"]["gpt-5.6-sol-fast"]["options"]["reasoningSummary"]
-    == "auto",
-    "OpenCode reasoning summary drifted",
+    opencode["provider"][opencode_provider_id]["models"][opencode_model_id]["options"]
+    == {"reasoningEffort": "xhigh"},
+    "OpenCode selected model xhigh overlay drifted",
 )
 
 edit_expected = {

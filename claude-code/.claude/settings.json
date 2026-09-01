@@ -119,9 +119,9 @@
     ]
   },
   "env": {
-    "CLAUDE_CODE_EFFORT_LEVEL": "max"
+    "CLAUDE_CODE_EFFORT_LEVEL": "xhigh"
   },
-  "model": "claude-fable-5",
+  "model": "fable",
   "disableWorkflows": false,
   "workflowSizeGuideline": "large",
   "statusLine": {

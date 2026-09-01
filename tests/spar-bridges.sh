@@ -29,6 +29,7 @@ cat >"$TMP/bin/claude" <<'SHIM'
 #!/usr/bin/env bash
 [[ ${CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:-} == 1 ]] || exit 91
 [[ ${DISABLE_AUTOUPDATER:-} == 1 ]] || exit 92
+[[ -z ${CLAUDE_CODE_EFFORT_LEVEL:-} ]] || exit 89
 if [[ " $* " == *' auth status '* ]]; then
   [[ " $* " == *' --safe-mode '* ]] || exit 93
   [[ " $* " == *' --setting-sources= '* ]] || exit 94
@@ -833,16 +834,18 @@ handoff=$(init_handoff "$CLAUDE_BRIDGE")
 calls="$TMP/claude-flags"
 pwds="$TMP/claude-pwds"
 stdin_file="$TMP/claude-stdin"
-SPAR_TEST_CALLS=$calls SPAR_TEST_PWDS=$pwds SPAR_TEST_STDIN=$stdin_file PATH="$TMP/bin:$PATH" \
+CLAUDE_CODE_EFFORT_LEVEL=max SPAR_TEST_CALLS=$calls SPAR_TEST_PWDS=$pwds \
+  SPAR_TEST_STDIN=$stdin_file PATH="$TMP/bin:$PATH" \
   "$CLAUDE_BRIDGE" new "$handoff" "Review Claude flags." >/dev/null 2>/dev/null
 claude_new=$(<"$calls")
 claude_sid=$(awk -F '\t' '$3 == "primary" && $4 == "allocated" { print $5; exit }' "$handoff/reviewer-id")
 rm -- "$calls"
-SPAR_TEST_CALLS=$calls SPAR_TEST_PWDS=$pwds SPAR_TEST_STDIN=$stdin_file PATH="$TMP/bin:$PATH" \
+CLAUDE_CODE_EFFORT_LEVEL=max SPAR_TEST_CALLS=$calls SPAR_TEST_PWDS=$pwds \
+  SPAR_TEST_STDIN=$stdin_file PATH="$TMP/bin:$PATH" \
   "$CLAUDE_BRIDGE" resume "$claude_sid" "$handoff" "Resume Claude flags." >/dev/null 2>/dev/null
 claude_resume=$(<"$calls")
 for flag in '--add-dir' '--permission-mode dontAsk' '--tools Read,Glob,Grep' '--model opus' \
-  '--effort max' '--safe-mode' '--setting-sources=' '--strict-mcp-config' '--mcp-config' '--system-prompt'; do
+  '--effort xhigh' '--safe-mode' '--setting-sources=' '--strict-mcp-config' '--mcp-config' '--system-prompt'; do
   [[ $claude_new == *"$flag"* && $claude_resume == *"$flag"* ]] || fail "Claude isolation missing: $flag"
 done
 for rule in "Read(/$REPO_ROOT/**)" "Read(/$handoff/**)" "Read(/$REPO_ROOT/.git)" \
@@ -891,7 +894,7 @@ SPAR_TEST_CALLS=$calls SPAR_TEST_PWDS=$pwds SPAR_TEST_STDIN=$stdin_file PATH="$T
   "Resume Codex flags." >/dev/null 2>/dev/null
 codex_resume=$(<"$calls")
 for flag in --ignore-user-config --ignore-rules --strict-config 'default_permissions="spar-reviewer"' \
-  'forced_login_method="chatgpt"' 'model="gpt-5.6-sol"' 'model_reasoning_effort="max"' \
+  'forced_login_method="chatgpt"' 'model="gpt-5.6-sol"' 'model_reasoning_effort="xhigh"' \
   'model_reasoning_summary="none"' 'project_doc_max_bytes=0' 'project_doc_fallback_filenames=[]' \
   'project_root_markers=[]' 'trust_level="untrusted"' \
   'features.plugins=false' 'features.remote_plugin=false' 'features.multi_agent=false' \
