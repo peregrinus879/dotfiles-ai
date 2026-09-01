@@ -12,14 +12,17 @@ OPENCODE_TEST_ENV=(
   -u OPENCODE_DISABLE_PROJECT_CONFIG
   -u OPENCODE_PURE
 )
-mkdir -p "$TMP/home/.config/opencode/plugins" \
+mkdir -p "$TMP/home/.config/opencode" "$TMP/package/opencode/plugins" \
   "$TMP/home/.config/opencode/skills/commit" "$TMP/home/.config/opencode/skills/spar" \
   "$TMP/home/.claude/skills/omarchy" "$TMP/home/.claude/skills/external-claude-probe" \
   "$TMP/home/.agents/skills/external-agent-probe" "$TMP/project/.git" "$TMP/project/.opencode/plugins"
 
 cp "$ROOT/opencode/.config/opencode/opencode.json" "$TMP/home/.config/opencode/opencode.json"
 cp "$ROOT/opencode/.config/opencode/plugins/reviewed-writes.ts" \
-  "$TMP/home/.config/opencode/plugins/reviewed-writes.ts"
+  "$TMP/package/opencode/plugins/reviewed-writes.ts"
+cp "$ROOT/opencode/.config/opencode/plugins/package.json" \
+  "$TMP/package/opencode/plugins/package.json"
+ln -s "$TMP/package/opencode/plugins" "$TMP/home/.config/opencode/plugins"
 cp "$ROOT/opencode/.config/opencode/skills/commit/SKILL.md" \
   "$TMP/home/.config/opencode/skills/commit/SKILL.md"
 cp "$ROOT/opencode/.config/opencode/skills/spar/SKILL.md" \
@@ -91,10 +94,17 @@ disabled=$(run_opencode OPENCODE_DISABLE_PROJECT_CONFIG=1 opencode debug config 
   printf 'FAIL: disabled project config or plugin still loaded\n' >&2
   exit 1
 }
-[[ $disabled == *'reviewed-writes.ts'* ]] || {
-  printf 'FAIL: global reviewed-writes plugin disappeared under project isolation\n' >&2
+if ! jq -e --arg spec "file://$TMP/home/.config/opencode/plugins/reviewed-writes.ts" \
+  '.plugin_origins | any(.spec == $spec and .scope == "global")' <<<"$disabled" >/dev/null; then
+  printf 'FAIL: global reviewed-writes plugin was not registered through its managed symlink\n' >&2
   exit 1
-}
+fi
+node --experimental-strip-types --input-type=module -e '
+  import { pathToFileURL } from "node:url"
+  const module = await import(pathToFileURL(process.argv[1]).href)
+  const plugin = await module.ReviewedWritesPlugin({ directory: process.argv[2] })
+  if (typeof plugin["tool.execute.before"] !== "function") process.exit(1)
+' "$TMP/home/.config/opencode/plugins/reviewed-writes.ts" "$TMP/project"
 
 skills_disabled=$(run_opencode OPENCODE_DISABLE_EXTERNAL_SKILLS=1 opencode debug skill 2>&1)
 for managed in \

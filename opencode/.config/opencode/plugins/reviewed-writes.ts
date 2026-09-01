@@ -1,6 +1,9 @@
 import fs from "node:fs"
 import path from "node:path"
-import type { Plugin } from "@opencode-ai/plugin"
+
+type PluginInput = { directory: string }
+type ToolInput = { tool?: unknown }
+type ToolOutput = { args?: { patchText?: unknown; filePath?: unknown } }
 
 const PATCH_BEGIN = "*** Begin Patch"
 const PATCH_END = "*** End Patch"
@@ -20,7 +23,7 @@ const SPAR_RESERVED = new Set([
 ])
 const SPAR_SENSITIVE = /^(?:\.env(?:[._~-].*)?|\.(?:netrc|npmrc|pypirc)(?:[._~-].*)?|auth\.json(?:[._~-].*)?|secrets?(?:[._~-].*)?|.*credentials.*|.*\.(?:key|pem|p12|pfx)(?:[._~-].*)?|id_(?:rsa|dsa|ecdsa|ed25519)(?:[._~-].*)?)$/i
 
-export const ReviewedWritesPlugin: Plugin = async ({ directory }) => {
+export const ReviewedWritesPlugin = async ({ directory }: PluginInput) => {
   const workspaceRoot = path.resolve(directory)
   const canonicalWorkspaceRoot = fs.realpathSync(workspaceRoot)
   const absoluteTarget = (target: string) =>
@@ -28,14 +31,21 @@ export const ReviewedWritesPlugin: Plugin = async ({ directory }) => {
   const patchTarget = (target: string) => path.resolve(workspaceRoot, target)
 
   return {
-    "tool.execute.before": async (input, output) => {
+    "tool.execute.before": async (input: ToolInput, output: ToolOutput) => {
+      if (typeof input.tool !== "string" || input.tool.length === 0) {
+        throw new Error("tool call requires a verifiable tool name")
+      }
       if (input.tool === "apply_patch") {
         const operations = parsePatchOperations(output.args?.patchText)
         const unique = new Set(operations.flat().map(patchTarget))
         for (const target of unique) assertPatchTargetSafe(target)
       }
-      if ((input.tool === "edit" || input.tool === "write") && typeof output.args?.filePath === "string") {
-        assertSparTargetSafe(absoluteTarget(output.args.filePath))
+      if (input.tool === "edit" || input.tool === "write") {
+        const filePath = output.args?.filePath
+        if (typeof filePath !== "string" || filePath.length === 0) {
+          throw new Error(`${input.tool} requires a verifiable filePath`)
+        }
+        assertSparTargetSafe(absoluteTarget(filePath))
       }
     },
   }

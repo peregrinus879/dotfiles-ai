@@ -214,6 +214,10 @@ await expectRejected("orphan move destination", `*** Begin Patch
 *** End Patch`)
 await expectRejected("missing envelope", "*** Update File: one.txt")
 await expectRejected("missing patch text", undefined)
+await expectToolRejected("missing tool name", undefined, {}, "verifiable tool name")
+await expectToolRejected("edit missing file path", "edit", {}, "verifiable filePath")
+await expectToolRejected("write non-string file path", "write", { filePath: 1 }, "verifiable filePath")
+await expectToolRejected("edit empty file path", "edit", { filePath: "" }, "verifiable filePath")
 
 await expectEditAccepted("ordinary external edit remains native-permission scoped", `${outside}/existing.txt`)
 await expectWriteAccepted("ordinary sensitive write remains native-permission scoped", `${workspace}/.env`)

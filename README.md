@@ -88,15 +88,15 @@ eyragents/
 └── opencode/                             # stow package -> ~/.config/opencode/
     └── .config/
         └── opencode/
-            ├── .gitignore                # excludes generated node_modules
+            ├── .gitignore                # excludes host-local package state
             ├── opencode.json             # runtime config and agent overrides
             ├── tui.json                  # TUI-specific config
             ├── commands/                 # custom slash commands
             │   ├── commit.md             # wrapper for the commit skill
             │   └── spar.md               # wrapper for the spar skill
             ├── plugins/                  # all-target patch and handoff safety plugin
-            ├── package.json              # compatible-major plugin dependency
-            ├── package-lock.json         # reproducible npm dependency graph
+            │   ├── package.json          # private ESM marker
+            │   └── reviewed-writes.ts    # write-review plugin
             ├── skills/                   # agent skills
             │   ├── commit/               # candidate and publication review workflow
             │   └── spar/                 # cross-model sparring and reviews (reviewer: spar-claude)
@@ -120,7 +120,7 @@ OpenCode's in-app updater is disabled because the host installation wrapper owns
 
 Nested payload ignore files protect fresh clones if a state directory is accidentally folded into the repository.
 
-Three payload-side exceptions exist. Claude Code writes app-managed keys and key ordering into its tracked `settings.json`; commit those rewrites as-is. Codex and the ChatGPT desktop app write project trust, notice keys, marketplace and plugin state, MCP/runtime entries, and desktop preferences into the tracked `config.toml`; preserve and commit those rewrites, while its nested `.gitignore` excludes other runtime files. Generated runtime paths must be revalidated on each host. OpenCode tracks a compatible-major npm manifest and reproducible lockfile independently of the installed client release, while a repository-only `.gitignore` excludes generated `node_modules/`. Routine client updates require no dependency edit; revisit the range only for a plugin API compatibility boundary. If Stow reports a real-file conflict, compare and merge any needed local content before removing it; confirmed generated `node_modules/` can be removed and regenerated from the tracked manifests.
+Three payload-side exceptions exist. Claude Code writes app-managed keys and key ordering into its tracked `settings.json`; commit those rewrites as-is. Codex and the ChatGPT desktop app write project trust, notice keys, marketplace and plugin state, MCP/runtime entries, and desktop preferences into the tracked `config.toml`; preserve and commit those rewrites, while its nested `.gitignore` excludes other runtime files. Generated runtime paths must be revalidated on each host. OpenCode keeps its generated root manifest, lockfiles, and dependency tree host-local beneath a real `~/.config/opencode`; the package source tracks only a nested private ESM marker for the managed plugins, and root-anchored ignores keep generated root state out of Git without hiding accidental nested state. Routine OpenCode updates require no repository package-state edit.
 
 Repo-root instruction files exist only to maintain EyrAgents itself; they are not part of the stowed payload. `AGENTS.md` keeps the always-loaded operational invariants concise, while `docs/maintenance.md` preserves dated probe evidence, limitations, deferred work, and watch items for on-demand use. Probe versions do not track installed releases, so routine tool updates require no documentation synchronization.
 
@@ -205,9 +205,9 @@ From the repository root, prepare the state directories and remove only symlinks
 make clean
 ```
 
-The cleanup preflights every endpoint before changing anything. It refuses regular files, directories at managed leaf endpoints, and symlinks outside the recognized package layout. It keeps `~/.claude`, `~/.claude/skills`, `~/.codex`, `~/.agents`, `~/.agents/skills`, `~/.local`, and `~/.local/bin` as real directories, and ensures `~/.config` is real. If `~/.config/opencode` is absent, Stow may tree-fold it into one package symlink; an existing real directory receives managed child links instead.
+The cleanup preflights every endpoint before changing anything. It refuses regular files and directories at managed leaf endpoints and symlinks outside the recognized package layout. It keeps `~/.claude`, `~/.claude/skills`, `~/.codex`, `~/.agents`, `~/.agents/skills`, `~/.local`, `~/.local/bin`, `~/.config`, and `~/.config/opencode` as real directories. OpenCode generated package files and `node_modules/` remain host-local when they are regular files/directories; recognized legacy package links, including dangling links to an old clone, are removed, while unmanaged generated-state links abort the complete preflight before mutation.
 
-If a real `~/.config/opencode/node_modules` directory blocks preparation, confirm it is generated dependency output, remove it, and regenerate it from the tracked `package.json` and `package-lock.json` after stowing.
+`make stow` and `make restow` invoke the same preparation automatically before creating managed child links. OpenCode may then reconcile its host-local package state without writing generated files into the repository.
 
 Codex stores per-host project trust inside `config.toml`. If `~/.codex/config.toml` already exists, merge its `[projects]` entries into `codex/.codex/config.toml` before stowing, then remove the real file; do not simply delete it.
 
@@ -218,7 +218,7 @@ The Makefile owns the package list and the stow command sets; run the targets fr
 ```bash
 make stow      # create symlinks for all packages
 make unstow    # remove all package symlinks
-make dry-run   # preview stow actions without making changes
+make dry-run   # preview raw Stow actions without preparation
 make restow    # update symlinks after repo content changes
 ```
 
@@ -253,8 +253,8 @@ After stowing or changing the payloads:
 
 A repo-root `Makefile` keeps the package list in one place and wraps the routine commands. Run targets from the repo root:
 
-- `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets
-- `make verify` - exhaustive intended-file deployment; bounded scanner and repository-bound bridge fixtures; fail-closed dependency checks; JSON, TOML, model, Fast, provider, updater, and npm-lock contracts; non-destructive Stow fixtures; statusline state-file attack fixtures; bridge payload, authentication, repository isolation, new/resume, terminal-event, signal, timeout, and descendant-cleanup tests; project-config isolation; three-way skill sync and value-based review contracts; commit and reviewer-confinement boundaries; executable all-target plugin parser tests; OpenCode permission ordering; and stray-config checks
+- `make stow` / `make unstow` / `make dry-run` / `make restow` - the Stow command sets; `dry-run` previews raw Stow behavior without the non-destructive preparation used by `stow` and `restow`
+- `make verify` - exhaustive intended-file deployment; bounded scanner and repository-bound bridge fixtures; fail-closed dependency checks; JSON, TOML, model, Fast, provider, updater, plugin-module, and host-local package-state contracts; non-destructive Stow fixtures; statusline state-file attack fixtures; bridge payload, authentication, repository isolation, new/resume, terminal-event, signal, timeout, and descendant-cleanup tests; project-config isolation; three-way skill sync and value-based review contracts; commit and reviewer-confinement boundaries; executable all-target plugin parser tests; OpenCode permission ordering; and stray-config checks
 - `make clean` - non-destructive preparation that removes only recognized managed symlinks and creates real state directories
 - `make lint` - ShellCheck over `statusline.sh`, the directly stowed spar bridges, and every script and shell test; `.shellcheckrc` disables the one style-level finding so new issues stand out
 

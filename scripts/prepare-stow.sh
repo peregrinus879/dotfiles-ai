@@ -10,11 +10,11 @@ abort() {
   exit 1
 }
 
-queue_link() { # path, expected package suffix
-  local path=$1 suffix=$2 target
+queue_link() { # path, expected package suffix, optional canonical target suffix
+  local path=$1 suffix=$2 canonical_suffix=${3:-$2} target
   if [[ -L $path ]]; then
     target=$(realpath -m -- "$path")
-    [[ $target == */"$suffix" ]] ||
+    [[ $target == */"$suffix" || $target == */"$canonical_suffix" ]] ||
       abort "refusing unmanaged symlink: $path -> $(readlink -- "$path")"
     remove_links+=("$path")
   elif [[ -e $path ]]; then
@@ -22,12 +22,30 @@ queue_link() { # path, expected package suffix
   fi
 }
 
-prepare_real_dir() { # path, expected folded-package suffix or empty
-  local path=$1 suffix=${2:-} target
+queue_generated_state() { # path, expected type, recognized legacy suffix or empty
+  local path=$1 expected_type=$2 suffix=${3:-} target
+  if [[ -L $path ]]; then
+    [[ -n $suffix ]] || abort "refusing unmanaged generated-state symlink: $path -> $(readlink -- "$path")"
+    target=$(realpath -m -- "$path")
+    [[ $target == */"$suffix" ]] ||
+      abort "refusing unmanaged generated-state symlink: $path -> $(readlink -- "$path")"
+    remove_links+=("$path")
+    return
+  fi
+  [[ -e $path ]] || return 0
+  case $expected_type in
+    file) [[ -f $path ]] || abort "generated state is not a regular file: $path" ;;
+    dir) [[ -d $path ]] || abort "generated state is not a directory: $path" ;;
+    *) abort "unknown generated-state type: $expected_type" ;;
+  esac
+}
+
+prepare_real_dir() { # path, expected folded-package suffix or empty, optional canonical suffix
+  local path=$1 suffix=${2:-} canonical_suffix=${3:-${2:-}} target
   if [[ -L $path ]]; then
     [[ -n $suffix ]] || abort "refusing symlinked state directory: $path"
     target=$(realpath -m -- "$path")
-    [[ $target == */"$suffix" ]] ||
+    [[ $target == */"$suffix" || $target == */"$canonical_suffix" ]] ||
       abort "refusing unmanaged directory symlink: $path -> $(readlink -- "$path")"
     remove_links+=("$path")
     create_dirs+=("$path")
@@ -56,7 +74,8 @@ prepare_claude() {
 
 prepare_codex() {
   if prepare_real_dir "$HOME/.codex" "codex/.codex"; then
-    queue_link "$HOME/.codex/AGENTS.md" "codex/.codex/AGENTS.md"
+    queue_link "$HOME/.codex/AGENTS.md" "codex/.codex/AGENTS.md" \
+      "claude-code/.claude/rules/shared-guidance.md"
     queue_link "$HOME/.codex/config.toml" "codex/.codex/config.toml"
   fi
 
@@ -71,8 +90,8 @@ prepare_codex() {
 }
 
 prepare_bins() {
-  if prepare_real_dir "$HOME/.local" "claude-code/.local"; then
-    if prepare_real_dir "$HOME/.local/bin" "claude-code/.local/bin"; then
+  if prepare_real_dir "$HOME/.local" "claude-code/.local" "codex/.local"; then
+    if prepare_real_dir "$HOME/.local/bin" "claude-code/.local/bin" "codex/.local/bin"; then
       queue_link "$HOME/.local/bin/spar-claude" "claude-code/.local/bin/spar-claude"
       queue_link "$HOME/.local/bin/spar-codex" "codex/.local/bin/spar-codex"
       queue_link "$HOME/.local/bin/spar-payload-scan" "claude-code/.local/bin/spar-payload-scan"
@@ -85,28 +104,29 @@ prepare_bins() {
 prepare_opencode() {
   local root="$HOME/.config/opencode"
   if ! prepare_real_dir "$HOME/.config" "opencode/.config"; then
+    create_dirs+=("$root")
     return
   fi
 
-  if [[ -L $root ]]; then
-    queue_link "$root" "opencode/.config/opencode"
+  if ! prepare_real_dir "$root" "opencode/.config/opencode"; then
     return
   fi
-  [[ ! -e $root || -d $root ]] || abort "OpenCode config path is not a directory: $root"
   [[ -d $root ]] || return 0
 
   queue_link "$root/AGENTS.md" "opencode/.config/opencode/AGENTS.md"
   queue_link "$root/agents" "opencode/.config/opencode/agents"
   queue_link "$root/commands" "opencode/.config/opencode/commands"
-  queue_link "$root/node_modules" "opencode/.config/opencode/node_modules"
   queue_link "$root/opencode.json" "opencode/.config/opencode/opencode.json"
-  queue_link "$root/package-lock.json" "opencode/.config/opencode/package-lock.json"
-  queue_link "$root/package.json" "opencode/.config/opencode/package.json"
   queue_link "$root/plugins" "opencode/.config/opencode/plugins"
   queue_link "$root/skills" "opencode/.config/opencode/skills"
   queue_link "$root/themes" "opencode/.config/opencode/themes"
   queue_link "$root/tools" "opencode/.config/opencode/tools"
   queue_link "$root/tui.json" "opencode/.config/opencode/tui.json"
+  queue_generated_state "$root/package.json" file "opencode/.config/opencode/package.json"
+  queue_generated_state "$root/package-lock.json" file "opencode/.config/opencode/package-lock.json"
+  queue_generated_state "$root/bun.lock" file
+  queue_generated_state "$root/bun.lockb" file
+  queue_generated_state "$root/node_modules" dir "opencode/.config/opencode/node_modules"
 }
 
 prepare_claude

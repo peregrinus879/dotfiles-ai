@@ -21,8 +21,8 @@ def require(condition: bool, message: str):
 
 claude = load_json("claude-code/.claude/settings.json")
 opencode = load_json("opencode/.config/opencode/opencode.json")
-opencode_package = load_json("opencode/.config/opencode/package.json")
-opencode_lock = load_json("opencode/.config/opencode/package-lock.json")
+opencode_plugin_package = load_json("opencode/.config/opencode/plugins/package.json")
+opencode_ignore = (ROOT / "opencode/.config/opencode/.gitignore").read_text(encoding="utf-8").splitlines()
 load_json("opencode/.config/opencode/tui.json")
 claude_project = load_json(".claude/settings.json")
 opencode_project = load_json("opencode.json")
@@ -566,7 +566,15 @@ require(opencode["share"] == "disabled", "OpenCode sharing drifted")
 require(opencode["autoupdate"] is False, "OpenCode must not compete with wrapper-managed updates")
 require(set(opencode["provider"]) == {"openai"}, "Unused OpenCode provider configured")
 require(opencode["enabled_providers"] == ["openai"], "OpenCode enabled-provider gate drifted")
-require(opencode_package["private"] is True, "OpenCode plugin package must remain private")
+require(
+    opencode_plugin_package
+    == {"name": "eyragents-opencode-plugins", "private": True, "type": "module"},
+    "OpenCode nested plugin module marker drifted",
+)
+require(
+    opencode_ignore == ["/package.json", "/package-lock.json", "/bun.lock", "/bun.lockb", "/node_modules/"],
+    "OpenCode generated-state ignores drifted",
+)
 require(
     opencode["skills"]["paths"] == ["~/.claude/skills/omarchy"],
     "OpenCode explicit skill paths drifted",
@@ -579,21 +587,9 @@ require(
     ),
     "OpenCode re-imports colliding external workflow skills",
 )
-plugin_requirement = opencode_package["dependencies"]["@opencode-ai/plugin"]
-plugin_major = plugin_requirement.removeprefix("^")
 require(
-    plugin_requirement.startswith("^") and plugin_major.isdigit() and int(plugin_major) > 0,
-    "OpenCode plugin dependency must use a bare compatible-major range",
-)
-require(
-    opencode_lock["packages"][""]["dependencies"]["@opencode-ai/plugin"]
-    == plugin_requirement,
-    "OpenCode plugin lock drifted",
-)
-plugin_lock = opencode_lock["packages"]["node_modules/@opencode-ai/plugin"]
-require(
-    plugin_lock["version"].split(".", 1)[0] == plugin_major,
-    "OpenCode resolved plugin escaped its compatible major",
+    '@opencode-ai/plugin' not in reviewed_writes_source,
+    "OpenCode write-review plugin regained a generated package dependency",
 )
 opencode_provider_id, opencode_model_id = opencode["model"].split("/", 1)
 require(

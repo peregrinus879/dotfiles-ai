@@ -15,13 +15,13 @@ help:
 	@echo "Targets:"
 	@echo "  stow      Stow all packages into ~"
 	@echo "  unstow    Remove all package symlinks"
-	@echo "  dry-run   Preview stow actions without making changes"
+	@echo "  dry-run   Preview raw Stow actions without running preparation"
 	@echo "  restow    Re-stow after repo content changes"
 	@echo "  verify    Check every intended deployment and run the full verification suite"
 	@echo "  clean     Safely prepare managed paths for stow"
 	@echo "  lint      ShellCheck over all managed Bash scripts"
 
-stow:
+stow: clean
 	stow -v -t ~ $(PACKAGES)
 
 unstow:
@@ -30,12 +30,12 @@ unstow:
 dry-run:
 	stow -v -n -t ~ $(PACKAGES)
 
-restow:
+restow: clean
 	stow -R -v -t ~ $(PACKAGES)
 
-# Stow may tree-fold a parent directory (e.g. ~/.config/opencode) into a
-# single directory symlink, so per-file "test -L" checks false-negative.
-# Compare resolved paths instead: linked is linked, folded or not.
+# Stow may tree-fold package subdirectories, so compare resolved managed-child
+# paths rather than requiring leaf links. Preparation keeps runtime-state roots
+# such as ~/.config/opencode real.
 # GNU Stow ignores .gitignore by default; the three package-internal copies
 # control fresh-clone state and are intentionally not deployed.
 # Pin layering: structured config contracts live in tests/config-contracts.py;
@@ -44,12 +44,18 @@ restow:
 # unless re-justified there.
 verify:
 	@fail=0; \
-	for command in git node python3 jq readlink realpath sha256sum stat; do \
+	for command in git node python3 jq readlink realpath sha256sum stat stow; do \
 	  command -v "$$command" > /dev/null || { echo "FAIL: required verifier missing: $$command"; fail=1; }; \
 	done; \
 	[[ $$fail == 0 ]] || exit $$fail; \
-	for src in $$(git ls-files --cached --others --exclude-standard -- $(PACKAGES)); do \
+	while IFS= read -r -d '' src; do \
 	  [[ "$$src" == */.gitignore ]] && continue; \
+	  if [[ ! -e $$src && ! -L $$src ]]; then \
+	    if git diff --quiet -- "$$src"; then \
+	      echo "FAIL: tracked package source is missing without a pending deletion: $$src"; fail=1; \
+	    else echo "ok:   pending package-source deletion: $$src"; fi; \
+	    continue; \
+	  fi; \
 	  target="$$HOME/$${src#*/}"; \
 	  target_resolved=$$(readlink -f -- "$$target"); \
 	  src_resolved=$$(readlink -f -- "$$src"); \
@@ -58,7 +64,7 @@ verify:
 	  else \
 	    echo "FAIL: $$target does not resolve into the repo"; fail=1; \
 	  fi; \
-	done; \
+	done < <(git ls-files -z --cached --others --exclude-standard -- $(PACKAGES)); \
 	for pair in "$$HOME/.claude/CLAUDE.md=claude-code/.claude/CLAUDE.md" \
 	  "$$HOME/.claude/settings.json=claude-code/.claude/settings.json" \
 	  "$$HOME/.claude/statusline.sh=claude-code/.claude/statusline.sh" \
@@ -71,8 +77,7 @@ verify:
 	  "$$HOME/.agents/skills/commit/SKILL.md=codex/.agents/skills/commit/SKILL.md" \
 	  "$$HOME/.agents/skills/spar/SKILL.md=codex/.agents/skills/spar/SKILL.md" \
 	  "$$HOME/.config/opencode/opencode.json=opencode/.config/opencode/opencode.json" \
-	  "$$HOME/.config/opencode/package.json=opencode/.config/opencode/package.json" \
-	  "$$HOME/.config/opencode/package-lock.json=opencode/.config/opencode/package-lock.json" \
+	  "$$HOME/.config/opencode/plugins/package.json=opencode/.config/opencode/plugins/package.json" \
 	  "$$HOME/.config/opencode/plugins/reviewed-writes.ts=opencode/.config/opencode/plugins/reviewed-writes.ts" \
 	  "$$HOME/.config/opencode/tui.json=opencode/.config/opencode/tui.json" \
 	  "$$HOME/.config/opencode/commands/commit.md=opencode/.config/opencode/commands/commit.md" \
@@ -87,6 +92,29 @@ verify:
 	  else \
 	    echo "FAIL: $$target does not resolve into the repo"; fail=1; \
 	  fi; \
+	done; \
+	if [[ -d "$$HOME/.config/opencode" && ! -L "$$HOME/.config/opencode" ]]; then \
+	  echo "ok:   OpenCode config root is a real directory"; \
+	else echo "FAIL: OpenCode config root is not a real directory"; fail=1; fi; \
+	for path in package.json package-lock.json bun.lock bun.lockb; do \
+	  target="$$HOME/.config/opencode/$$path"; \
+	  if [[ ! -L $$target && ( ! -e $$target || -f $$target ) ]]; then \
+	    echo "ok:   OpenCode host-local file state: $$path"; \
+	  else echo "FAIL: OpenCode generated file is linked or has the wrong type: $$target"; fail=1; fi; \
+	done; \
+	target="$$HOME/.config/opencode/node_modules"; \
+	if [[ ! -L $$target && ( ! -e $$target || -d $$target ) ]]; then \
+	  echo "ok:   OpenCode host-local dependency state"; \
+	else echo "FAIL: OpenCode dependency state is linked or has the wrong type: $$target"; fail=1; fi; \
+	for path in package.json package-lock.json bun.lock bun.lockb node_modules; do \
+	  target="opencode/.config/opencode/$$path"; \
+	  if [[ ! -e $$target && ! -L $$target ]]; then :; \
+	  else echo "FAIL: generated OpenCode root state reached the package source: $$target"; fail=1; fi; \
+	done; \
+	for path in package-lock.json bun.lock bun.lockb node_modules; do \
+	  target="opencode/.config/opencode/plugins/$$path"; \
+	  if [[ ! -e $$target && ! -L $$target ]]; then :; \
+	  else echo "FAIL: generated state appeared below the tracked plugin marker: $$target"; fail=1; fi; \
 	done; \
 	for b in spar-claude spar-codex spar-payload-scan; do \
 	  if [[ -x "$$HOME/.local/bin/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
@@ -127,7 +155,7 @@ verify:
 	done; \
 	python3 tests/config-contracts.py || { echo "FAIL: config syntax or security contract drifted"; fail=1; }; \
 	if grep -Fq 'Probe versions are historical evidence, not installed-version pins or routine synchronization targets.' AGENTS.md && \
-	  grep -Fq 'Routine client updates require no dependency edit' README.md && \
+	  grep -Fq 'Routine OpenCode updates require no repository package-state edit.' README.md && \
 	  grep -Fq 'Routine updates do not trigger config, code, dependency, test, or documentation edits.' docs/maintenance.md; then \
 	  echo "ok:   tool release-maintenance policy documented"; \
 	else echo "FAIL: tool release-maintenance policy drifted"; fail=1; fi; \
