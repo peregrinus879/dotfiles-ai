@@ -59,13 +59,13 @@ Repeat this complete compact cheat sheet in every review packet until H asks to 
 5. `<Space>gs`: open Git Status for intended untracked files. Highlight each file to inspect its preview; use `<Enter>` only when it must be opened, then `<Space>sR` to resume.
 6. Avoid `<Tab>`, which stages, and `<C-r>`, which restores, in both Git pickers.
 
-Offer the read-only terminal fallback `git status --short`, `git diff --stat HEAD`, `git diff HEAD`, and `git diff HEAD -- path/to/file`. Then use the tool's interactive selector with `Approve, commit, continue (Recommended)` first, followed by `Approve, commit, discuss`, `Revise`, and `Reject`; its built-in custom answer is the comment path. A `Revise` or `Reject` choice triggers a free-form follow-up when comments are not already present. `Revise` updates the current candidate but never authorizes a commit: incorporate the comments, verify, and present a refreshed packet. `Reject` rejects the candidate: preserve unrelated and user-authored changes, remove all candidate-owned changes, then stop or build a new candidate from the comments, verify, and present a refreshed packet. A custom comment changes nothing: answer it, then present the same packet and selector again.
+Offer the read-only terminal fallback `git status --short`, `git diff --stat HEAD`, `git diff HEAD`, and `git diff HEAD -- path/to/file`. Then use the tool's interactive selector with `Commit and resume` first, followed by `Commit and pause`. Use its built-in custom answer for questions, revision requests, rejection, and other instructions. Custom input never authorizes staging or commit. A revision request updates the current candidate: incorporate the comments, verify, and present a refreshed packet. Rejection preserves the candidate and worktree unless H explicitly requests disposal; approved disposal removes only candidate-owned changes and preserves unrelated and user-authored work. If custom input changes nothing, answer it, then present the same packet and selector again.
 
 Plan approval and skill invocation do not authorize a commit. Approval covers only the presented content, intended paths, message, audience, and scratch disposition. Any change to one of them requires a refreshed packet and selector. Interruption leaves the current worktree intact.
 
 ## Staging and commit
 
-- Proceed only after `Approve, commit, continue` or `Approve, commit, discuss` for the current packet.
+- Proceed only after `Commit and resume` or `Commit and pause` for the current packet.
 - Apply only the approved scratch disposition.
 - Stage specific files by name (`git add <file>`). Do not use `git add -A` or `git add .`.
 - If a file mixes the current commit with unrelated changes, do not alter, stage, or temporarily revert the unrelated hunks. Defer the file or stop and ask the user how to split the work.
@@ -75,7 +75,7 @@ Plan approval and skill invocation do not authorize a commit. Approval covers on
 
 ## Post-commit routing
 
-After the approved commit, verify and report its hash and title. `Approve, commit, continue` proceeds only with remaining work authorized by H's active request or approved plan. It authorizes no further commit or publication; if no next action is clearly authorized, report completion and stop. `Approve, commit, discuss` reports status and pauses for discussion.
+After the approved commit, verify and report its hash and title. `Commit and resume` proceeds only with remaining work authorized by H's active request or approved plan. It authorizes no further commit or publication; if no next action is clearly authorized, report completion and stop. `Commit and pause` reports status and stops for discussion.
 
 ## Rules
 

@@ -187,8 +187,8 @@ verify:
 	  grep -Fq 'Execute one approved commit unit at a time.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Before every commit, run `/commit`' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Commit only after H approves that exact candidate.' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Approve, commit, continue (Recommended) | Approve, commit, discuss | Revise | Reject' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Continue only with remaining work authorized by H' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Commit and resume | Commit and pause' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Resume only with remaining work authorized by H' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'A clear task request authorizes value-based read-only spar reviewer calls inside its scope.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Plan and build are the primary `/spar` checkpoints, not mandatory gates' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'treat `/spar` build review as a primary checkpoint before push' claude-code/.claude/rules/shared-guidance.md && \
@@ -196,18 +196,19 @@ verify:
 	  echo "ok:   autonomous-work commit checkpoints"; \
 	else echo "FAIL: autonomous-work commit checkpoints drifted"; fail=1; fi; \
 	if grep -Fq 'do not alter, stage, or temporarily revert the unrelated hunks' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Approve, commit, continue (Recommended)` first, followed by `Approve, commit, discuss`, `Revise`, and `Reject`' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq '`Commit and resume` first, followed by `Commit and pause`' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'Any change to one of them requires a refreshed packet and selector.' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'Repeat this complete compact cheat sheet in every review packet' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq '`<M-w>`: cycle the input, hunk list, and preview panes.' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq '`<M-p>`: toggle the preview. `<M-m>`: maximize or restore' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq '`<Enter>`: open the selected file and close the picker.' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'Avoid `<Tab>`, which stages, and `<C-r>`, which restores' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'A `Revise` or `Reject` choice triggers a free-form follow-up when comments are not already present.' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq '`Revise` updates the current candidate but never authorizes a commit' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'remove all candidate-owned changes, then stop or build a new candidate from the comments' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'built-in custom answer is the comment path' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Proceed only after `Approve, commit, continue` or `Approve, commit, discuss`' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Use its built-in custom answer for questions, revision requests, rejection, and other instructions.' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Custom input never authorizes staging or commit.' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'A revision request updates the current candidate' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Rejection preserves the candidate and worktree unless H explicitly requests disposal' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'If custom input changes nothing, answer it, then present the same packet and selector again.' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Proceed only after `Commit and resume` or `Commit and pause`' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'read-only terminal fallback' claude-code/.claude/skills/commit/SKILL.md && \
 	  ! grep -Fq '`<C-f>`' claude-code/.claude/skills/commit/SKILL.md && \
 	  ! grep -Fq '`<C-c>`' claude-code/.claude/skills/commit/SKILL.md && \
@@ -216,7 +217,9 @@ verify:
 	  ! grep -Fq '`<C-w>`' claude-code/.claude/skills/commit/SKILL.md && \
 	  ! grep -Fq '`<C-b>`' claude-code/.claude/skills/commit/SKILL.md && \
 	  ! grep -Fq 'temporarily revert the unrelated hunks with the file edit tools' claude-code/.claude/skills/commit/SKILL.md && \
-	  ! grep -Fq 'Approve and commit (Recommended)' claude-code/.claude/skills/commit/SKILL.md; then \
+	  ! grep -Fq 'Approve and commit (Recommended)' claude-code/.claude/skills/commit/SKILL.md && \
+	  ! grep -Fq 'Approve, commit, continue' claude-code/.claude/skills/commit/SKILL.md && \
+	  ! grep -Fq 'Approve, commit, discuss' claude-code/.claude/skills/commit/SKILL.md; then \
 	  echo "ok:   exact-diff commit review and LazyVim guidance"; \
 	else echo "FAIL: exact-diff commit review drifted"; fail=1; fi; \
 	if grep -Fq 'Screen the message, paths, complete diff, and intended new-file contents' claude-code/.claude/rules/shared-guidance.md && \
