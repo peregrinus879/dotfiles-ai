@@ -131,9 +131,9 @@ verify:
 	  grep -Fq 'Routine updates do not trigger config, code, dependency, test, or documentation edits.' docs/maintenance.md; then \
 	  echo "ok:   tool release-maintenance policy documented"; \
 	else echo "FAIL: tool release-maintenance policy drifted"; fail=1; fi; \
-	if grep -Fqx -- '- Persistent file-content changes use native edit tools, so each change surfaces a reviewable diff. An `apply_patch` call modifies exactly one file; never bundle multiple files into one patch.' claude-code/.claude/rules/shared-guidance.md; then \
-	  echo "ok:   one-file apply_patch guidance"; \
-	else echo "FAIL: one-file apply_patch guidance missing"; fail=1; fi; \
+	if grep -Fqx -- '- Persistent file-content changes use native edit tools, so each change surfaces a reviewable diff. Before a grouped patch runs, validate every source and move destination against the applicable containment and sensitive-path controls. When no all-target validator enforces those checks, modify exactly one file per patch call.' claude-code/.claude/rules/shared-guidance.md; then \
+	  echo "ok:   all-target apply_patch guidance"; \
+	else echo "FAIL: all-target apply_patch guidance missing"; fail=1; fi; \
 	if grep -Fq 'Plan approval authorizes the listed edits, verification, reviewer calls, and deployment steps, never a commit.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Execute one approved commit unit at a time.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Before every commit, run `/commit`' claude-code/.claude/rules/shared-guidance.md && \
@@ -200,8 +200,8 @@ verify:
 	else echo "FAIL: Claude managed skill invocation gate drifted"; fail=1; fi; \
 	if node --experimental-strip-types tests/reviewed-writes.mjs && \
 	  ! grep -Fq 'spar-scratch' opencode/.config/opencode/plugins/reviewed-writes.ts; then \
-	  echo "ok:   opencode one-file patch plugin"; \
-	else echo "FAIL: opencode one-file patch plugin drifted"; fail=1; fi; \
+	  echo "ok:   opencode all-target patch plugin"; \
+	else echo "FAIL: opencode all-target patch plugin drifted"; fail=1; fi; \
 	if grep -Fq '/var/tmp/spar-<session-id>/' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq '/var/tmp/spar-<session-id>/' codex/.agents/skills/spar/SKILL.md && \
 	  grep -Fq '/var/tmp/spar-<session-id>/' opencode/.config/opencode/skills/spar/SKILL.md && \

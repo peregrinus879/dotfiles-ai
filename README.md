@@ -94,7 +94,7 @@ eyragents/
             ├── commands/                 # custom slash commands
             │   ├── commit.md             # wrapper for the commit skill
             │   └── spar.md               # wrapper for the spar skill
-            ├── plugins/                  # one-file patch and handoff safety plugin
+            ├── plugins/                  # all-target patch and handoff safety plugin
             ├── package.json              # compatible-major plugin dependency
             ├── package-lock.json         # reproducible npm dependency graph
             ├── skills/                   # agent skills
@@ -105,6 +105,8 @@ eyragents/
 Tracked `.gitkeep` placeholders (claude-code agents; opencode agents, themes, and tools) are omitted from the tree.
 
 Tracked runtime config primarily expresses shared behavior. `claude-code/.claude/settings.json`, `codex/.codex/config.toml`, and `opencode/.config/opencode/opencode.json` are the source of truth for each tool's model, effort, permissions, and feature toggles; read them directly rather than a prose mirror here. Trusted-repository work is autonomous until the commit boundary: Claude Code uses auto mode, Codex uses a write-capable workspace profile plus automatic approval review, and OpenCode allows workspace edits and shell commands behind native-tool sensitive and external path denials plus direct destructive, privileged, upload, and remote-mutation command denials. OpenCode has no classifier or OS sandbox; its external-directory guard covers only Bash commands recognized by the upstream path scanner, so unrecognized direct readers, dynamic path arguments, wrappers, and scripts remain instruction-governed residuals. Every commit requires H's editor review and approval of the exact candidate before staging. Session handoffs use private disk-backed OS temp (`/var/tmp/spar-<session-id>/`) so an in-flight review survives reboots; the Claude hook and OpenCode plugin validate handoff writes without reintroducing ordinary per-file prompts. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
+
+OpenCode's write-review plugin validates every `apply_patch` source and move destination for workspace containment, sensitive path shapes, symlink aliases, existing hard links, and stricter handoff constraints before grouped operations reach native permission handling.
 
 The three reviewer executables are ordinary Stow-managed payloads. Each bridge scans the prompt and handoff and validates repository path names before authentication; rejects Git-control variables, repository hard-linked files outside denied directories, nested repository mounts, and path shapes that its read-deny policy cannot cover; launches its subscription reviewer from the caller's canonical Git root; and grants read-only access to that repository plus the exact handoff. Later native permission rules deny Git internals, credential-shaped paths, and the bridge-owned `reviewer-id`; repository files outside those denies may reach the reviewer, including private-repository files.
 
@@ -252,7 +254,7 @@ After stowing or changing the payloads:
 A repo-root `Makefile` keeps the package list in one place and wraps the routine commands. Run targets from the repo root:
 
 - `make stow` / `make unstow` / `make dry-run` / `make restow` - the stow command sets
-- `make verify` - exhaustive intended-file deployment; bounded scanner and repository-bound bridge fixtures; fail-closed dependency checks; JSON, TOML, model, Fast, provider, updater, and npm-lock contracts; non-destructive Stow fixtures; statusline state-file attack fixtures; bridge payload, authentication, repository isolation, new/resume, terminal-event, signal, timeout, and descendant-cleanup tests; project-config isolation; three-way skill sync and value-based review contracts; commit and reviewer-confinement boundaries; executable one-file plugin parser tests; OpenCode permission ordering; and stray-config checks
+- `make verify` - exhaustive intended-file deployment; bounded scanner and repository-bound bridge fixtures; fail-closed dependency checks; JSON, TOML, model, Fast, provider, updater, and npm-lock contracts; non-destructive Stow fixtures; statusline state-file attack fixtures; bridge payload, authentication, repository isolation, new/resume, terminal-event, signal, timeout, and descendant-cleanup tests; project-config isolation; three-way skill sync and value-based review contracts; commit and reviewer-confinement boundaries; executable all-target plugin parser tests; OpenCode permission ordering; and stray-config checks
 - `make clean` - non-destructive preparation that removes only recognized managed symlinks and creates real state directories
 - `make lint` - ShellCheck over `statusline.sh`, the directly stowed spar bridges, and every script and shell test; `.shellcheckrc` disables the one style-level finding so new issues stand out
 

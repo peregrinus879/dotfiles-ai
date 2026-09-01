@@ -386,6 +386,18 @@ for marker in (
     "rsa|dsa|ecdsa|ed25519",
 ):
     require(marker in reviewed_writes_source, f"OpenCode handoff write gate drifted: {marker}")
+for marker in (
+    "PATCH_DOTENV",
+    "PATCH_PRIVATE_KEY",
+    "canonicalWorkspaceRoot",
+    "path.resolve(workspaceRoot, target)",
+    "assertPatchTargetSafe",
+    "assertWorkspaceTargetNotSensitive",
+    "target escapes the workspace through an alias",
+    "targetStat.nlink !== 1",
+):
+    require(marker in reviewed_writes_source, f"OpenCode grouped patch gate drifted: {marker}")
+require("exactly one file" not in reviewed_writes_source, "OpenCode grouped patch cardinality gate remains")
 require(
     claude["permissions"]["allow"]
     == [

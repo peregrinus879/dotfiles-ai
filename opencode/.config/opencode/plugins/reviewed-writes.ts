@@ -6,6 +6,8 @@ const PATCH_BEGIN = "*** Begin Patch"
 const PATCH_END = "*** End Patch"
 const PATCH_HEADERS = ["*** Add File:", "*** Delete File:", "*** Update File:"] as const
 const MOVE_HEADER = "*** Move to:"
+const PATCH_DOTENV = /^\.env(?:\..*)?$/i
+const PATCH_PRIVATE_KEY = /\.(?:key|pem)$/i
 const SPAR_PARENT = /^\/var\/tmp\/spar-[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/
 const SPAR_TREE = /^\/var\/tmp\/spar-[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}(?:\/|$)/
 const SPAR_RESERVED = new Set([
@@ -19,19 +21,18 @@ const SPAR_RESERVED = new Set([
 const SPAR_SENSITIVE = /^(?:\.env(?:[._~-].*)?|\.(?:netrc|npmrc|pypirc)(?:[._~-].*)?|auth\.json(?:[._~-].*)?|secrets?(?:[._~-].*)?|.*credentials.*|.*\.(?:key|pem|p12|pfx)(?:[._~-].*)?|id_(?:rsa|dsa|ecdsa|ed25519)(?:[._~-].*)?)$/i
 
 export const ReviewedWritesPlugin: Plugin = async ({ directory }) => {
+  const workspaceRoot = path.resolve(directory)
+  const canonicalWorkspaceRoot = fs.realpathSync(workspaceRoot)
   const absoluteTarget = (target: string) =>
     path.isAbsolute(target) ? target : `${directory.replace(/\/+$/, "")}/${target}`
+  const patchTarget = (target: string) => path.resolve(workspaceRoot, target)
 
   return {
     "tool.execute.before": async (input, output) => {
       if (input.tool === "apply_patch") {
         const operations = parsePatchOperations(output.args?.patchText)
-        const moves = operations.filter((operation) => operation.length === 2)
-        const unique = new Set(operations.flat().map(absoluteTarget))
-        if ((moves.length > 0 && operations.length !== 1) || (moves.length === 0 && unique.size !== 1)) {
-          throw new Error("apply_patch must modify exactly one file; split this patch into one call per file")
-        }
-        for (const target of unique) assertSparTargetSafe(target)
+        const unique = new Set(operations.flat().map(patchTarget))
+        for (const target of unique) assertPatchTargetSafe(target)
       }
       if ((input.tool === "edit" || input.tool === "write") && typeof output.args?.filePath === "string") {
         assertSparTargetSafe(absoluteTarget(output.args.filePath))
@@ -42,25 +43,27 @@ export const ReviewedWritesPlugin: Plugin = async ({ directory }) => {
   // Resolve existing symlinks and existing parent symlinks before deciding
   // whether a write reaches a handoff, including through a workspace alias.
   function resolveWriteTarget(target: string) {
-    let current = target
+    let current = path.resolve(target)
+    const suffix: string[] = []
     const seen = new Set<string>()
     while (true) {
       try {
-        return fs.realpathSync(current)
+        return path.join(fs.realpathSync(current), ...suffix)
       } catch {
         const currentStat = fs.lstatSync(current, { throwIfNoEntry: false })
         if (currentStat?.isSymbolicLink()) {
-          if (seen.has(current)) throw new Error("spar handoff write rejected: symlink cycle")
+          if (seen.has(current)) throw new Error("write target rejected: symlink cycle")
           seen.add(current)
           const link = fs.readlinkSync(current)
-          current = path.isAbsolute(link) ? link : `${path.dirname(current)}/${link}`
+          current = path.resolve(path.dirname(current), link)
           continue
         }
-        try {
-          return path.join(fs.realpathSync(path.dirname(current)), path.basename(current))
-        } catch {
-          return current
-        }
+        if (currentStat) throw new Error("write target rejected: existing path could not be resolved")
+
+        const parent = path.dirname(current)
+        if (parent === current) return path.join(current, ...suffix)
+        suffix.unshift(path.basename(current))
+        current = parent
       }
     }
   }
@@ -79,12 +82,48 @@ export const ReviewedWritesPlugin: Plugin = async ({ directory }) => {
     return false
   }
 
+  function isContained(root: string, target: string) {
+    const relative = path.relative(root, target)
+    return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+  }
+
+  function assertWorkspaceTargetNotSensitive(root: string, target: string) {
+    const parts = path.relative(root, target).split(path.sep).filter(Boolean)
+    const name = parts.at(-1) ?? ""
+    if (
+      PATCH_DOTENV.test(name) ||
+      PATCH_PRIVATE_KEY.test(name) ||
+      parts.some((part) => part.toLowerCase() === "secrets")
+    ) {
+      throw new Error("apply_patch rejected: sensitive target")
+    }
+  }
+
+  function assertPatchTargetSafe(target: string) {
+    const lexicallyContained = isContained(workspaceRoot, target)
+    if (lexicallyContained) assertWorkspaceTargetNotSensitive(workspaceRoot, target)
+    if (assertSparTargetSafe(target)) return
+    if (!lexicallyContained) throw new Error("apply_patch rejected: target escapes the workspace")
+
+    const resolved = resolveWriteTarget(target)
+    if (!isContained(canonicalWorkspaceRoot, resolved)) {
+      throw new Error("apply_patch rejected: target escapes the workspace through an alias")
+    }
+    assertWorkspaceTargetNotSensitive(canonicalWorkspaceRoot, resolved)
+
+    const targetStat = fs.lstatSync(resolved, { throwIfNoEntry: false })
+    if (targetStat && (!targetStat.isFile() || targetStat.nlink !== 1)) {
+      throw new Error("apply_patch rejected: an existing target must be a regular single-link file")
+    }
+  }
+
   // Alias-safe containment for spar handoff scratch writes: targets sit
   // directly inside a validated /var/tmp/spar-<uuid> directory, and an
   // existing target must be a regular, owner-owned, single-link file, so
   // hard-link aliases of persistent files and symlinked subdirectories are
   // rejected before the permission system sees the call.
   function assertSparTargetSafe(target: string) {
+    let handoffTarget = false
     for (const candidate of new Set([target, path.normalize(target)])) {
       const resolved = resolveWriteTarget(candidate)
       if (traversesSparHandoff(candidate) && !SPAR_TREE.test(resolved)) {
@@ -96,6 +135,7 @@ export const ReviewedWritesPlugin: Plugin = async ({ directory }) => {
         }
         continue
       }
+      handoffTarget = true
       const parent = path.dirname(resolved)
       if (!SPAR_PARENT.test(parent)) {
         throw new Error("spar handoff write rejected: targets must sit directly inside /var/tmp/spar-<uuid>")
@@ -121,6 +161,7 @@ export const ReviewedWritesPlugin: Plugin = async ({ directory }) => {
         throw new Error("spar handoff write rejected: an existing target must be a regular owner-owned single-link file")
       }
     }
+    return handoffTarget
   }
 
   function parsePatchOperations(value: unknown) {
