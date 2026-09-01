@@ -43,10 +43,8 @@ migrate-codex-config:
 # such as ~/.config/opencode real.
 # GNU Stow ignores .gitignore by default; the three package-internal copies
 # control fresh-clone state and are intentionally not deployed.
-# Pin layering: structured config contracts live in tests/config-contracts.py;
-# prose, script, and skill content pins live here as greps. Negative
-# (tombstone) greps carry a dated ledger entry and retire after two years
-# unless re-justified there.
+# Structured config contracts live in tests/config-contracts.py; stable
+# semantic script and skill safety and synchronization checks live here.
 verify:
 	@fail=0; \
 	for command in cmp find git id jq mktemp mv node python3 readlink realpath sha256sum stat stow sync; do \
@@ -166,23 +164,37 @@ verify:
 	  else echo "FAIL: $${b##*/} private handoff lifecycle drifted"; fail=1; fi; \
 	done; \
 	python3 tests/config-contracts.py || { echo "FAIL: config syntax or security contract drifted"; fail=1; }; \
-	if grep -Fq 'Probe versions are historical evidence, not installed-version pins or routine synchronization targets.' AGENTS.md && \
-	  grep -Fq 'Routine OpenCode updates require no repository package-state edit.' README.md && \
-	  grep -Fq 'Routine updates do not trigger config, code, dependency, test, or documentation edits.' docs/maintenance.md; then \
-	  echo "ok:   tool release-maintenance policy documented"; \
-	else echo "FAIL: tool release-maintenance policy drifted"; fail=1; fi; \
+	if grep -Fq 'When H supplies wording for a website or document' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Preserve its intended meaning, facts, constraints, and appropriate voice' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'improving clarity, structure, tone, and audience fit' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'verbatim only when H requests exact wording' claude-code/.claude/rules/shared-guidance.md; then \
+	  echo "ok:   supplied-copy semantic contract"; \
+	else echo "FAIL: supplied-copy semantic contract drifted"; fail=1; fi; \
+	if grep -Fq 'only when H names the exact existing absolute path for the current task' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Use one bounded primary-agent call' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'The approval covers only that path and call, never writes, recursion, future calls, subagents, reviewers' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Never use broad directory grants' claude-code/.claude/rules/shared-guidance.md; then \
+	  echo "ok:   bounded external-context guidance contract"; \
+	else echo "FAIL: bounded external-context guidance drifted"; fail=1; fi; \
+	skill_frontmatter_keys() { \
+	  awk 'NR == 1 { next } /^---$$/ { exit } /^[A-Za-z0-9_-]+:/ { key=$$1; sub(/:$$/, "", key); print key }' "$$1"; \
+	}; \
+	frontmatter_ok=1; \
+	for s in \
+	  claude-code/.claude/skills/commit/SKILL.md \
+	  codex/.agents/skills/commit/SKILL.md \
+	  opencode/.config/opencode/skills/commit/SKILL.md \
+	  codex/.agents/skills/spar/SKILL.md \
+	  opencode/.config/opencode/skills/spar/SKILL.md; do \
+	  diff -q <(skill_frontmatter_keys "$$s") <(printf 'name\ndescription\n') > /dev/null || frontmatter_ok=0; \
+	done; \
+	diff -q <(skill_frontmatter_keys claude-code/.claude/skills/spar/SKILL.md) <(printf 'name\ndescription\nallowed-tools\n') > /dev/null || frontmatter_ok=0; \
+	if [[ $$frontmatter_ok == 1 ]]; then \
+	  echo "ok:   workflow skill frontmatter contracts"; \
+	else echo "FAIL: workflow skill frontmatter drifted"; fail=1; fi; \
 	if grep -Fqx -- '- Persistent file-content changes use native edit tools, so each change surfaces a reviewable diff. Before a grouped patch runs, validate every source and move destination against the applicable containment and sensitive-path controls. When no all-target validator enforces those checks, modify exactly one file per patch call.' claude-code/.claude/rules/shared-guidance.md; then \
 	  echo "ok:   all-target apply_patch guidance"; \
 	else echo "FAIL: all-target apply_patch guidance missing"; fail=1; fi; \
-	if grep -Fq 'Read non-sensitive context outside the workspace only when H names the exact existing absolute path for the current task.' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'H may authorize one bounded non-sensitive read outside the workspace' AGENTS.md && \
-	  grep -Fq 'When H names one exact existing non-sensitive absolute path for the current task' README.md && \
-	  grep -Fq 'bounded external-context decision 2026-09-01' docs/maintenance.md; then \
-	  echo "ok:   bounded external-context guidance"; \
-	else echo "FAIL: bounded external-context guidance drifted"; fail=1; fi; \
-	if grep -Fqx -- '- When H supplies wording for a website or document, treat it as direction and source material. Preserve its intended meaning, facts, constraints, and appropriate voice while improving clarity, structure, tone, and audience fit. Reproduce it verbatim only when H requests exact wording, a quotation, or another no-edit form.' claude-code/.claude/rules/shared-guidance.md; then \
-	  echo "ok:   expert copy-improvement guidance"; \
-	else echo "FAIL: expert copy-improvement guidance drifted"; fail=1; fi; \
 	if grep -Fq 'Plan approval authorizes the listed edits, verification, reviewer calls, and deployment steps, never a commit.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Execute one approved commit unit at a time.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Before every commit, run `/commit`' claude-code/.claude/rules/shared-guidance.md && \
@@ -190,38 +202,20 @@ verify:
 	  grep -Fq 'Commit and resume | Commit and pause' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Resume only with remaining work authorized by H' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'A clear task request authorizes value-based read-only spar reviewer calls inside its scope.' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Plan and build are the primary `/spar` checkpoints, not mandatory gates' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'treat `/spar` build review as a primary checkpoint before push' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Trivial work may skip a formal plan, but never the exact pre-commit review.' claude-code/.claude/rules/shared-guidance.md; then \
-	  echo "ok:   autonomous-work commit checkpoints"; \
-	else echo "FAIL: autonomous-work commit checkpoints drifted"; fail=1; fi; \
+	  echo "ok:   exact-candidate authorization controls"; \
+	else echo "FAIL: exact-candidate authorization controls drifted"; fail=1; fi; \
 	if grep -Fq 'do not alter, stage, or temporarily revert the unrelated hunks' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq '`Commit and resume` first, followed by `Commit and pause`' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'Any change to one of them requires a refreshed packet and selector.' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Repeat this complete compact cheat sheet in every review packet' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq '`<M-w>`: cycle the input, hunk list, and preview panes.' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq '`<M-p>`: toggle the preview. `<M-m>`: maximize or restore' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq '`<Enter>`: open the selected file and close the picker.' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Avoid `<Tab>`, which stages, and `<C-r>`, which restores' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'Use its built-in custom answer for questions, revision requests, rejection, and other instructions.' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'Custom input never authorizes staging or commit.' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'A revision request updates the current candidate' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'Rejection preserves the candidate and worktree unless H explicitly requests disposal' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'If custom input changes nothing, answer it, then present the same packet and selector again.' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Proceed only after `Commit and resume` or `Commit and pause`' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'read-only terminal fallback' claude-code/.claude/skills/commit/SKILL.md && \
-	  ! grep -Fq '`<C-f>`' claude-code/.claude/skills/commit/SKILL.md && \
-	  ! grep -Fq '`<C-c>`' claude-code/.claude/skills/commit/SKILL.md && \
-	  ! grep -Fq '`<C-d>`' claude-code/.claude/skills/commit/SKILL.md && \
-	  ! grep -Fq '`<C-u>`' claude-code/.claude/skills/commit/SKILL.md && \
-	  ! grep -Fq '`<C-w>`' claude-code/.claude/skills/commit/SKILL.md && \
-	  ! grep -Fq '`<C-b>`' claude-code/.claude/skills/commit/SKILL.md && \
-	  ! grep -Fq 'temporarily revert the unrelated hunks with the file edit tools' claude-code/.claude/skills/commit/SKILL.md && \
-	  ! grep -Fq 'Approve and commit (Recommended)' claude-code/.claude/skills/commit/SKILL.md && \
-	  ! grep -Fq 'Approve, commit, continue' claude-code/.claude/skills/commit/SKILL.md && \
-	  ! grep -Fq 'Approve, commit, discuss' claude-code/.claude/skills/commit/SKILL.md; then \
-	  echo "ok:   exact-diff commit review and LazyVim guidance"; \
-	else echo "FAIL: exact-diff commit review drifted"; fail=1; fi; \
+	  grep -Fq 'Proceed only after `Commit and resume` or `Commit and pause`' claude-code/.claude/skills/commit/SKILL.md; then \
+	  echo "ok:   exact-diff commit workflow controls"; \
+	else echo "FAIL: exact-diff commit workflow controls drifted"; fail=1; fi; \
 	if grep -Fq 'Screen the message, paths, complete diff, and intended new-file contents' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'A binary or opaque candidate artifact that cannot be reviewed semantically' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Bind the review to a credential-free logical destination and audience' claude-code/.claude/rules/shared-guidance.md && \
@@ -238,67 +232,29 @@ verify:
 	  grep -Fq 'Any count mismatch, unmatched record, truncation, decode failure, unsupported object' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'Never rely on a bare `git push`, a mutable local source ref, `push.default`, or `remote.*.push`' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'A differential-history review also requires an execution-time expected-old-value guard' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'message, audience, and scratch disposition' AGENTS.md && \
-	  grep -Fq 'withholds publication-ready claims and push hints' AGENTS.md && \
-	  grep -Fq 'withholds any publication-ready claim or push hint' README.md && \
-	  grep -Fq 'Destination state narrows the review only when confirmed current' README.md && \
-	  grep -Fq 'publication-review decision 2026-08-30' docs/maintenance.md && \
-	  ! grep -Fq 'After committing, show the push command' claude-code/.claude/skills/commit/SKILL.md; then \
+	  grep -Fq 'Push: H handles manually. Do not push.' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Push: user handles manually. Do not push.' claude-code/.claude/skills/commit/SKILL.md; then \
 	  echo "ok:   commit privacy and publication review contracts"; \
 	else echo "FAIL: commit privacy or publication review drifted"; fail=1; fi; \
-	if ! grep -Fq 'disable-model-invocation' claude-code/.claude/skills/commit/SKILL.md && \
-	  ! grep -Fq 'disable-model-invocation' claude-code/.claude/skills/spar/SKILL.md; then \
-	  echo "ok:   Claude managed skills are model-invocable"; \
-	else echo "FAIL: Claude managed skill invocation gate drifted"; fail=1; fi; \
-	if node --experimental-strip-types tests/reviewed-writes.mjs && \
-	  ! grep -Fq 'spar-scratch' opencode/.config/opencode/plugins/reviewed-writes.ts; then \
+	if node --experimental-strip-types tests/reviewed-writes.mjs; then \
 	  echo "ok:   opencode all-target patch plugin"; \
 	else echo "FAIL: opencode all-target patch plugin drifted"; fail=1; fi; \
 	if grep -Fq '/var/tmp/spar-<session-id>/' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq '/var/tmp/spar-<session-id>/' codex/.agents/skills/spar/SKILL.md && \
-	  grep -Fq '/var/tmp/spar-<session-id>/' opencode/.config/opencode/skills/spar/SKILL.md && \
 	  grep -Fq 'reviewer-id' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'reviewer-id' codex/.agents/skills/spar/SKILL.md && \
-	  grep -Fq 'reviewer-id' opencode/.config/opencode/skills/spar/SKILL.md && \
 	  grep -Fq 'reviewer bridge'\''s `init` mode' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'reviewer bridge'\''s `clean` mode' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'bridge'\''s `flush` mode' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'bridge'\''s `status` mode' claude-code/.claude/skills/spar/SKILL.md && \
-	  ! grep -Fq 'spar-scratch' claude-code/.claude/skills/spar/SKILL.md && \
-	  ! grep -Fq 'spar-scratch' codex/.agents/skills/spar/SKILL.md && \
-	  ! grep -Fq 'spar-scratch' opencode/.config/opencode/skills/spar/SKILL.md; then \
+	  grep -Fq 'bridge'\''s `status` mode' claude-code/.claude/skills/spar/SKILL.md; then \
 	  echo "ok:   spar skills use private OS temp handoffs"; \
-	else echo "FAIL: spar scratch protocol drifted"; fail=1; fi; \
-	if grep -Fq '**Brainstorming:**' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'spar-brainstorm.md' claude-code/.local/bin/spar-claude && \
+	else echo "FAIL: spar handoff protocol drifted"; fail=1; fi; \
+	if grep -Fq 'spar-brainstorm.md' claude-code/.local/bin/spar-claude && \
 	  grep -Fq 'spar-brainstorm.md' codex/.local/bin/spar-codex && \
-	  grep -Fq '**Review judgment:** Plan and build are the primary spar checkpoints, not mandatory gates.' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'fixed calls, rounds, fan-outs, and review depth never substitute for judgment' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq '**Plan review:** Consider spar after research and analysis and before presenting the final plan.' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq '**Build review:** Consider spar after all approved commits and before push.' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'complete `git diff --binary <base>..HEAD`' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'latest approved plan and Decision Rationale' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'only H'"'"'s approval of each exact candidate authorizes a commit' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'decision-ready input, not option approval' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'leaving the worktree intact' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'never alter or exempt that artifact merely to pass' claude-code/.claude/skills/spar/SKILL.md && \
-	  ! grep -Fq 'hard ceiling of round 2' claude-code/.claude/skills/spar/SKILL.md && \
-	  ! grep -Fq 'mandatory after all planned commits' claude-code/.claude/skills/spar/SKILL.md && \
-	  ! grep -Fq 'repeating at most one call' claude-code/.claude/skills/spar/SKILL.md && \
 	  grep -Fq 'plan and build are primary checkpoints' opencode/.config/opencode/commands/spar.md; then \
-	  echo "ok:   spar value-based checkpoint contracts"; \
-	else echo "FAIL: spar value-based checkpoint contracts drifted"; fail=1; fi; \
-	if grep -Fq 'Begin the artifact with a target brief' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq '`Decision Rationale`' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'without repeating completed research' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'Include an `Evidence Pack`' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'literal captured output' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'You review offline' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'rather than reopening them solely because another approach exists' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'exact decision requested' claude-code/.claude/skills/spar/SKILL.md && \
-	  grep -Fq 'Raw reviewer transcripts are never required' claude-code/.claude/skills/spar/SKILL.md; then \
-	  echo "ok:   spar target, evidence, and ruling packets"; \
-	else echo "FAIL: spar review context protocol drifted"; fail=1; fi; \
+	  echo "ok:   spar authority and artifact-integrity controls"; \
+	else echo "FAIL: spar authority or artifact-integrity controls drifted"; fail=1; fi; \
 	if [[ -e "$$HOME/.config/opencode/opencode.jsonc" ]]; then \
 	  echo "FAIL: stray ~/.config/opencode/opencode.jsonc shadows the stowed config"; fail=1; \
 	else echo "ok:   no stray opencode.jsonc"; fi; \

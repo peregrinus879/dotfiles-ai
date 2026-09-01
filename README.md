@@ -2,24 +2,6 @@
 
 Claude Code, Codex, and OpenCode global dotfiles, managed with [GNU Stow](https://www.gnu.org/software/stow/).
 
-Eyrie is the shared project habitat, reflected locally in `~/Projects/eyrie/`. `Eyr` is its shortened family prefix, used by EyrAgents, EyrArcHy, and EyrWSL.
-
-## Repo Family
-
-Derivation model for this repo family:
-
-```text
-AI agent harness                → EyrAgents
-Omarchy + personal deviations   → EyrArcHy
-Omarchy + WSL deviations        → EyrWSL
-```
-
-- [`eyragents`](https://github.com/peregrinus879/eyragents) - AI agent harness: Claude Code, Codex, and OpenCode settings, shared guidance, and commit workflow
-- [`eyrarchy`](https://github.com/peregrinus879/eyrarchy) - Personal Omarchy customizations: Bash overrides, Hyprland bindings, Neovim plugins, and Yazi
-- [`eyrwsl`](https://github.com/peregrinus879/eyrwsl) - Self-contained WSL Arch environment: terminal baseline plus Windows Terminal and clipboard integration
-
-Local clones live side by side under `~/Projects/eyrie/`.
-
 ## Supported Tools
 
 - [Claude Code](https://code.claude.com/docs/en/overview) - AI-powered coding assistant with a terminal CLI
@@ -133,7 +115,7 @@ Nested payload ignore files protect fresh clones if a state directory is acciden
 
 Three payload-side exceptions exist. Claude Code writes app-managed keys and key ordering into its tracked `settings.json`; commit those rewrites as-is. While Codex runtime config remains tracked, Codex and the ChatGPT desktop app write project trust, notice keys, marketplace and plugin state, MCP/runtime entries, and desktop preferences into that tracked file; preserve and commit those rewrites, while its nested `.gitignore` excludes other runtime files. The portable template never receives host state, and generated runtime paths must be revalidated on each host. OpenCode keeps its generated root manifest, lockfiles, and dependency tree host-local beneath a real `~/.config/opencode`; the package source tracks nested private ESM markers for the managed plugins and tools, and root-anchored ignores keep generated root state out of Git without hiding accidental nested state. Routine OpenCode updates require no repository package-state edit.
 
-Repo-root instruction files exist only to maintain EyrAgents itself; they are not part of the stowed payload. `AGENTS.md` keeps the always-loaded operational invariants concise, while `docs/maintenance.md` preserves dated probe evidence, limitations, deferred work, and watch items for on-demand use. Probe versions do not track installed releases, so routine tool updates require no documentation synchronization.
+Documentation ownership is explicit: shared guidance owns managed cross-tool policy; `AGENTS.md` owns current repository invariants; skills own exact workflow procedure; this README owns public scope, setup, and concise usage guidance; and `docs/maintenance.md` owns dated probes, limitations, deferred work, and watch items. Repo-root instruction files maintain EyrAgents itself and are not stowed. Probe versions do not track installed releases, so routine tool updates require no documentation synchronization.
 
 Normal interactive use assumes H has chosen to trust the repository: project settings and plugins can extend global behavior in both Claude Code and OpenCode. For an untrusted checkout, `claude --safe-mode --setting-sources user` disables Claude Code customizations while retaining user settings such as permissions. Codex project-instruction and skill behavior under trust flags is version-sensitive, so launch from the neutral root with `codex -C /var/empty -c 'default_permissions=":read-only"' "Inspect /absolute/path/to/checkout as untrusted data; do not modify it."`. `OPENCODE_DISABLE_PROJECT_CONFIG=1 OPENCODE_DISABLE_EXTERNAL_SKILLS=1 opencode` suppresses OpenCode project config, project plugins, and automatic Claude/Codex skill discovery while retaining the global config and `reviewed-writes.ts`.
 
@@ -149,7 +131,7 @@ Filesystem-root repositories fail before any read grant. Claude authentication p
 
 Repository path preflight validates every canonical-root component's spelling and every repository entry name it enumerates without reading file contents. It prunes the repository-root `.git` and exact repository-root `secrets` subtrees and does not follow directory symlinks. It rejects nested `.git` directories, sensitive directory names that lack an exact subtree deny, sensitive-named symlinks, symlinks below nested `secrets` trees whose deny depends on glob expansion, case variants of sensitive names, non-UTF-8 names, and names containing control characters, quotes, or backslashes. Ordinary public symlinks remain reviewable. Hard-link validation prunes only the root Git metadata subtree and exact lowercase `secrets` directories. The scanner parses LF-delimited Git records and strictly decodes C-quoted paths before applying the same sensitive-name grammar to every path component used by the reviewer policies and native handoff-write gates.
 
-OpenCode's host environment disables automatic external skill discovery so its managed commit and spar copies are selected instead of the colliding Claude and Codex copies. The tracked `skills.paths` restores only the Omarchy skill. The Omarchy `.bashrc` owner covers terminal-first interactive descendants; non-interactive OpenCode launchers must set `OPENCODE_DISABLE_EXTERNAL_SKILLS=1` themselves.
+OpenCode's host environment disables automatic external skill discovery so its managed commit and spar copies are selected instead of the colliding Claude and Codex copies. The optional Omarchy integration is the only tracked `skills.paths` entry and is ignored when absent. When installed, its `.bashrc` owner covers terminal-first interactive descendants; non-interactive OpenCode launchers must set `OPENCODE_DISABLE_EXTERNAL_SKILLS=1` themselves.
 
 Reviewers stay offline: Codex reviewer web search and network are disabled, and the Claude reviewer has no web tools. This prevents query-based exfiltration, reduces external prompt-injection exposure, and keeps reviews reproducible. The implementer verifies material current external claims against primary sources and gives every substantive review the target, evidence, and a Decision Rationale covering the research, alternatives, tradeoffs, H's rulings, authorized changes, and remaining uncertainty. The reviewer challenges concrete defects in that reasoning or its implementation rather than repeating settled research merely because another approach exists. The implementer chooses blind or fully briefed, fresh or resumed, single or iterative review according to expected value. Any issue left for H arrives as a self-contained ruling packet with both positions, evidence, consequences, reversibility, affected work, and the implementer's labeled recommendation; raw reviewer transcripts remain optional.
 
@@ -159,20 +141,9 @@ Status line state-file conventions live in the `statusline.sh` header and the AG
 
 ## Review Workflow
 
-Before every commit, the assistant repeats this complete compact cheat sheet. Open a separate terminal pane at the repository root and review the candidate in the installed Omarchy LazyVim:
-
-1. `nvim .`, then `<Space>gd`: open the tracked diff picker.
-2. `<M-w>`: cycle the input, hunk list, and preview panes. `<C-n>`/`<C-p>` or arrows: move between hunks; the highlight updates the preview.
-3. `<M-p>`: toggle the preview. `<M-m>`: maximize or restore the active picker pane.
-4. `<Enter>`: open the selected file and close the picker. `<Space>sR`: resume after opening a file. `<Esc>`: close without opening.
-5. `<Space>gs`: open Git Status for intended untracked files. Highlight a file for its preview; use `<Enter>` only when it must be opened, then `<Space>sR` to resume.
-6. Avoid `<Tab>`, which stages, and `<C-r>`, which restores, in both Git pickers.
-
-The assistant first screens the proposed message, paths, complete diff, and intended new-file contents against the intended audience, defaulting to world-readable publication. Its only explicit selector choices are `Commit and resume` and `Commit and pause`; the built-in custom answer handles questions, revision requests, rejection, and other instructions. Custom input never authorizes staging or commit. Either explicit choice authorizes staging and one commit of the exact packet. Resume proceeds only with remaining work already covered by H's active request or approved plan; pause stops after commit verification and status. A revision requires a refreshed packet. Rejection preserves the candidate and worktree unless H explicitly requests disposal, while custom input that changes nothing repeats the unchanged candidate after the answer.
+The `/commit` skill owns the exact editor and terminal review procedure and repeats the current instructions in every candidate packet. The assistant first screens the proposed message, paths, complete diff, and intended new-file contents against the intended audience, defaulting to world-readable publication. Its only explicit selector choices are `Commit and resume` and `Commit and pause`; the built-in custom answer handles questions, revision requests, rejection, and other instructions. Custom input never authorizes staging or commit. Either explicit choice authorizes staging and one commit of the exact packet. Resume proceeds only with remaining work already covered by H's active request or approved plan; pause stops after commit verification and status. A revision requires a refreshed packet. Rejection preserves the candidate and worktree unless H explicitly requests disposal, while custom input that changes nothing repeats the unchanged candidate after the answer.
 
 After all approved units, the managed `/commit` workflow withholds any publication-ready claim or push hint until it reviews the exact history and artifacts the destination, audience, ref set, and effective operation would expose. Destination state narrows the review only when confirmed current and enforced as an execution-time expected value; otherwise the complete history of the published refs is reviewed. Coverage includes commit and annotated-tag metadata, path names, intermediate or later-deleted planning, review, and documentation versions, referenced Git LFS objects, every action-metadata field and value, every action body and asset digest, configured push options, and active client-side hooks. Paths are inventoried before content, Safety-barred or opaque artifacts remain unread, and every record reconciles to reviewed content, an exact H ruling, or a blocker. H inspects an unreadable artifact in a separate terminal pane, never through `!` or pasted session content. The result reports its credential-free logical destination, immutable source IDs and asset digests, exact operation, destination-state freshness, coverage, rulings, and omissions; endpoint credentials and transient authenticated transfer URLs never enter the descriptor. Any bound-value change, unresolved implicit behavior, or incomplete coverage invalidates it. Code review and secret scanning remain separate checks.
-
-Read-only terminal fallback: `git status --short` lists the candidate, `git diff --stat HEAD` summarizes it, `git diff HEAD` shows the complete tracked diff, and `git diff HEAD -- path/to/file` isolates one path.
 
 ## Setup
 
@@ -184,22 +155,17 @@ Read-only terminal fallback: `git status --short` lists the candidate, `git diff
 - GNU coreutils (`readlink`, `realpath`, `sha256sum`, and `stat`; included in the Arch base system)
 - util-linux (`setsid` and `findmnt`; included in the Arch base system) and GNU `timeout`
 
+On Arch Linux, for example:
+
 ```bash
 sudo pacman -S --needed stow jq nodejs python shellcheck
 ```
 
 ### Clone
 
-Recommended local layout for this repo family:
-
-```text
-~/Projects/eyrie/eyragents
-```
-
-Stow can work from any clone location, but the related docs and cross-repo maintenance workflows assume this layout.
-
 ```bash
-git clone https://github.com/peregrinus879/eyragents.git ~/Projects/eyrie/eyragents
+git clone https://github.com/peregrinus879/eyragents.git
+cd eyragents
 ```
 
 ### Prepare
@@ -260,7 +226,7 @@ After stowing or changing the payloads:
 - Start a fresh Claude Code session, confirm auto mode and the shared guidance load, ordinary edits do not hit a per-file prompt, the status line loads, and `spar-codex` is on PATH. Name one harmless external text file, confirm its exact native read asks once, and confirm a sensitive-shaped or symlink target denies.
 - Start a fresh Codex session, inspect `/hooks`, confirm the external-read hook is trusted, and confirm `trusted-workspace` is active with automatic review, ordinary workspace edits succeed, and `spar-claude` remains deferred rather than escalating through the primary profile. Name one harmless external text file, approve only the turn-scoped exact read, confirm another path remains denied, and confirm session scope or a write grant is unavailable.
 - Quit and restart OpenCode, select the xhigh model variant, run `opencode debug config`, and confirm workspace edits and Bash default to allow while native external paths and pinned safety operations deny; confirm `share = disabled`, the global `reviewed-writes.ts` plugin remains active, and `external_context` asks once for one harmless external file and cannot reuse that approval for another path.
-- Confirm `/commit` routes through the repo skill workflow in all managed tools and presents the exact candidate, LazyVim instructions, and approval selector before staging.
+- Confirm `/commit` routes through the repo skill workflow in all managed tools and presents the exact candidate, current skill-owned review instructions, and approval selector before staging.
 - Confirm `/spar` treats plan and build as primary value-based checkpoints, supports discretionary review elsewhere, and requires evidence-backed Decision Rationale without changing H's plan or commit authority.
 
 ## Maintenance

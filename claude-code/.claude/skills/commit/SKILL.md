@@ -86,7 +86,7 @@ After the approved commit, verify and report its hash and title. `Commit and res
 - Commit identity: confirm `git config user.email` is the GitHub no-reply, not a personal inbox; stop if not.
 - Commit on the current branch; do not create branches unasked.
 - Never amend unless H explicitly requests it for the exact current commit.
-- Push: user handles manually (SSH passphrase required). Do not push.
+- Push: user handles manually. Do not push.
 
 ## Publication review and push hint
 

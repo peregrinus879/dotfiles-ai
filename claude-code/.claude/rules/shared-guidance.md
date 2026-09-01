@@ -51,6 +51,6 @@ Trivial work may skip a formal plan, but never the exact pre-commit review. An i
 - Hosts: Omarchy (Arch Linux + Hyprland), WSL (Arch Linux), Android (Claude app); terminal-first (tmux, Neovim, Bash).
 - Verify the target machine before changing live config, stow links, packages, services, or `$HOME`; if it is the wrong machine, stop and provide commands for the correct one.
 - Before committing, use the `/commit` skill and verify `git config user.email` resolves to the GitHub no-reply, never a personal inbox; identity lives in the untracked per-host `~/.config/git/config.local`. If it resolves to a personal address, stop and tell H.
-- Push: H handles manually (SSH passphrase required). Do not push.
+- Push: H handles manually. Do not push.
 - The repo is the record: durable decisions, deferred items, and watch items go in the project `AGENTS.md` or docs; assistant-local memory is a single-device cache (H works across devices), pointers at most.
 - Agents writing scratch files use one unique session directory and state its path. Delete it, and any other temporary files the session created, before reporting completion. Untracked files inside the repo follow the `/commit` skill's confirm-before-delete rule.
