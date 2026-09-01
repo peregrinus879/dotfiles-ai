@@ -176,6 +176,9 @@ verify:
 	  grep -Fq 'bounded external-context decision 2026-09-01' docs/maintenance.md; then \
 	  echo "ok:   bounded external-context guidance"; \
 	else echo "FAIL: bounded external-context guidance drifted"; fail=1; fi; \
+	if grep -Fqx -- '- When H supplies wording for a website or document, treat it as direction and source material. Preserve its intended meaning, facts, constraints, and appropriate voice while improving clarity, structure, tone, and audience fit. Reproduce it verbatim only when H requests exact wording, a quotation, or another no-edit form.' claude-code/.claude/rules/shared-guidance.md; then \
+	  echo "ok:   expert copy-improvement guidance"; \
+	else echo "FAIL: expert copy-improvement guidance drifted"; fail=1; fi; \
 	if grep -Fq 'Plan approval authorizes the listed edits, verification, reviewer calls, and deployment steps, never a commit.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Execute one approved commit unit at a time.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Before every commit, run `/commit`' claude-code/.claude/rules/shared-guidance.md && \
