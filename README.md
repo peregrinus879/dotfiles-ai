@@ -47,6 +47,7 @@ eyragents/
 │   └── prepare-stow.sh                   # non-destructive Stow preparation
 ├── tests/                                # security and configuration fixtures
 │   ├── config-contracts.py
+│   ├── external-context.sh
 │   ├── prepare-stow.sh
 │   ├── project-config-isolation.sh
 │   ├── reviewed-writes.mjs
@@ -71,6 +72,7 @@ eyragents/
 │   │       └── spar/                     # cross-model sparring and reviews (reviewer: spar-codex)
 │   └── .local/
 │       └── bin/
+│           ├── context-read-gate.sh       # bounded Claude/Codex external-read gate
 │           ├── spar-claude               # latest-Opus read-only reviewer bridge for spar
 │           └── spar-payload-scan         # bounded outbound and inbound content scanner
 ├── codex/                                # stow package -> ~/.codex/, ~/.agents/, ~/.local/bin/
@@ -81,7 +83,8 @@ eyragents/
 │   ├── .codex/
 │   │   ├── .gitignore                    # excludes Codex runtime state
 │   │   ├── AGENTS.md                     # symlink chain to the canonical shared guidance
-│   │   └── config.toml                   # runtime config (model, permission profile, trust)
+│   │   ├── config.toml                   # runtime config (model, permission profile, trust)
+│   │   └── hooks.json                    # external-read request validation hook
 │   └── .local/
 │       └── bin/
 │           └── spar-codex                # pinned read-only reviewer bridge for spar
@@ -100,11 +103,16 @@ eyragents/
             ├── skills/                   # agent skills
             │   ├── commit/               # candidate and publication review workflow
             │   └── spar/                 # cross-model sparring and reviews (reviewer: spar-claude)
+            └── tools/                    # bounded custom tools
+                ├── package.json          # private ESM marker
+                └── external-context.ts   # one-file read or one-level directory listing
 ```
 
-Tracked `.gitkeep` placeholders (claude-code agents; opencode agents, themes, and tools) are omitted from the tree.
+Tracked `.gitkeep` placeholders (claude-code agents; opencode agents and themes) are omitted from the tree.
 
 Tracked runtime config primarily expresses shared behavior. `claude-code/.claude/settings.json`, `codex/.codex/config.toml`, and `opencode/.config/opencode/opencode.json` are the source of truth for each tool's model, effort, permissions, and feature toggles; read them directly rather than a prose mirror here. Trusted-repository work is autonomous until the commit boundary: Claude Code uses auto mode, Codex uses a write-capable workspace profile plus automatic approval review, and OpenCode allows workspace edits and shell commands behind native-tool sensitive and external path denials plus direct destructive, privileged, upload, and remote-mutation command denials. OpenCode has no classifier or OS sandbox; its external-directory guard covers only Bash commands recognized by the upstream path scanner, so unrecognized direct readers, dynamic path arguments, wrappers, and scripts remain instruction-governed residuals. Every commit requires H's editor review and approval of the exact candidate before staging. Session handoffs use private disk-backed OS temp (`/var/tmp/spar-<session-id>/`) so an in-flight review survives reboots; the Claude hook and OpenCode plugin validate handoff writes without reintroducing ordinary per-file prompts. OpenCode `tui.json` keeps a stacked diff view that works better in narrow terminals.
+
+When H names one exact existing non-sensitive absolute path for the current task, the primary agent can request one bounded external read without broadening ordinary workspace permissions. Claude Code validates the target in `PreToolUse` and asks on the exact native `Read`, `Grep`, or `Glob` call. Codex keeps filesystem root denied, validates one exact `request_permissions` filesystem read, and limits approval to the current turn. OpenCode retains its native external-directory deny and exposes the build-only `external_context` tool for one bounded UTF-8 file or one directory level. All three reject sensitive-shaped paths, aliases, hard links, writes, recursion, subagents, reviewers, and spar handoffs; the approval grants neither future nor session access.
 
 OpenCode's write-review plugin validates every `apply_patch` source and move destination for workspace containment, sensitive path shapes, symlink aliases, existing hard links, and stricter handoff constraints before grouped operations reach native permission handling.
 
@@ -120,7 +128,7 @@ OpenCode's in-app updater is disabled because the host installation wrapper owns
 
 Nested payload ignore files protect fresh clones if a state directory is accidentally folded into the repository.
 
-Three payload-side exceptions exist. Claude Code writes app-managed keys and key ordering into its tracked `settings.json`; commit those rewrites as-is. Codex and the ChatGPT desktop app write project trust, notice keys, marketplace and plugin state, MCP/runtime entries, and desktop preferences into the tracked `config.toml`; preserve and commit those rewrites, while its nested `.gitignore` excludes other runtime files. Generated runtime paths must be revalidated on each host. OpenCode keeps its generated root manifest, lockfiles, and dependency tree host-local beneath a real `~/.config/opencode`; the package source tracks only a nested private ESM marker for the managed plugins, and root-anchored ignores keep generated root state out of Git without hiding accidental nested state. Routine OpenCode updates require no repository package-state edit.
+Three payload-side exceptions exist. Claude Code writes app-managed keys and key ordering into its tracked `settings.json`; commit those rewrites as-is. Codex and the ChatGPT desktop app write project trust, notice keys, marketplace and plugin state, MCP/runtime entries, and desktop preferences into the tracked `config.toml`; preserve and commit those rewrites, while its nested `.gitignore` excludes other runtime files. Generated runtime paths must be revalidated on each host. OpenCode keeps its generated root manifest, lockfiles, and dependency tree host-local beneath a real `~/.config/opencode`; the package source tracks nested private ESM markers for the managed plugins and tools, and root-anchored ignores keep generated root state out of Git without hiding accidental nested state. Routine OpenCode updates require no repository package-state edit.
 
 Repo-root instruction files exist only to maintain EyrAgents itself; they are not part of the stowed payload. `AGENTS.md` keeps the always-loaded operational invariants concise, while `docs/maintenance.md` preserves dated probe evidence, limitations, deferred work, and watch items for on-demand use. Probe versions do not track installed releases, so routine tool updates require no documentation synchronization.
 
@@ -228,7 +236,7 @@ Each target uses the ordinary package invocation:
 stow -v -t ~ claude-code codex opencode
 ```
 
-The three `~/.local/bin/spar-*` endpoints resolve directly to their package files, whether Stow creates leaf links or folds a parent directory.
+The three `~/.local/bin/spar-*` endpoints and `~/.local/bin/context-read-gate.sh` resolve directly to their package files, whether Stow creates leaf links or folds a parent directory.
 
 ### Reviewer Bridges
 
@@ -243,9 +251,9 @@ To migrate from a different clone path, run `make unstow` in the old clone first
 After stowing or changing the payloads:
 
 - Run `make verify` and `make lint` from the repo root.
-- Start a fresh Claude Code session, confirm auto mode and the shared guidance load, confirm ordinary edits do not hit a per-file prompt, confirm the status line loads, and confirm `spar-codex` is on PATH.
-- Start a fresh Codex session, confirm the shared guidance loads, `trusted-workspace` is active with automatic review, ordinary workspace edits succeed, and `spar-claude` remains deferred rather than escalating through the primary profile.
-- Start a fresh OpenCode session, run `opencode debug config`, and confirm workspace edits and Bash default to allow while external paths and pinned safety operations deny; confirm `share = disabled` and the global `reviewed-writes.ts` plugin remain active.
+- Start a fresh Claude Code session, confirm auto mode and the shared guidance load, ordinary edits do not hit a per-file prompt, the status line loads, and `spar-codex` is on PATH. Name one harmless external text file, confirm its exact native read asks once, and confirm a sensitive-shaped or symlink target denies.
+- Start a fresh Codex session, inspect `/hooks`, confirm the external-read hook is trusted, and confirm `trusted-workspace` is active with automatic review, ordinary workspace edits succeed, and `spar-claude` remains deferred rather than escalating through the primary profile. Name one harmless external text file, approve only the turn-scoped exact read, confirm another path remains denied, and confirm session scope or a write grant is unavailable.
+- Quit and restart OpenCode, select the xhigh model variant, run `opencode debug config`, and confirm workspace edits and Bash default to allow while native external paths and pinned safety operations deny; confirm `share = disabled`, the global `reviewed-writes.ts` plugin remains active, and `external_context` asks once for one harmless external file and cannot reuse that approval for another path.
 - Confirm `/commit` routes through the repo skill workflow in all managed tools and presents the exact candidate, LazyVim instructions, and approval selector before staging.
 - Confirm `/spar` treats plan and build as primary value-based checkpoints, supports discretionary review elsewhere, and requires evidence-backed Decision Rationale without changing H's plan or commit authority.
 
@@ -254,7 +262,7 @@ After stowing or changing the payloads:
 A repo-root `Makefile` keeps the package list in one place and wraps the routine commands. Run targets from the repo root:
 
 - `make stow` / `make unstow` / `make dry-run` / `make restow` - the Stow command sets; `dry-run` previews raw Stow behavior without the non-destructive preparation used by `stow` and `restow`
-- `make verify` - exhaustive intended-file deployment; bounded scanner and repository-bound bridge fixtures; fail-closed dependency checks; JSON, TOML, model, Fast, provider, updater, plugin-module, and host-local package-state contracts; non-destructive Stow fixtures; statusline state-file attack fixtures; bridge payload, authentication, repository isolation, new/resume, terminal-event, signal, timeout, and descendant-cleanup tests; project-config isolation; three-way skill sync and value-based review contracts; commit and reviewer-confinement boundaries; executable all-target plugin parser tests; OpenCode permission ordering; and stray-config checks
+- `make verify` - exhaustive intended-file deployment; bounded external-context, scanner, and repository-bound bridge fixtures; fail-closed dependency checks; JSON, TOML, model, Fast, provider, updater, plugin/tool-module, and host-local package-state contracts; non-destructive Stow fixtures; statusline state-file attack fixtures; bridge payload, authentication, repository isolation, new/resume, terminal-event, signal, timeout, and descendant-cleanup tests; project-config isolation; three-way skill sync and value-based review contracts; commit and reviewer-confinement boundaries; executable all-target plugin parser tests; OpenCode permission ordering; and stray-config checks
 - `make clean` - non-destructive preparation that removes only recognized managed symlinks and creates real state directories
 - `make lint` - ShellCheck over `statusline.sh`, the directly stowed spar bridges, and every script and shell test; `.shellcheckrc` disables the one style-level finding so new issues stand out
 

@@ -87,7 +87,14 @@
       "Read(~/.netrc)",
       "Read(~/.npmrc)",
       "Read(~/.pypirc)",
-      "Read(~/.ssh/**)"
+      "Read(~/.ssh/**)",
+      "Read(../*var/tmp/spar-*/*.key)",
+      "Read(../*var/tmp/spar-*/*.pem)",
+      "Read(../*var/tmp/spar-*/*credentials*)",
+      "Read(../*var/tmp/spar-*/.env)",
+      "Read(../*var/tmp/spar-*/.env.*)",
+      "Read(../*var/tmp/spar-*/auth.json)",
+      "Read(../*var/tmp/spar-*/secrets/*)"
     ]
   },
   "autoMode": {
@@ -113,6 +120,17 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/spar-handoff-approve.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/context-read-gate.sh",
+            "timeout": 5,
+            "statusMessage": "Validating external read target"
           }
         ]
       }

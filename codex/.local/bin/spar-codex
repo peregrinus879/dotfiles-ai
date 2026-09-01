@@ -83,6 +83,7 @@ CODEX_COMMON=(
   -c 'agents.enabled=false'
   -c 'features.apps=false'
   -c 'features.hooks=false'
+  -c 'features.request_permissions_tool=false'
   -c 'features.multi_agent=false'
   "${PLUGIN_DISABLE_OVERRIDES[@]}"
   -c 'features.skill_search=false'

@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^request_permissions$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/context-read-gate.sh",
+            "timeout": 5,
+            "statusMessage": "Validating external read request"
+          }
+        ]
+      }
+    ]
+  }
+}

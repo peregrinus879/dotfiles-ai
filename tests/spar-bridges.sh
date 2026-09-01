@@ -898,6 +898,7 @@ for flag in --ignore-user-config --ignore-rules --strict-config 'default_permiss
   'model_reasoning_summary="none"' 'project_doc_max_bytes=0' 'project_doc_fallback_filenames=[]' \
   'project_root_markers=[]' 'trust_level="untrusted"' \
   'features.plugins=false' 'features.remote_plugin=false' 'features.multi_agent=false' \
+  'features.request_permissions_tool=false' \
   'web_search="disabled"' 'network={enabled=false}' 'service_tier="fast"'; do
   [[ $codex_new == *"$flag"* && $codex_resume == *"$flag"* ]] || fail "Codex isolation missing: $flag"
 done

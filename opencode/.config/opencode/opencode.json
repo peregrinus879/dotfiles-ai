@@ -114,6 +114,7 @@
       "~/.pypirc": "deny",
       "~/.ssh/**": "deny"
     },
+    "external_context": "ask",
     "read": {
       "*": "allow",
       "**/*.key": "deny",
@@ -133,7 +134,14 @@
       "~/.netrc": "deny",
       "~/.npmrc": "deny",
       "~/.pypirc": "deny",
-      "~/.ssh/**": "deny"
+      "~/.ssh/**": "deny",
+      "../*var/tmp/spar-*/*.key": "deny",
+      "../*var/tmp/spar-*/*.pem": "deny",
+      "../*var/tmp/spar-*/*credentials*": "deny",
+      "../*var/tmp/spar-*/.env": "deny",
+      "../*var/tmp/spar-*/.env.*": "deny",
+      "../*var/tmp/spar-*/auth.json": "deny",
+      "../*var/tmp/spar-*/secrets/*": "deny"
     },
     "webfetch": "allow",
     "websearch": "allow"

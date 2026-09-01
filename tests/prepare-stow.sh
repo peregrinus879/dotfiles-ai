@@ -24,19 +24,25 @@ make_payload() {
     "$repo/codex/.agents/skills/commit" \
     "$repo/codex/.agents/skills/spar" \
     "$repo/codex/.local/bin" \
-    "$repo/opencode/.config/opencode/plugins"
+    "$repo/opencode/.config/opencode/plugins" \
+    "$repo/opencode/.config/opencode/tools"
   printf 'tracked\n' >"$repo/claude-code/.claude/settings.json"
   printf 'tracked\n' >"$repo/claude-code/.claude/CLAUDE.md"
   printf 'tracked\n' >"$repo/claude-code/.claude/statusline.sh"
   printf 'tracked\n' >"$repo/codex/.codex/config.toml"
+  printf '{}\n' >"$repo/codex/.codex/hooks.json"
   ln -s ../../claude-code/.claude/rules/shared-guidance.md "$repo/codex/.codex/AGENTS.md"
   printf 'tracked\n' >"$repo/claude-code/.local/bin/spar-claude"
   printf 'tracked\n' >"$repo/claude-code/.local/bin/spar-payload-scan"
+  printf 'tracked\n' >"$repo/claude-code/.local/bin/context-read-gate.sh"
   printf 'tracked\n' >"$repo/codex/.local/bin/spar-codex"
   printf '{}\n' >"$repo/opencode/.config/opencode/opencode.json"
   printf 'export const plugin = true\n' >"$repo/opencode/.config/opencode/plugins/reviewed-writes.ts"
   printf '{"name":"eyragents-opencode-plugins","private":true,"type":"module"}\n' \
     >"$repo/opencode/.config/opencode/plugins/package.json"
+  printf 'export default {}\n' >"$repo/opencode/.config/opencode/tools/external-context.ts"
+  printf '{"name":"eyragents-opencode-tools","private":true,"type":"module"}\n' \
+    >"$repo/opencode/.config/opencode/tools/package.json"
 }
 
 run_prepare() {
@@ -64,10 +70,13 @@ case_managed_links() {
   mkdir "$home/.claude/skills/user-owned"
   ln -s "$repo/codex/.codex/AGENTS.md" "$home/.codex/AGENTS.md"
   ln -s "$repo/codex/.codex/config.toml" "$home/.codex/config.toml"
+  ln -s "$repo/codex/.codex/hooks.json" "$home/.codex/hooks.json"
   ln -s "$repo/codex/.agents/skills/spar" "$home/.agents/skills/spar"
   ln -s "$repo/claude-code/.local/bin/spar-claude" "$home/.local/bin/spar-claude"
   ln -s "$repo/claude-code/.local/bin/spar-payload-scan" "$home/.local/bin/spar-payload-scan"
+  ln -s "$repo/claude-code/.local/bin/context-read-gate.sh" "$home/.local/bin/context-read-gate.sh"
   ln -s "$repo/opencode/.config/opencode/opencode.json" "$home/.config/opencode/opencode.json"
+  ln -s "$repo/opencode/.config/opencode/tools" "$home/.config/opencode/tools"
   printf '{}\n' >"$repo/opencode/.config/opencode/package.json"
   printf '{}\n' >"$repo/opencode/.config/opencode/package-lock.json"
   mkdir "$repo/opencode/.config/opencode/node_modules"
@@ -78,7 +87,10 @@ case_managed_links() {
   [[ ! -e $home/.claude/settings.json && ! -L $home/.claude/settings.json ]] || fail "managed Claude link remains"
   [[ -d $home/.claude/skills/user-owned ]] || fail "user-owned skill was removed"
   [[ ! -e $home/.codex/AGENTS.md && ! -L $home/.codex/AGENTS.md ]] || fail "managed Codex instruction link remains"
+  [[ ! -e $home/.codex/hooks.json && ! -L $home/.codex/hooks.json ]] || fail "managed Codex hooks link remains"
   [[ ! -e $home/.config/opencode/opencode.json ]] || fail "managed OpenCode link remains"
+  [[ ! -e $home/.config/opencode/tools && ! -L $home/.config/opencode/tools ]] ||
+    fail "managed OpenCode tools link remains"
   for path in package.json package-lock.json node_modules; do
     [[ ! -e $home/.config/opencode/$path && ! -L $home/.config/opencode/$path ]] ||
       fail "legacy OpenCode link remains: $path"
@@ -258,6 +270,12 @@ case_actual_stow() {
     fail "OpenCode config child was not stowed"
   [[ $(readlink -f -- "$root/plugins/package.json") == "$repo/opencode/.config/opencode/plugins/package.json" ]] ||
     fail "nested OpenCode plugin marker was not stowed"
+  [[ $(readlink -f -- "$root/tools/package.json") == "$repo/opencode/.config/opencode/tools/package.json" ]] ||
+    fail "nested OpenCode tool marker was not stowed"
+  [[ $(readlink -f -- "$home/.codex/hooks.json") == "$repo/codex/.codex/hooks.json" ]] ||
+    fail "Codex hooks were not stowed"
+  [[ $(readlink -f -- "$home/.local/bin/context-read-gate.sh") == "$repo/claude-code/.local/bin/context-read-gate.sh" ]] ||
+    fail "external context gate was not stowed"
 
   printf 'host-local\n' >"$root/package.json"
   mkdir "$root/node_modules"

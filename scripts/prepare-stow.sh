@@ -77,6 +77,7 @@ prepare_codex() {
     queue_link "$HOME/.codex/AGENTS.md" "codex/.codex/AGENTS.md" \
       "claude-code/.claude/rules/shared-guidance.md"
     queue_link "$HOME/.codex/config.toml" "codex/.codex/config.toml"
+    queue_link "$HOME/.codex/hooks.json" "codex/.codex/hooks.json"
   fi
 
   if prepare_real_dir "$HOME/.agents" "codex/.agents"; then
@@ -95,6 +96,7 @@ prepare_bins() {
       queue_link "$HOME/.local/bin/spar-claude" "claude-code/.local/bin/spar-claude"
       queue_link "$HOME/.local/bin/spar-codex" "codex/.local/bin/spar-codex"
       queue_link "$HOME/.local/bin/spar-payload-scan" "claude-code/.local/bin/spar-payload-scan"
+      queue_link "$HOME/.local/bin/context-read-gate.sh" "claude-code/.local/bin/context-read-gate.sh"
     fi
   else
     create_dirs+=("$HOME/.local/bin")

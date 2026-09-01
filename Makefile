@@ -5,6 +5,7 @@ SHELL := /bin/bash
 PACKAGES := claude-code codex opencode
 SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
   claude-code/.claude/hooks/spar-handoff-approve.sh \
+  claude-code/.local/bin/context-read-gate.sh \
   claude-code/.local/bin/spar-claude \
   codex/.local/bin/spar-codex \
   $(wildcard scripts/*.sh tests/*.sh)
@@ -44,7 +45,7 @@ restow: clean
 # unless re-justified there.
 verify:
 	@fail=0; \
-	for command in git node python3 jq readlink realpath sha256sum stat stow; do \
+	for command in find git node python3 jq readlink realpath sha256sum stat stow; do \
 	  command -v "$$command" > /dev/null || { echo "FAIL: required verifier missing: $$command"; fail=1; }; \
 	done; \
 	[[ $$fail == 0 ]] || exit $$fail; \
@@ -74,11 +75,15 @@ verify:
 	  "$$HOME/.claude/skills/spar/SKILL.md=claude-code/.claude/skills/spar/SKILL.md" \
 	  "$$HOME/.codex/config.toml=codex/.codex/config.toml" \
 	  "$$HOME/.codex/AGENTS.md=codex/.codex/AGENTS.md" \
+	  "$$HOME/.codex/hooks.json=codex/.codex/hooks.json" \
 	  "$$HOME/.agents/skills/commit/SKILL.md=codex/.agents/skills/commit/SKILL.md" \
 	  "$$HOME/.agents/skills/spar/SKILL.md=codex/.agents/skills/spar/SKILL.md" \
+	  "$$HOME/.local/bin/context-read-gate.sh=claude-code/.local/bin/context-read-gate.sh" \
 	  "$$HOME/.config/opencode/opencode.json=opencode/.config/opencode/opencode.json" \
 	  "$$HOME/.config/opencode/plugins/package.json=opencode/.config/opencode/plugins/package.json" \
 	  "$$HOME/.config/opencode/plugins/reviewed-writes.ts=opencode/.config/opencode/plugins/reviewed-writes.ts" \
+	  "$$HOME/.config/opencode/tools/package.json=opencode/.config/opencode/tools/package.json" \
+	  "$$HOME/.config/opencode/tools/external-context.ts=opencode/.config/opencode/tools/external-context.ts" \
 	  "$$HOME/.config/opencode/tui.json=opencode/.config/opencode/tui.json" \
 	  "$$HOME/.config/opencode/commands/commit.md=opencode/.config/opencode/commands/commit.md" \
 	  "$$HOME/.config/opencode/commands/spar.md=opencode/.config/opencode/commands/spar.md" \
@@ -111,15 +116,18 @@ verify:
 	  if [[ ! -e $$target && ! -L $$target ]]; then :; \
 	  else echo "FAIL: generated OpenCode root state reached the package source: $$target"; fail=1; fi; \
 	done; \
-	for path in package-lock.json bun.lock bun.lockb node_modules; do \
-	  target="opencode/.config/opencode/plugins/$$path"; \
-	  if [[ ! -e $$target && ! -L $$target ]]; then :; \
-	  else echo "FAIL: generated state appeared below the tracked plugin marker: $$target"; fail=1; fi; \
+	for directory in plugins tools; do \
+	  for path in package-lock.json bun.lock bun.lockb node_modules; do \
+	    target="opencode/.config/opencode/$$directory/$$path"; \
+	    if [[ ! -e $$target && ! -L $$target ]]; then :; \
+	    else echo "FAIL: generated state appeared below the tracked $$directory marker: $$target"; fail=1; fi; \
+	  done; \
 	done; \
-	for b in spar-claude spar-codex spar-payload-scan; do \
+	for b in context-read-gate.sh spar-claude spar-codex spar-payload-scan; do \
 	  if [[ -x "$$HOME/.local/bin/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
 	done; \
-	if bash -n claude-code/.claude/statusline.sh; then echo "ok:   bash -n statusline.sh"; else echo "FAIL: bash -n statusline.sh"; fail=1; fi; \
+	if bash -n claude-code/.claude/statusline.sh claude-code/.local/bin/context-read-gate.sh tests/external-context.sh; then echo "ok:   managed shell syntax"; else echo "FAIL: managed shell syntax"; fail=1; fi; \
+	bash tests/external-context.sh || { echo "FAIL: bounded external context controls"; fail=1; }; \
 	bash -n tests/statusline-state.sh && bash tests/statusline-state.sh || { echo "FAIL: statusline runtime-state controls"; fail=1; }; \
 	bash -n scripts/prepare-stow.sh tests/prepare-stow.sh tests/spar-bridges.sh || { echo "FAIL: managed shell syntax"; fail=1; }; \
 	bash tests/prepare-stow.sh || { echo "FAIL: non-destructive stow preparation"; fail=1; }; \
@@ -162,6 +170,12 @@ verify:
 	if grep -Fqx -- '- Persistent file-content changes use native edit tools, so each change surfaces a reviewable diff. Before a grouped patch runs, validate every source and move destination against the applicable containment and sensitive-path controls. When no all-target validator enforces those checks, modify exactly one file per patch call.' claude-code/.claude/rules/shared-guidance.md; then \
 	  echo "ok:   all-target apply_patch guidance"; \
 	else echo "FAIL: all-target apply_patch guidance missing"; fail=1; fi; \
+	if grep -Fq 'Read non-sensitive context outside the workspace only when H names the exact existing absolute path for the current task.' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'H may authorize one bounded non-sensitive read outside the workspace' AGENTS.md && \
+	  grep -Fq 'When H names one exact existing non-sensitive absolute path for the current task' README.md && \
+	  grep -Fq 'bounded external-context decision 2026-09-01' docs/maintenance.md; then \
+	  echo "ok:   bounded external-context guidance"; \
+	else echo "FAIL: bounded external-context guidance drifted"; fail=1; fi; \
 	if grep -Fq 'Plan approval authorizes the listed edits, verification, reviewer calls, and deployment steps, never a commit.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Execute one approved commit unit at a time.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Before every commit, run `/commit`' claude-code/.claude/rules/shared-guidance.md && \

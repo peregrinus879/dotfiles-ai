@@ -22,7 +22,10 @@ def require(condition: bool, message: str):
 claude = load_json("claude-code/.claude/settings.json")
 opencode = load_json("opencode/.config/opencode/opencode.json")
 opencode_plugin_package = load_json("opencode/.config/opencode/plugins/package.json")
+opencode_tool_package = load_json("opencode/.config/opencode/tools/package.json")
 opencode_ignore = (ROOT / "opencode/.config/opencode/.gitignore").read_text(encoding="utf-8").splitlines()
+codex_hooks = load_json("codex/.codex/hooks.json")
+codex_ignore = (ROOT / "codex/.codex/.gitignore").read_text(encoding="utf-8").splitlines()
 load_json("opencode/.config/opencode/tui.json")
 claude_project = load_json(".claude/settings.json")
 opencode_project = load_json("opencode.json")
@@ -122,6 +125,25 @@ require(
     "public-vectors.json" not in scanner_source,
     "spar scanner regained an external public-vector registry",
 )
+context_gate_path = ROOT / "claude-code/.local/bin/context-read-gate.sh"
+context_gate_source = context_gate_path.read_text(encoding="utf-8")
+for marker in (
+    "MAX_DIRECTORY_ENTRIES=128",
+    "MAX_DIRECTORY_DEPTH=8",
+    "MAX_NAME_BYTES=1024",
+    "validate_external_target()",
+    "validate_known_roots()",
+    "scan_directory()",
+    "stat -c '%h'",
+    '"$HOME/.docker"',
+    "external context path is a managed spar handoff",
+    "external context path is sensitive-shaped",
+    "subagents cannot request external context",
+    "request_permissions must request one exact filesystem read only",
+    "explicit external context read requires one-call approval",
+):
+    require(marker in context_gate_source, f"external context gate drifted: {marker}")
+require(os.access(context_gate_path, os.X_OK), "external context gate is not executable")
 scanner_tree = ast.parse(scanner_source)
 public_findings_assignments = [
     node
@@ -375,6 +397,24 @@ require(
 reviewed_writes_source = (
     ROOT / "opencode/.config/opencode/plugins/reviewed-writes.ts"
 ).read_text(encoding="utf-8")
+external_context_source = (
+    ROOT / "opencode/.config/opencode/tools/external-context.ts"
+).read_text(encoding="utf-8")
+for marker in (
+    'context.agent !== "build"',
+    'permission: "external_context"',
+    "patterns: [target]",
+    "always: []",
+    "O_NOFOLLOW",
+    "MAX_FILE_BYTES = 256 * 1024",
+    "MAX_DIRECTORY_ENTRIES = 128",
+    "nlink !== 1",
+    "symlinks are unsupported",
+    "use native tools for workspace paths",
+    'path.join(home, ".docker")',
+    "use the managed spar handoff tools",
+):
+    require(marker in external_context_source, f"OpenCode external-context tool drifted: {marker}")
 for marker in (
     "SPAR_RESERVED",
     "SPAR_SENSITIVE",
@@ -438,14 +478,47 @@ require(
             "hooks": [
                 {"type": "command", "command": "~/.claude/hooks/spar-handoff-approve.sh"}
             ],
-        }
+        },
+        {
+            "matcher": "Read|Grep|Glob",
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": "~/.local/bin/context-read-gate.sh",
+                    "timeout": 5,
+                    "statusMessage": "Validating external read target",
+                }
+            ],
+        },
     ],
-    "Claude spar handoff hook registration drifted",
+    "Claude pre-tool hook registrations drifted",
 )
 require(
     os.access(ROOT / "claude-code/.claude/hooks/spar-handoff-approve.sh", os.X_OK),
     "Claude spar handoff hook missing or not executable",
 )
+require(
+    codex_hooks
+    == {
+        "hooks": {
+            "PreToolUse": [
+                {
+                    "matcher": "^request_permissions$",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "~/.local/bin/context-read-gate.sh",
+                            "timeout": 5,
+                            "statusMessage": "Validating external read request",
+                        }
+                    ],
+                }
+            ]
+        }
+    },
+    "Codex request-permissions hook registration drifted",
+)
+require("!hooks.json" in codex_ignore, "Codex managed hooks ignore exception drifted")
 
 # OpenCode's edit-permission subject is the worktree-relative path, so
 # handoff rules use ../-anchored relative patterns; the external_directory
@@ -472,6 +545,10 @@ require(codex["model_reasoning_summary"] == "auto", "Codex reasoning summary dri
 require(codex["service_tier"] == "fast", "Codex Fast service tier drifted")
 require(codex["web_search"] == "live", "Codex primary web search drifted")
 require(codex["features"]["fast_mode"] is True, "Codex Fast feature drifted")
+require(
+    codex["features"]["request_permissions_tool"] is True,
+    "Codex external-context permission tool drifted",
+)
 require(codex["agents"]["default_subagent_model"] == "gpt-5.6-sol", "Codex subagent model drifted")
 require(
     codex["agents"]["default_subagent_reasoning_effort"] == "xhigh",
@@ -481,6 +558,11 @@ require(codex["approval_policy"] == "on-request", "Codex approval policy drifted
 require(codex["approvals_reviewer"] == "auto_review", "Codex automatic reviewer drifted")
 require(codex["default_permissions"] == "trusted-workspace", "Codex profile selection drifted")
 for boundary in (
+    "one turn-scoped filesystem read",
+    "one exact, non-sensitive absolute path",
+    "session-scoped grants",
+    "external writes",
+    "subagent grants",
     "credential access",
     "privileged actions",
     "destructive state changes",
@@ -491,9 +573,28 @@ for boundary in (
 require("sandbox_mode" not in codex, "Codex mixes legacy sandbox with permission profile")
 require(codex_profile["extends"] == ":workspace", "Codex profile base drifted")
 require(codex_profile["network"]["enabled"] is False, "Codex network deny drifted")
+require(filesystem[":root"] == "deny", "Codex filesystem root deny drifted")
+require(filesystem[":minimal"] == "read", "Codex runtime-minimal read drifted")
 require(filesystem[":tmpdir"] == "write", "Codex temp permission drifted")
 require(filesystem[":slash_tmp"] == "write", "Codex /tmp permission drifted")
 require(filesystem["glob_scan_max_depth"] == 64, "Codex glob depth drifted")
+for path in (
+    "~/.claude/CLAUDE.md",
+    "~/.claude/settings.json",
+    "~/.claude/statusline.sh",
+    "~/.claude/agents",
+    "~/.claude/hooks",
+    "~/.claude/rules",
+    "~/.claude/skills/commit",
+    "~/.claude/skills/spar",
+    "~/.codex/AGENTS.md",
+    "~/.codex/config.toml",
+    "~/.codex/hooks.json",
+    "~/.agents/skills",
+    "~/.config/opencode",
+    "~/.local/bin",
+):
+    require(filesystem[path] == "read", f"Codex managed read root drifted: {path}")
 for path in (
     "~/.aws",
     "~/.claude/.credentials.json",
@@ -509,6 +610,19 @@ for path in (
     "~/.ssh",
 ):
     require(filesystem[path] == "deny", f"Codex sensitive deny drifted: {path}")
+for path in (
+    "~/**/.env",
+    "~/**/.env.*",
+    "~/**/auth.json",
+    "~/**/secrets",
+    "~/**/secrets/**",
+    "~/**/*.key",
+    "~/**/*.pem",
+    "~/**/*.p12",
+    "~/**/*.pfx",
+    "~/**/*credentials*",
+):
+    require(filesystem[path] == "deny", f"Codex home sensitive deny drifted: {path}")
 require(workspace["."] == "write", "Codex workspace write rule drifted")
 for path in (".env", ".env.*", "secrets", "**/*.key", "**/*.pem", "**/*credentials*"):
     require(workspace[path] == "deny", f"Codex workspace deny drifted: {path}")
@@ -561,6 +675,10 @@ for command in (
     require(bash[command] == "deny", f"OpenCode hard deny drifted: {command}")
 require(opencode["permission"]["webfetch"] == "allow", "OpenCode WebFetch auto-read drifted")
 require(opencode["permission"]["websearch"] == "allow", "OpenCode WebSearch drifted")
+require(
+    opencode["permission"]["external_context"] == "ask",
+    "OpenCode external-context approval drifted",
+)
 require(opencode["model"] == "openai/gpt-5.6-sol-fast", "OpenCode Fast model drifted")
 require(opencode["share"] == "disabled", "OpenCode sharing drifted")
 require(opencode["autoupdate"] is False, "OpenCode must not compete with wrapper-managed updates")
@@ -570,6 +688,11 @@ require(
     opencode_plugin_package
     == {"name": "eyragents-opencode-plugins", "private": True, "type": "module"},
     "OpenCode nested plugin module marker drifted",
+)
+require(
+    opencode_tool_package
+    == {"name": "eyragents-opencode-tools", "private": True, "type": "module"},
+    "OpenCode nested tool module marker drifted",
 )
 require(
     opencode_ignore == ["/package.json", "/package-lock.json", "/bun.lock", "/bun.lockb", "/node_modules/"],
@@ -639,6 +762,8 @@ for path in (
     "~/.ssh/**",
 ):
     require(read_rules[path] == "deny", f"OpenCode read deny drifted: {path}")
+for path in HANDOFF_SENSITIVE_DENIES:
+    require(read_rules[path] == "deny", f"OpenCode handoff read deny drifted: {path}")
 require(external_rules["*"] == "deny", "OpenCode external-directory default drifted")
 require(external_rules["~/.ssh/**"] == "deny", "OpenCode SSH external deny drifted")
 # Liveness note (ledger-recorded subject semantics): directory-glob
