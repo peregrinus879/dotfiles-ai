@@ -131,7 +131,8 @@ verify:
 	done; \
 	if bash -n claude-code/.claude/statusline.sh; then echo "ok:   statusline shell syntax"; else echo "FAIL: statusline shell syntax"; fail=1; fi; \
 	bash -n tests/statusline-state.sh && bash tests/statusline-state.sh || { echo "FAIL: statusline runtime-state controls"; fail=1; }; \
-	bash -n scripts/prepare-stow.sh tests/prepare-stow.sh tests/spar-bridges.sh || { echo "FAIL: managed shell syntax"; fail=1; }; \
+	bash -n scripts/prepare-stow.sh tests/commit-candidate.sh tests/prepare-stow.sh tests/spar-bridges.sh || { echo "FAIL: managed shell syntax"; fail=1; }; \
+	bash tests/commit-candidate.sh || { echo "FAIL: fingerprint-bound commit candidate controls"; fail=1; }; \
 	bash tests/prepare-stow.sh || { echo "FAIL: non-destructive stow preparation"; fail=1; }; \
 	if python3 -I -c 'from pathlib import Path; p=Path("claude-code/.local/bin/spar-payload-scan"); compile(p.read_bytes(), str(p), "exec")'; then \
 	  echo "ok:   spar payload scanner syntax"; \
@@ -200,6 +201,7 @@ verify:
 	  grep -Fq 'Execute one approved commit unit at a time.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Before every commit, run `/commit`' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Commit only after H approves that exact candidate.' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Do not reproduce the complete diff or intended new-file contents in the conversation unless H explicitly asks.' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Commit and resume | Commit and pause' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Resume only with remaining work authorized by H' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'A clear task request authorizes value-based read-only spar reviewer calls inside its scope.' claude-code/.claude/rules/shared-guidance.md && \
@@ -214,9 +216,26 @@ verify:
 	  grep -Fq 'A revision request updates the current candidate' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'Rejection preserves the candidate and worktree unless H explicitly requests disposal' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'If custom input changes nothing, answer it, then present the same packet and selector again.' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq '`candidate-status-v1`: SHA-256 from the canonical command `git --no-optional-locks -c core.quotePath=true -c color.status=false -c status.renames=false status --porcelain=v2 -z --untracked-files=all | sha256sum`' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq '`candidate-tracked-v1`: capture one literal path list containing only intended paths present in the reported base' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'git --no-optional-locks -c core.quotePath=true -c color.ui=false -c color.diff=false -c core.compression=0 -c diff.orderFile=/dev/null -c diff.suppressBlankEmpty=false diff [--cached] --binary --full-index --no-ext-diff --no-textconv --no-renames --no-indent-heuristic --diff-algorithm=myers --unified=3 --no-relative --src-prefix=a/ --dst-prefix=b/ "<base>" -- "<base-present-intended-path>"... | sha256sum' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq '`candidate-new-v1`: exclude paths absent from the base from both tracked fingerprints.' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'report only the digest and reconciled total, intended, and preserved-unrelated counts' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Unrelated-only drift requires renewed inventory' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'never force `core.fileMode=true`' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'block a candidate that intends a tracked mode change or new executable' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'git hash-object --no-filters -- "<path>"' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'block approval until the would-be staged content is separately reviewable' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'For a symlink, bind mode `120000`' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'readlink -n -- "<path>" | git hash-object --stdin' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Gitlinks with mode `160000` and other unsupported file types block approval.' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Any normalization change requires a new scheme suffix' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'Do not reproduce the complete diff or intended new-file contents in the conversation unless H explicitly asks.' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'exact staged path/status/mode set' claude-code/.claude/skills/commit/SKILL.md && \
+	  grep -Fq 'never reproduces the complete diff or new-file contents unless H asks' README.md && \
 	  grep -Fq 'Proceed only after `Commit and resume` or `Commit and pause`' claude-code/.claude/skills/commit/SKILL.md; then \
-	  echo "ok:   exact-diff commit workflow controls"; \
-	else echo "FAIL: exact-diff commit workflow controls drifted"; fail=1; fi; \
+	  echo "ok:   fingerprint-bound commit workflow controls"; \
+	else echo "FAIL: fingerprint-bound commit workflow controls drifted"; fail=1; fi; \
 	if grep -Fq 'Screen the message, paths, complete diff, and intended new-file contents' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'A binary or opaque candidate artifact that cannot be reviewed semantically' claude-code/.claude/rules/shared-guidance.md && \
 	  grep -Fq 'Bind the review to a credential-free logical destination and audience' claude-code/.claude/rules/shared-guidance.md && \

@@ -36,19 +36,31 @@ Before review, inspect untracked files (`git ls-files --others --exclude-standar
 
 ## Candidate privacy screen
 
-Before presenting the candidate, screen the proposed message, intended paths, complete diff, and intended new-file contents for context inappropriate to the intended audience. Use H's declared audience when available; otherwise assume world-readable publication. Check for machine, user, and host identifiers; local paths; security posture; private correspondence; and session metadata. This is separate from code review and secret scanning.
+Before presenting the candidate, screen the proposed message, complete status path inventory, intended paths, complete diff, and intended new-file contents for context inappropriate to the intended audience. Use H's declared audience when available; otherwise assume world-readable publication. Check for machine, user, and host identifiers; local paths; security posture; private correspondence; and session metadata. This is separate from code review and secret scanning.
 
 Inventory path names before content. Semantically review each readable text or supported binary artifact. Never open a path barred by the shared Safety rules; treat any other binary or opaque artifact that cannot be reviewed semantically the same way. Report only safe path and object metadata and require H to inspect the exact artifact in a separate terminal pane, never through `!` or pasted session content, then rule on it for the candidate and audience. The ruling permits neither an agent read nor staging or commit.
 
+## Candidate bindings
+
+Use the following versioned schemes exactly. Any normalization change requires a new scheme suffix, synchronized skill copies, and updated contract tests.
+
+- `candidate-status-v1`: SHA-256 from the canonical command `git --no-optional-locks -c core.quotePath=true -c color.status=false -c status.renames=false status --porcelain=v2 -z --untracked-files=all | sha256sum`. Internally inventory and privacy-screen every path, then report only the digest and reconciled total, intended, and preserved-unrelated counts. This is presentation-time scope evidence, not a candidate-content binding or post-stage comparison. Unrelated-only drift requires renewed inventory, screening, counts, and digest without invalidating unchanged candidate approval; intended-path overlap invalidates approval.
+- `candidate-tracked-v1`: capture one literal path list containing only intended paths present in the reported base, and reuse it before and after staging. Canonical command template: `git --no-optional-locks -c core.quotePath=true -c color.ui=false -c color.diff=false -c core.compression=0 -c diff.orderFile=/dev/null -c diff.suppressBlankEmpty=false diff [--cached] --binary --full-index --no-ext-diff --no-textconv --no-renames --no-indent-heuristic --diff-algorithm=myers --unified=3 --no-relative --src-prefix=a/ --dst-prefix=b/ "<base>" -- "<base-present-intended-path>"... | sha256sum`; omit `--cached` before approval and include it after staging. Report the scheme, exact base and path inputs, and digest only, never the diff stream.
+- `candidate-new-v1`: exclude paths absent from the base from both tracked fingerprints. For a regular file, run `sha256sum -- "<path>"` and `git hash-object --no-filters -- "<path>"`; never use `-w`. Active `filter`, `working-tree-encoding`, `text`, `eol`, or `ident` attributes, or `core.autocrlf` conversion, block approval until the would-be staged content is separately reviewable. For a symlink, bind mode `120000` with `readlink -n -- "<path>" | sha256sum` and `readlink -n -- "<path>" | git hash-object --stdin`; never use `-w`. Gitlinks with mode `160000` and other unsupported file types block approval. Treat a rename as a tracked deletion plus a separately bound new path.
+
+Report effective `core.fileMode`. When false, preserve base/index modes and block a candidate that intends a tracked mode change or new executable until it can be handled on a mode-capable worktree with H's ruling; never force `core.fileMode=true`. Disclose active content conversion on tracked paths; their authoritative candidate bytes are the Git diff bound by `candidate-tracked-v1` and displayed by the editor and terminal diff views.
+
 ## Review gate
 
-Before staging, prepare one complete candidate from `git status --short`, unstaged and staged binary diffs, and the full contents of readable intended untracked files. Represent a Safety-barred intended file only by the safe metadata and H ruling defined above. Report:
+Before staging, prepare one complete candidate from the complete status inventory, unstaged and staged binary diffs, and the full contents of readable intended untracked files. Represent a Safety-barred intended file only by the safe metadata and H ruling defined above. Report:
 
-- the exact intended paths and diff, including deletions, binary changes, and new files;
+- the exact base object ID, `candidate-status-v1` digest and reconciled counts, intended path/status/Git-mode manifest, explicit deletion and binary/opaque labels, diff stat, effective `core.fileMode`, `candidate-tracked-v1` inputs and digest, and every `candidate-new-v1` binding;
 - verification results, literal warnings, and anything not run;
 - the intended audience, candidate privacy-screen result, and any unreadable or opaque artifact rulings;
 - the proposed commit message; and
 - the proposed disposition of every scratch-looking untracked file.
+
+Do not reproduce the complete diff or intended new-file contents in the conversation unless H explicitly asks. Offer one compact reproduction block for the named bindings only on request; fingerprints bind the candidate but never substitute for H's editor review.
 
 Repeat this complete compact cheat sheet in every review packet until H asks to retire it, and tell H to review from a separate terminal pane at the repository root:
 
@@ -61,7 +73,7 @@ Repeat this complete compact cheat sheet in every review packet until H asks to 
 
 Offer the read-only terminal fallback `git status --short`, `git diff --stat HEAD`, `git diff HEAD`, and `git diff HEAD -- path/to/file`. Then use the tool's interactive selector with `Commit and resume` first, followed by `Commit and pause`. Use its built-in custom answer for questions, revision requests, rejection, and other instructions. Custom input never authorizes staging or commit. A revision request updates the current candidate: incorporate the comments, verify, and present a refreshed packet. Rejection preserves the candidate and worktree unless H explicitly requests disposal; approved disposal removes only candidate-owned changes and preserves unrelated and user-authored work. If custom input changes nothing, answer it, then present the same packet and selector again.
 
-Plan approval and skill invocation do not authorize a commit. Approval covers only the presented content, intended paths, message, audience, and scratch disposition. Any change to one of them requires a refreshed packet and selector. Interruption leaves the current worktree intact.
+Plan approval and skill invocation do not authorize a commit. Approval covers only the fingerprint-bound candidate content, intended paths, message, audience, and scratch disposition. Any change to one of them requires a refreshed packet and selector. Interruption leaves the current worktree intact.
 
 ## Staging and commit
 
@@ -71,7 +83,7 @@ Plan approval and skill invocation do not authorize a commit. Approval covers on
 - If a file mixes the current commit with unrelated changes, do not alter, stage, or temporarily revert the unrelated hunks. Defer the file or stop and ask the user how to split the work.
 - If the index already contains unrelated staged changes, stop rather than unstaging, replacing, or committing them.
 - Never stage sensitive files (.env, credentials, private keys).
-- Verify the staged patch and staged path set match the approved candidate exactly before committing. Any mismatch requires a new review.
+- Verify the exact staged path/status/mode set, cached `candidate-tracked-v1` digest, every staged `candidate-new-v1` mode and object, and absence of unstaged intended-path drift against the approved bindings before committing. Unrelated-only drift follows the `candidate-status-v1` reconciliation rule; any candidate mismatch requires a new review.
 
 ## Post-commit routing
 
