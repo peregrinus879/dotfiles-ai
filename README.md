@@ -75,19 +75,7 @@ make unstow    # remove managed package links
 
 Preparation preflights every managed endpoint before changing anything. It preserves regular files and directories, removes only links recognized as this package layout, and keeps runtime-state parents real. Reconcile any conflicting regular managed endpoint explicitly.
 
-### Codex Migration
-
-`make migrate-codex-config` is a separate cross-host transition command. It never runs through normal preparation or Stow.
-
-```bash
-make migrate-codex-config
-```
-
-The command seeds an absent config from `templates/codex/config.toml`, preserves an eligible owner-only regular config, or converts a managed symlink only when it resolves to this clone's exact `codex/.codex/config.toml`. Unrelated links, aliases, unsafe ownership or modes, multiple hard links, and unsupported file types fail before replacement.
-
-While the tracked Codex runtime endpoint remains in this package, do not run `make clean`, `make stow`, `make restow`, or `make verify` after a successful migration. Those targets continue to require the tracked deployment until a separately reviewed runtime-retirement change removes the endpoint.
-
-When moving clones, run `make unstow` in the old clone and `make stow` in the new clone before any later migration. If the old clone is unavailable, run the new clone's `make clean` before stowing; cleanup recognizes old-clone package links only to remove and restow them from the current clone.
+When moving clones, run `make unstow` in the old clone and `make stow` in the new clone. If the old clone is unavailable, run the new clone's `make clean` before stowing; cleanup recognizes old-clone package links only to remove and restow them from the current clone.
 
 ## Untrusted Checkouts
 
@@ -138,7 +126,7 @@ See [`docs/maintenance.md`](docs/maintenance.md) for the full cross-host checkli
 
 ## Maintenance
 
-Run `make verify` and `make lint` after changing tracked payloads. Review the maintenance ledger before major tool or plugin upgrades, permission or bridge changes, cross-host validation, `/doctor`, deferred work, or investigation of changed behavior. Restart OpenCode after changing its config, agents, skills, or plugins because they load at process startup.
+Run `make verify` and `make lint` after changing tracked payloads. The deferred `make migrate-codex-config` cross-host transition is not normal setup; after it succeeds, do not run `make clean`, `make stow`, `make restow`, or `make verify` until tracked runtime retirement. Review the maintenance ledger before major tool or plugin upgrades, permission or bridge changes, cross-host validation, `/doctor`, deferred work, or investigation of changed behavior. Restart OpenCode after changing its config, agents, skills, or plugins because they load at process startup.
 
 ## License
 
