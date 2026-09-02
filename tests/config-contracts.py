@@ -19,17 +19,6 @@ def require(condition: bool, message: str):
         raise AssertionError(message)
 
 
-def flatten_table(table: dict, prefix: tuple[str, ...] = ()) -> dict[tuple[str, ...], object]:
-    flattened: dict[tuple[str, ...], object] = {}
-    for key, value in table.items():
-        path = (*prefix, key)
-        if isinstance(value, dict):
-            flattened.update(flatten_table(value, path))
-        else:
-            flattened[path] = value
-    return flattened
-
-
 def require_recursive_subset(expected: dict, actual: dict, prefix: tuple[str, ...] = ()) -> None:
     for key, expected_value in expected.items():
         path = (*prefix, key)
@@ -42,17 +31,23 @@ def require_recursive_subset(expected: dict, actual: dict, prefix: tuple[str, ..
             require(actual_value == expected_value, f"tracked Codex runtime value changed at {'.'.join(path)}")
 
 
-CODEX_REVIEW_POLICY = """Approve only actions necessary for H's requested work. For request_permissions, approve turn-scoped filesystem reads needed to discover, inspect, search, or locally convert non-secret files or directories that H names or directs the agent to use; ordinary personal information and document formats are not credentials. Reject session-scoped grants, external writes, all other writes outside the workspace, subagent grants, secret or credential access, privileged actions, destructive state changes, uploads, remote mutations, and bypasses of safety checks. A local Git commit is eligible only after H explicitly approves the exact candidate in the conversation.
-"""
-
-CODEX_PORTABLE_FILESYSTEM = {
-    ":root": "deny",
-    ":minimal": "read",
-    ":tmpdir": "write",
-    ":slash_tmp": "write",
-}
-
-for managed_read_path in (
+CODEX_PORTABLE_TOP_LEVEL_KEYS = frozenset(
+    {
+        "model",
+        "model_reasoning_effort",
+        "model_reasoning_summary",
+        "service_tier",
+        "web_search",
+        "approval_policy",
+        "approvals_reviewer",
+        "default_permissions",
+        "auto_review",
+        "features",
+        "agents",
+        "permissions",
+    }
+)
+CODEX_MANAGED_READ_PATHS = (
     "~/.claude/CLAUDE.md",
     "~/.claude/settings.json",
     "~/.claude/statusline.sh",
@@ -66,26 +61,22 @@ for managed_read_path in (
     "~/.agents/skills",
     "~/.config/opencode",
     "~/.local/bin",
-):
-    CODEX_PORTABLE_FILESYSTEM[managed_read_path] = "read"
-
-for sensitive_home_path in (
-    ".aws",
-    ".claude/.credentials.json",
-    ".config/gh/hosts.yml",
-    ".codex/auth.json",
-    ".docker/config.json",
-    ".gnupg",
-    ".kube",
-    ".local/share/opencode/auth.json",
-    ".netrc",
-    ".npmrc",
-    ".pypirc",
-    ".ssh",
-):
-    CODEX_PORTABLE_FILESYSTEM[f"~/{sensitive_home_path}"] = "deny"
-
-for sensitive_home_glob in (
+)
+CODEX_SENSITIVE_HOME_PATHS = (
+    "~/.aws",
+    "~/.claude/.credentials.json",
+    "~/.config/gh/hosts.yml",
+    "~/.codex/auth.json",
+    "~/.docker/config.json",
+    "~/.gnupg",
+    "~/.kube",
+    "~/.local/share/opencode/auth.json",
+    "~/.netrc",
+    "~/.npmrc",
+    "~/.pypirc",
+    "~/.ssh",
+)
+CODEX_SENSITIVE_HOME_GLOBS = (
     "~/**/.env",
     "~/**/.env.*",
     "~/**/auth.json",
@@ -96,50 +87,113 @@ for sensitive_home_glob in (
     "~/**/*.p12",
     "~/**/*.pfx",
     "~/**/*credentials*",
-):
-    CODEX_PORTABLE_FILESYSTEM[sensitive_home_glob] = "deny"
+)
+CODEX_WORKSPACE_DENY_PATHS = (".env", ".env.*", "secrets", "**/*.key", "**/*.pem", "**/*credentials*")
+CODEX_FILESYSTEM_KEYS = frozenset(
+    {
+        ":root",
+        ":minimal",
+        ":tmpdir",
+        ":slash_tmp",
+        "glob_scan_max_depth",
+        ":workspace_roots",
+        *CODEX_MANAGED_READ_PATHS,
+        *CODEX_SENSITIVE_HOME_PATHS,
+        *CODEX_SENSITIVE_HOME_GLOBS,
+    }
+)
+CODEX_AUTO_REVIEW_POLICY = (
+    "Approve only actions necessary for H's requested work. For request_permissions, approve turn-scoped filesystem "
+    "reads needed to discover, inspect, search, or locally convert non-secret files or directories that H names or "
+    "directs the agent to use; ordinary personal information and document formats are not credentials. Reject "
+    "session-scoped grants, external writes, all other writes outside the workspace, subagent grants, secret or "
+    "credential access, privileged actions, destructive state changes, uploads, remote mutations, and bypasses of "
+    "safety checks. A local Git commit is eligible only after H explicitly approves the exact candidate in the "
+    "conversation.\n"
+)
 
-CODEX_PORTABLE_FILESYSTEM["glob_scan_max_depth"] = 64
 
-CODEX_PORTABLE_EXPECTED = {
-    "model": "gpt-5.6-sol",
-    "model_reasoning_effort": "xhigh",
-    "model_reasoning_summary": "auto",
-    "service_tier": "fast",
-    "web_search": "live",
-    "approval_policy": "on-request",
-    "approvals_reviewer": "auto_review",
-    "default_permissions": "trusted-workspace",
-    "auto_review": {"policy": CODEX_REVIEW_POLICY},
-    "features": {
-        "fast_mode": True,
-        "js_repl": False,
-        "request_permissions_tool": True,
-    },
-    "agents": {
-        "default_subagent_model": "gpt-5.6-sol",
-        "default_subagent_reasoning_effort": "xhigh",
-    },
-    "permissions": {
-        "trusted-workspace": {
-            "description": "Writable workspace with runtime-minimal reads, managed configuration reads, sensitive paths, and command network denied.",
-            "extends": ":workspace",
-            "filesystem": {
-                **CODEX_PORTABLE_FILESYSTEM,
-                ":workspace_roots": {
-                    ".": "write",
-                    ".env": "deny",
-                    ".env.*": "deny",
-                    "secrets": "deny",
-                    "**/*.key": "deny",
-                    "**/*.pem": "deny",
-                    "**/*credentials*": "deny",
-                },
-            },
-            "network": {"enabled": False},
-        }
-    },
-}
+def require_exact_keys(table: dict, expected: set[str] | frozenset[str], label: str) -> None:
+    require(set(table) == expected, f"{label} key set changed")
+
+
+def validate_codex_profile(config: dict, label: str, *, allow_top_level_extras: bool) -> None:
+    if allow_top_level_extras:
+        require(CODEX_PORTABLE_TOP_LEVEL_KEYS <= config.keys(), f"{label} lost a portable top-level key")
+    else:
+        require_exact_keys(config, CODEX_PORTABLE_TOP_LEVEL_KEYS, f"{label} top level")
+
+    require_exact_keys(config["auto_review"], {"policy"}, f"{label} auto_review")
+    require_exact_keys(
+        config["features"],
+        {"fast_mode", "js_repl", "request_permissions_tool"},
+        f"{label} features",
+    )
+    require_exact_keys(
+        config["agents"],
+        {"default_subagent_model", "default_subagent_reasoning_effort"},
+        f"{label} agents",
+    )
+    require_exact_keys(config["permissions"], {"trusted-workspace"}, f"{label} permissions")
+
+    profile = config["permissions"]["trusted-workspace"]
+    require_exact_keys(profile, {"description", "extends", "filesystem", "network"}, f"{label} profile")
+    filesystem = profile["filesystem"]
+    require_exact_keys(filesystem, CODEX_FILESYSTEM_KEYS, f"{label} filesystem")
+    workspace = filesystem[":workspace_roots"]
+    require_exact_keys(workspace, {".", *CODEX_WORKSPACE_DENY_PATHS}, f"{label} workspace roots")
+    require_exact_keys(profile["network"], {"enabled"}, f"{label} network")
+
+    for key, expected in (
+        ("model", "gpt-5.6-sol"),
+        ("model_reasoning_effort", "xhigh"),
+        ("model_reasoning_summary", "auto"),
+        ("service_tier", "fast"),
+        ("web_search", "live"),
+        ("approval_policy", "on-request"),
+        ("approvals_reviewer", "auto_review"),
+        ("default_permissions", "trusted-workspace"),
+    ):
+        require(config[key] == expected, f"{label} {key} drifted")
+
+    require(config["features"]["fast_mode"] is True, f"{label} Fast feature drifted")
+    require(config["features"]["js_repl"] is False, f"{label} js_repl drifted")
+    require(
+        config["features"]["request_permissions_tool"] is True,
+        f"{label} external-context permission tool drifted",
+    )
+    require(config["agents"]["default_subagent_model"] == "gpt-5.6-sol", f"{label} subagent model drifted")
+    require(
+        config["agents"]["default_subagent_reasoning_effort"] == "xhigh",
+        f"{label} subagent effort drifted",
+    )
+
+    policy = config["auto_review"]["policy"]
+    require(policy == CODEX_AUTO_REVIEW_POLICY, f"{label} auto-review policy drifted")
+
+    require("sandbox_mode" not in config, f"{label} mixes legacy sandbox with permission profile")
+    require(
+        isinstance(profile["description"], str) and profile["description"].strip(),
+        f"{label} profile description is empty",
+    )
+    require(profile["extends"] == ":workspace", f"{label} profile base drifted")
+    require(profile["network"]["enabled"] is False, f"{label} network deny drifted")
+    require(filesystem[":root"] == "deny", f"{label} filesystem root deny drifted")
+    require(filesystem[":minimal"] == "read", f"{label} runtime-minimal read drifted")
+    require(filesystem[":tmpdir"] == "write", f"{label} temp permission drifted")
+    require(filesystem[":slash_tmp"] == "write", f"{label} /tmp permission drifted")
+    require(
+        type(filesystem["glob_scan_max_depth"]) is int and filesystem["glob_scan_max_depth"] == 64,
+        f"{label} glob depth drifted",
+    )
+    for path in CODEX_MANAGED_READ_PATHS:
+        require(filesystem[path] == "read", f"{label} managed read root drifted: {path}")
+    for path in (*CODEX_SENSITIVE_HOME_PATHS, *CODEX_SENSITIVE_HOME_GLOBS):
+        require(filesystem[path] == "deny", f"{label} sensitive deny drifted: {path}")
+    require(workspace["."] == "write", f"{label} workspace write rule drifted")
+    for path in CODEX_WORKSPACE_DENY_PATHS:
+        require(workspace[path] == "deny", f"{label} workspace deny drifted: {path}")
+    require(".env.example" not in workspace, f"{label} exception weakens .env.* deny")
 
 
 claude = load_json("claude-code/.claude/settings.json")
@@ -164,16 +218,9 @@ for removed_path in (
 ):
     require(not (ROOT / removed_path).exists(), f"retired external-context artifact remains: {removed_path}")
 
-expected_portable = flatten_table(CODEX_PORTABLE_EXPECTED)
-actual_portable = flatten_table(codex_template)
-require(actual_portable.keys() == expected_portable.keys(), "Codex portable template flattened key set changed")
-for portable_path, expected_value in expected_portable.items():
-    require(
-        actual_portable[portable_path] == expected_value,
-        f"Codex portable template value changed at {'.'.join(portable_path)}",
-    )
+validate_codex_profile(codex_template, "Codex portable template", allow_top_level_extras=False)
+validate_codex_profile(codex, "tracked Codex runtime", allow_top_level_extras=True)
 require_recursive_subset(codex_template, codex)
-require("H" in codex_template["auto_review"]["policy"], "Codex portable policy lost H's approval boundary")
 
 openai_attribution = "Co-Authored-By: OpenAI {official display name of current model} <noreply@openai.com>"
 model_display_rule = "Use the provider's official human-facing display name"
@@ -609,100 +656,6 @@ HANDOFF_SENSITIVE_DENIES = (
     "../*var/tmp/spar-*/auth.json",
     "../*var/tmp/spar-*/secrets/*",
 )
-
-codex_profile = codex["permissions"]["trusted-workspace"]
-filesystem = codex_profile["filesystem"]
-workspace = filesystem[":workspace_roots"]
-require(codex["model"] == "gpt-5.6-sol", "Codex model pin drifted")
-require(codex["model_reasoning_effort"] == "xhigh", "Codex effort drifted")
-require(codex["model_reasoning_summary"] == "auto", "Codex reasoning summary drifted")
-require(codex["service_tier"] == "fast", "Codex Fast service tier drifted")
-require(codex["web_search"] == "live", "Codex primary web search drifted")
-require(codex["features"]["fast_mode"] is True, "Codex Fast feature drifted")
-require(
-    codex["features"]["request_permissions_tool"] is True,
-    "Codex external-context permission tool drifted",
-)
-require(codex["agents"]["default_subagent_model"] == "gpt-5.6-sol", "Codex subagent model drifted")
-require(
-    codex["agents"]["default_subagent_reasoning_effort"] == "xhigh",
-    "Codex subagent effort drifted",
-)
-require(codex["approval_policy"] == "on-request", "Codex approval policy drifted")
-require(codex["approvals_reviewer"] == "auto_review", "Codex automatic reviewer drifted")
-require(codex["default_permissions"] == "trusted-workspace", "Codex profile selection drifted")
-for boundary in (
-    "turn-scoped filesystem reads",
-    "non-secret files or directories",
-    "H names or directs the agent to use",
-    "discover, inspect, search, or locally convert",
-    "ordinary personal information and document formats are not credentials",
-    "session-scoped grants",
-    "external writes",
-    "subagent grants",
-    "secret or credential access",
-    "privileged actions",
-    "destructive state changes",
-    "remote mutations",
-    "writes outside the workspace",
-):
-    require(boundary in codex["auto_review"]["policy"], f"Codex auto-review boundary drifted: {boundary}")
-require("sandbox_mode" not in codex, "Codex mixes legacy sandbox with permission profile")
-require(codex_profile["extends"] == ":workspace", "Codex profile base drifted")
-require(codex_profile["network"]["enabled"] is False, "Codex network deny drifted")
-require(filesystem[":root"] == "deny", "Codex filesystem root deny drifted")
-require(filesystem[":minimal"] == "read", "Codex runtime-minimal read drifted")
-require(filesystem[":tmpdir"] == "write", "Codex temp permission drifted")
-require(filesystem[":slash_tmp"] == "write", "Codex /tmp permission drifted")
-require(filesystem["glob_scan_max_depth"] == 64, "Codex glob depth drifted")
-for path in (
-    "~/.claude/CLAUDE.md",
-    "~/.claude/settings.json",
-    "~/.claude/statusline.sh",
-    "~/.claude/agents",
-    "~/.claude/hooks",
-    "~/.claude/rules",
-    "~/.claude/skills/commit",
-    "~/.claude/skills/spar",
-    "~/.codex/AGENTS.md",
-    "~/.codex/config.toml",
-    "~/.agents/skills",
-    "~/.config/opencode",
-    "~/.local/bin",
-):
-    require(filesystem[path] == "read", f"Codex managed read root drifted: {path}")
-for path in (
-    "~/.aws",
-    "~/.claude/.credentials.json",
-    "~/.config/gh/hosts.yml",
-    "~/.codex/auth.json",
-    "~/.docker/config.json",
-    "~/.gnupg",
-    "~/.kube",
-    "~/.local/share/opencode/auth.json",
-    "~/.netrc",
-    "~/.npmrc",
-    "~/.pypirc",
-    "~/.ssh",
-):
-    require(filesystem[path] == "deny", f"Codex sensitive deny drifted: {path}")
-for path in (
-    "~/**/.env",
-    "~/**/.env.*",
-    "~/**/auth.json",
-    "~/**/secrets",
-    "~/**/secrets/**",
-    "~/**/*.key",
-    "~/**/*.pem",
-    "~/**/*.p12",
-    "~/**/*.pfx",
-    "~/**/*credentials*",
-):
-    require(filesystem[path] == "deny", f"Codex home sensitive deny drifted: {path}")
-require(workspace["."] == "write", "Codex workspace write rule drifted")
-for path in (".env", ".env.*", "secrets", "**/*.key", "**/*.pem", "**/*credentials*"):
-    require(workspace[path] == "deny", f"Codex workspace deny drifted: {path}")
-require(".env.example" not in workspace, "Codex template exception weakens .env.* deny")
 
 bash = opencode["permission"]["bash"]
 bash_items = list(bash.items())
