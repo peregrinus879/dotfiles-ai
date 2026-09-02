@@ -88,7 +88,7 @@ profile+='"**/*.key"="deny","**/*.key.*"="deny","**/*.key-*"="deny","**/*.key_*"
 profile+='"**/*.pem"="deny","**/*.pem.*"="deny","**/*.pem-*"="deny","**/*.pem_*"="deny","**/*.pem~*"="deny",'
 profile+='"**/*.p12"="deny","**/*.p12.*"="deny","**/*.p12-*"="deny","**/*.p12_*"="deny","**/*.p12~*"="deny",'
 profile+='"**/*.pfx"="deny","**/*.pfx.*"="deny","**/*.pfx-*"="deny","**/*.pfx_*"="deny","**/*.pfx~*"="deny",'
-profile+='"**/*credentials*"="deny","**/auth.json"="deny","**/auth.json.*"="deny","**/auth.json-*"="deny","**/auth.json_*"="deny","**/auth.json~*"="deny",'
+profile+='"**/credentials"="deny","**/credentials.*"="deny","**/auth.json"="deny","**/auth.json.*"="deny","**/auth.json-*"="deny","**/auth.json_*"="deny","**/auth.json~*"="deny",'
 profile+='"**/.netrc"="deny","**/.netrc.*"="deny","**/.netrc-*"="deny","**/.netrc_*"="deny","**/.netrc~*"="deny",'
 profile+='"**/.npmrc"="deny","**/.npmrc.*"="deny","**/.npmrc-*"="deny","**/.npmrc_*"="deny","**/.npmrc~*"="deny",'
 profile+='"**/.pypirc"="deny","**/.pypirc.*"="deny","**/.pypirc-*"="deny","**/.pypirc_*"="deny","**/.pypirc~*"="deny",'

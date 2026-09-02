@@ -92,7 +92,7 @@ def sensitive_path(value: str) -> bool:
             re.fullmatch(r"\.env(?:[._~-].*)?", name)
             or re.search(r"\.(?:key|pem|p12|pfx)(?:[._~-].*)?$", name)
             or re.fullmatch(r"secrets?(?:[._~-].*)?", name)
-            or "credentials" in name
+            or re.fullmatch(r"credentials(?:\..*)?", name)
             or re.fullmatch(r"auth\.json(?:[._~-].*)?", name)
             or re.fullmatch(r"\.(?:netrc|npmrc|pypirc)(?:[._~-].*)?", name)
             or re.fullmatch(r"id_(?:rsa|dsa|ecdsa|ed25519)(?:[._~-].*)?", name)

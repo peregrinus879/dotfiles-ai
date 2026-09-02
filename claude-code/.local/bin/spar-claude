@@ -100,7 +100,7 @@ settings=$(jq -cn --arg repo "$repo" --arg home "$account_home" '
         "Read(./**/*.pem)", "Read(./**/*.pem.*)", "Read(./**/*.pem-*)", "Read(./**/*.pem_*)", "Read(./**/*.pem~*)",
         "Read(./**/*.p12)", "Read(./**/*.p12.*)", "Read(./**/*.p12-*)", "Read(./**/*.p12_*)", "Read(./**/*.p12~*)",
         "Read(./**/*.pfx)", "Read(./**/*.pfx.*)", "Read(./**/*.pfx-*)", "Read(./**/*.pfx_*)", "Read(./**/*.pfx~*)",
-        "Read(./**/*credentials*)", "Read(./**/auth.json)", "Read(./**/auth.json.*)", "Read(./**/auth.json-*)", "Read(./**/auth.json_*)", "Read(./**/auth.json~*)",
+        "Read(./**/credentials)", "Read(./**/credentials.*)", "Read(./**/auth.json)", "Read(./**/auth.json.*)", "Read(./**/auth.json-*)", "Read(./**/auth.json_*)", "Read(./**/auth.json~*)",
         "Read(./**/.netrc)", "Read(./**/.netrc.*)", "Read(./**/.netrc-*)", "Read(./**/.netrc_*)", "Read(./**/.netrc~*)",
         "Read(./**/.npmrc)", "Read(./**/.npmrc.*)", "Read(./**/.npmrc-*)", "Read(./**/.npmrc_*)", "Read(./**/.npmrc~*)",
         "Read(./**/.pypirc)", "Read(./**/.pypirc.*)", "Read(./**/.pypirc-*)", "Read(./**/.pypirc_*)", "Read(./**/.pypirc~*)",

@@ -157,6 +157,7 @@ for header in "${sensitive_headers[@]}"; do
 done
 printf '%s\n' 'diff --git "a/public\040file" "b/public\040file"' 'diff --git a/public file b/public file' \
   'diff --git "a/caf\303\251.txt" b/public file.txt' '--- a/public' $'+++ b/public\tcomment' \
+  'diff --git a/docs/credentials-policy.md b/docs/credentials-policy.md' 'rename to secretary.md' \
   '+  diff --git a/.env b/.env' >"$TMP/art/safe-headers.md"
 printf 'Review.' | "$SCANNER" outbound "$TMP/art/safe-headers.md" >/dev/null 2>&1 ||
   fail "safe diff headers were rejected"
