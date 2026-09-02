@@ -165,19 +165,7 @@ verify:
 	  else echo "FAIL: $${b##*/} private handoff lifecycle drifted"; fail=1; fi; \
 	done; \
 	python3 tests/config-contracts.py || { echo "FAIL: config syntax or security contract drifted"; fail=1; }; \
-	if grep -Fq 'When H supplies wording for a website or document' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Preserve its intended meaning, facts, constraints, and appropriate voice' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'improving clarity, structure, tone, and audience fit' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'verbatim only when H requests exact wording' claude-code/.claude/rules/shared-guidance.md; then \
-	  echo "ok:   supplied-copy semantic contract"; \
-	else echo "FAIL: supplied-copy semantic contract drifted"; fail=1; fi; \
-	if grep -Fq 'When H asks to inspect or search context outside the workspace' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'including path discovery and local format conversion' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'do not require an exact filename, redaction, or a repository-owned format handler' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Ordinary personal and professional documents H directs the agent to use are not secret' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Never use broad working-root grants' claude-code/.claude/rules/shared-guidance.md; then \
-	  echo "ok:   generic external-context guidance contract"; \
-	else echo "FAIL: generic external-context guidance drifted"; fail=1; fi; \
+	python3 tests/docs-contracts.py || { echo "FAIL: documentation ownership or workflow contract drifted"; fail=1; }; \
 	skill_frontmatter_keys() { \
 	  awk 'NR == 1 { next } /^---$$/ { exit } /^[A-Za-z0-9_-]+:/ { key=$$1; sub(/:$$/, "", key); print key }' "$$1"; \
 	}; \
@@ -197,65 +185,6 @@ verify:
 	if grep -Fqx -- '- Persistent file-content changes use native edit tools, so each change surfaces a reviewable diff. Before a grouped patch runs, validate every source and move destination against the applicable containment and sensitive-path controls. When no all-target validator enforces those checks, modify exactly one file per patch call.' claude-code/.claude/rules/shared-guidance.md; then \
 	  echo "ok:   all-target apply_patch guidance"; \
 	else echo "FAIL: all-target apply_patch guidance missing"; fail=1; fi; \
-	if grep -Fq 'Plan approval authorizes the listed edits, verification, reviewer calls, and deployment steps, never a commit.' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Execute one approved commit unit at a time.' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Before every commit, run `/commit`' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Commit only after H approves that exact candidate.' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Do not reproduce the complete diff or intended new-file contents in the conversation unless H explicitly asks.' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Commit and resume | Commit and pause' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Resume only with remaining work authorized by H' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'A clear task request authorizes value-based read-only spar reviewer calls inside its scope.' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Trivial work may skip a formal plan, but never the exact pre-commit review.' claude-code/.claude/rules/shared-guidance.md; then \
-	  echo "ok:   exact-candidate authorization controls"; \
-	else echo "FAIL: exact-candidate authorization controls drifted"; fail=1; fi; \
-	if grep -Fq 'do not alter, stage, or temporarily revert the unrelated hunks' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq '`Commit and resume` first, followed by `Commit and pause`' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Any change to one of them requires a refreshed packet and selector.' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Use its built-in custom answer for questions, revision requests, rejection, and other instructions.' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Custom input never authorizes staging or commit.' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'A revision request updates the current candidate' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Rejection preserves the candidate and worktree unless H explicitly requests disposal' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'If custom input changes nothing, answer it, then present the same packet and selector again.' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq '`candidate-status-v1`: SHA-256 from the canonical command `git --no-optional-locks -c core.quotePath=true -c color.status=false -c status.renames=false status --porcelain=v2 -z --untracked-files=all | sha256sum`' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq '`candidate-tracked-v1`: capture one literal path list containing only intended paths present in the reported base' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'git --no-optional-locks -c core.quotePath=true -c color.ui=false -c color.diff=false -c core.compression=0 -c diff.orderFile=/dev/null -c diff.suppressBlankEmpty=false diff [--cached] --binary --full-index --no-ext-diff --no-textconv --no-renames --no-indent-heuristic --diff-algorithm=myers --unified=3 --no-relative --src-prefix=a/ --dst-prefix=b/ "<base>" -- "<base-present-intended-path>"... | sha256sum' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq '`candidate-new-v1`: exclude paths absent from the base from both tracked fingerprints.' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'report only the digest and reconciled total, intended, and preserved-unrelated counts' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Unrelated-only drift requires renewed inventory' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'never force `core.fileMode=true`' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'block a candidate that intends a tracked mode change or new executable' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'git hash-object --no-filters -- "<path>"' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'block approval until the would-be staged content is separately reviewable' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'For a symlink, bind mode `120000`' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'readlink -n -- "<path>" | git hash-object --stdin' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Gitlinks with mode `160000` and other unsupported file types block approval.' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Any normalization change requires a new scheme suffix' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Do not reproduce the complete diff or intended new-file contents in the conversation unless H explicitly asks.' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'exact staged path/status/mode set' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'never reproduces the complete diff or new-file contents unless the user asks' README.md && \
-	  grep -Fq 'Proceed only after `Commit and resume` or `Commit and pause`' claude-code/.claude/skills/commit/SKILL.md; then \
-	  echo "ok:   fingerprint-bound commit workflow controls"; \
-	else echo "FAIL: fingerprint-bound commit workflow controls drifted"; fail=1; fi; \
-	if grep -Fq 'Screen the message, paths, complete diff, and intended new-file contents' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'A binary or opaque candidate artifact that cannot be reviewed semantically' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Bind the review to a credential-free logical destination and audience' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'A destination state can narrow the review only when it is confirmed current' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'never through `!` or pasted session content' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'transient authenticated transfer endpoints remain opaque transport data' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Reconcile every inventoried commit-metadata, tag-metadata, path-version, action-metadata, and external-artifact record' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq '## Candidate privacy screen' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq '## Publication review and push hint' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'A no-ref-update pull request or release is valid when stated explicitly.' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Use it to narrow the review only when it is confirmed current' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'every included commit and annotated tag' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'every action-metadata field and value' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Any count mismatch, unmatched record, truncation, decode failure, unsupported object' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Never rely on a bare `git push`, a mutable local source ref, `push.default`, or `remote.*.push`' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'A differential-history review also requires an execution-time expected-old-value guard' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'Push: H handles manually. Do not push.' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Push: user handles manually. Do not push.' claude-code/.claude/skills/commit/SKILL.md; then \
-	  echo "ok:   commit privacy and publication review contracts"; \
-	else echo "FAIL: commit privacy or publication review drifted"; fail=1; fi; \
 	if node --experimental-strip-types tests/reviewed-writes.mjs; then \
 	  echo "ok:   opencode all-target patch plugin"; \
 	else echo "FAIL: opencode all-target patch plugin drifted"; fail=1; fi; \
