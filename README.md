@@ -58,16 +58,16 @@ cd eyragents
 Run from the repository root:
 
 ```bash
-make clean     # prepare state directories and remove recognized package links
-make stow      # prepare, then create managed links
-make dry-run   # preview raw Stow actions
-make restow    # prepare, then refresh managed links
-make unstow    # remove managed package links
+make clean     # remove dangling links that point into this repository's packages
+make stow      # clean, then link every package file (directories stay real)
+make dry-run   # preview Stow actions
+make restow    # clean, then refresh links after repo content changes
+make unstow    # remove package links
 ```
 
-Preparation validates managed endpoints, preserves host-local state, and removes only recognized package links. Reconcile conflicting regular managed endpoints explicitly.
+Stow runs without directory folding, so `~/.claude`, `~/.config/opencode`, and the other managed parents stay real directories that tools may write into. Stow reports any conflicting regular file without changing it; reconcile it explicitly.
 
-When moving clones, run `make unstow` in the old clone and `make stow` in the new clone. If the old clone is unavailable, run `make clean` from the new clone before stowing.
+When moving clones, run `make unstow` in the old clone and `make stow` in the new clone. If the old clone is unavailable, `make stow` from the new clone removes the dangling links first.
 
 ## Untrusted Checkouts
 

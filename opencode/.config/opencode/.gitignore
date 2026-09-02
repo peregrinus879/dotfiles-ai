@@ -1,3 +1,5 @@
+# Generated OpenCode state that an older folded deployment may have left inside
+# the package source stays untracked; a no-folding deployment never creates it.
 /package.json
 /package-lock.json
 /bun.lock

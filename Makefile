@@ -1,8 +1,11 @@
 # Maintenance automation for EyrAgents. Run from the repo root on any machine.
 # The package list here is the single source of truth for the stow command sets.
+# Stow runs without directory folding so every managed parent under $HOME stays
+# a real directory and only leaf files are links.
 
 SHELL := /bin/bash
 PACKAGES := claude-code codex opencode
+STOW := stow --no-folding -t ~
 SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
   claude-code/.local/bin/spar-claude \
   codex/.local/bin/spar-codex \
@@ -12,29 +15,29 @@ SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
 
 help:
 	@echo "Targets:"
-	@echo "  stow           Stow all packages into ~"
-	@echo "  unstow         Remove all package symlinks"
-	@echo "  dry-run        Preview raw Stow actions without running preparation"
-	@echo "  restow         Re-stow after repo content changes"
-	@echo "  migrate-codex-config  Safely convert Codex config to host-local state"
+	@echo "  stow           Clean dangling managed links, then stow all packages into ~"
+	@echo "  unstow         Remove all package links"
+	@echo "  dry-run        Preview Stow actions"
+	@echo "  restow         Clean, then refresh links after repo content changes"
+	@echo "  migrate-codex-config  Make ~/.codex/config.toml a host-local regular file"
 	@echo "  lint           ShellCheck and syntax checks over managed scripts"
 	@echo "  test           Fast tests: configuration boundaries, bridges, plugin, preparation"
 	@echo "  verify-deploy  Check every package file resolves to its deployed target"
 	@echo "  canary         Live client probes for project isolation flags"
 	@echo "  verify         lint, test, verify-deploy, and canary"
-	@echo "  clean          Safely prepare managed paths for stow"
+	@echo "  clean          Remove dangling links that point into this repository's packages"
 
 stow: clean
-	stow -v -t ~ $(PACKAGES)
+	$(STOW) -v $(PACKAGES)
 
 unstow:
-	stow -D -v -t ~ $(PACKAGES)
+	$(STOW) -D -v $(PACKAGES)
 
 dry-run:
-	stow -v -n -t ~ $(PACKAGES)
+	$(STOW) -n -v $(PACKAGES)
 
 restow: clean
-	stow -R -v -t ~ $(PACKAGES)
+	$(STOW) -R -v $(PACKAGES)
 
 migrate-codex-config:
 	bash scripts/prepare-stow.sh --migrate-codex-config
@@ -53,16 +56,12 @@ test:
 	bash tests/spar-bridges.sh
 	@echo "ok:   test"
 
-# Stow may tree-fold package subdirectories, so compare resolved managed-child
-# paths rather than requiring leaf links. Preparation keeps runtime-state roots
-# such as ~/.config/opencode real. GNU Stow ignores .gitignore by default; the
-# package-internal copies control fresh-clone state and are not deployed.
+# Every non-ignored package file must resolve to the same inode as its
+# deployed target, every package directory must be a real directory in $HOME,
+# and a retired source must leave no link behind. GNU Stow ignores .gitignore
+# files, so they are skipped.
 verify-deploy:
 	@fail=0; \
-	for command in git readlink stow; do \
-	  command -v "$$command" > /dev/null || { echo "FAIL: required verifier missing: $$command"; fail=1; }; \
-	done; \
-	[[ $$fail == 0 ]] || exit $$fail; \
 	while IFS= read -r -d '' src; do \
 	  [[ "$$src" == */.gitignore ]] && continue; \
 	  target="$$HOME/$${src#*/}"; \
@@ -80,36 +79,21 @@ verify-deploy:
 	    fi; \
 	    continue; \
 	  fi; \
-	  target_resolved=$$(readlink -f -- "$$target"); \
-	  src_resolved=$$(readlink -f -- "$$src"); \
-	  if [[ -n $$target_resolved && -n $$src_resolved && $$target_resolved == "$$src_resolved" ]]; then \
+	  if [[ $$(readlink -f -- "$$target") == "$$(readlink -f -- "$$src")" ]]; then \
 	    echo "ok:   $$target resolves into the repo"; \
 	  else \
 	    echo "FAIL: $$target does not resolve into the repo"; fail=1; \
 	  fi; \
 	done < <(git ls-files -z --cached --others --exclude-standard -- $(PACKAGES)); \
-	if [[ -d "$$HOME/.config/opencode" && ! -L "$$HOME/.config/opencode" ]]; then \
-	  echo "ok:   OpenCode config root is a real directory"; \
-	else echo "FAIL: OpenCode config root is not a real directory"; fail=1; fi; \
-	for path in package.json package-lock.json bun.lock bun.lockb; do \
-	  target="$$HOME/.config/opencode/$$path"; \
-	  if [[ ! -L $$target && ( ! -e $$target || -f $$target ) ]]; then \
-	    echo "ok:   OpenCode host-local file state: $$path"; \
-	  else echo "FAIL: OpenCode generated file is linked or has the wrong type: $$target"; fail=1; fi; \
-	done; \
-	target="$$HOME/.config/opencode/node_modules"; \
-	if [[ ! -L $$target && ( ! -e $$target || -d $$target ) ]]; then \
-	  echo "ok:   OpenCode host-local dependency state"; \
-	else echo "FAIL: OpenCode dependency state is linked or has the wrong type: $$target"; fail=1; fi; \
+	while IFS= read -r -d '' dir; do \
+	  target="$$HOME/$${dir#*/}"; \
+	  if [[ -d $$target && ! -L $$target ]]; then :; \
+	  else echo "FAIL: managed directory is folded or missing: $$target"; fail=1; fi; \
+	done < <(find $(PACKAGES) -mindepth 1 -type d -not -path '*/.git/*' -print0); \
 	for path in package.json package-lock.json bun.lock bun.lockb node_modules; do \
 	  target="opencode/.config/opencode/$$path"; \
 	  if [[ ! -e $$target && ! -L $$target ]]; then :; \
-	  else echo "FAIL: generated OpenCode root state reached the package source: $$target"; fail=1; fi; \
-	done; \
-	for path in package-lock.json bun.lock bun.lockb node_modules; do \
-	  target="opencode/.config/opencode/plugins/$$path"; \
-	  if [[ ! -e $$target && ! -L $$target ]]; then :; \
-	  else echo "FAIL: generated state appeared below the tracked plugin marker: $$target"; fail=1; fi; \
+	  else echo "FAIL: generated OpenCode state reached the package source: $$target"; fail=1; fi; \
 	done; \
 	for b in spar-claude spar-codex spar-payload-scan; do \
 	  if [[ -x "$$HOME/.local/bin/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
