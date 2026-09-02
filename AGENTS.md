@@ -21,8 +21,8 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 
 - Work on one approved commit unit at a time. Never alter, stage, or temporarily revert unrelated hunks; defer mixed files or ask H how to split them.
 - A plan authorizes its listed edits, verification, reviewer calls, and deployment steps, never a commit. Every commit requires H's approval of the exact candidate content, paths, message, audience, and scratch disposition.
-- `/commit` owns exact candidate preparation, editor review instructions, staging checks, commit routing, privacy screening, and publication review. Shared guidance owns the policy boundary.
-- H performs pushes manually. A push instruction requires a completed destination-bound publication review of every commit and artifact version the action would expose.
+- `/commit` owns exact candidate preparation, editor review instructions, staging checks, commit routing, privacy screening, and destination-bound publication review. Load it before every commit and every publication-readiness assessment.
+- H performs pushes manually. Before presenting a push, release, pull request, or other publication as ready, complete the skill's review of every commit and artifact version the action would expose.
 - Clear task requests authorize value-based read-only spar calls within scope. Review timing and breadth follow expected value, independence, risk, and available capacity.
 
 ## Security Boundaries
@@ -40,7 +40,7 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 - Bridges hard-code safety flags, isolate startup, reject caller-directed authentication, routing, state, and Git-control variables, and preflight authentication after payload validation. Repository checks reject unsafe roots, mounts, metadata, names, symlink shapes, and hard-link aliases before reviewer access.
 - Handoffs use one private mode-700 `/var/tmp/spar-<session-id>/` directory. The selected bridge creates, validates, flushes, scans, reports, and cleans it. Native handoff writes pass through the Claude hook or OpenCode plugin; shell writes remain gated.
 - `spar-payload-scan` bounds and scans outbound prompts, handoff files, replies, and diagnostics. It rejects linked, malformed, oversized, binary, non-UTF-8, instruction-shaped, credential-shaped, and sensitive-diff artifacts. Public synthetic fixtures are bound to exact detector spans.
-- Bridges validate ordered lifecycle events, requested reviewer identity, terminal success, nonempty rescanned replies, timeouts, and descendant cleanup. Bridge and scanner tests own the complete executable contract.
+- Bridges validate ordered lifecycle events, requested reviewer identity, terminal success, nonempty rescanned replies, timeouts, and descendant cleanup. Bridge and scanner tests exercise these executable controls.
 - `spar-codex` uses an inline root-denied, temporary-root-denied, repository-scoped profile with plugins, project instructions, skills, MCP, subagents, request-permission tools, and command network disabled.
 - `spar-codex` still receives trusted global `~/.codex/AGENTS.md` guidance. `spar-claude` remains subject to higher-precedence managed policy.
 - `spar-claude` is configured for safe mode, isolated setting sources, the Opus family alias at xhigh effort, explicit repository and handoff grants, credential denies, and only `Read`, `Glob`, and `Grep`.
@@ -50,6 +50,7 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 ### Claude Code
 
 - Claude Code uses `permissions.defaultMode: auto`, disables bypass mode, and retains built-in guardrails before managed overrides. The spar hook validates handoff writes while ordinary edits remain classifier-controlled.
+- Claude Code sandboxing remains disabled in tracked settings; any Omarchy trial stays untracked and follows the maintenance ledger.
 - The primary uses the durable Fable alias with xhigh effort. `workflowSizeGuideline: large` remains an advisory workflow-size setting.
 - The automatic shell allowlist stays narrow. Built-in read-only Bash forms need no duplicate allow rules; `gh search`, broad `jq`, and `opencode debug` are outside the managed allowlist.
 - `statusline.sh` owns its display and persistence conventions in its header. `/doctor` may delete local allowlists and rewrite `~/.claude.json`; review its findings and curate durable rules instead of restoring machine-local state wholesale.
@@ -87,6 +88,6 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 
 Skills provide specialized instructions and workflows. Load a matching skill before acting.
 
-- `commit`: prepare, review, and commit an exact atomic diff; perform publication review before a push instruction.
+- `commit`: prepare, review, and commit an exact atomic diff; review any push, release, pull request, or other publication before presenting it as ready.
 - `spar`: run value-based cross-model brainstorming, plan, build, and diff review.
 - `omarchy`: required for end-user Linux desktop, Hyprland, Omarchy, terminal, theme, and display configuration.

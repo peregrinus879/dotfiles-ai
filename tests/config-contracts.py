@@ -242,6 +242,7 @@ require(
     claude["env"]["CLAUDE_CODE_EFFORT_LEVEL"] == "xhigh",
     "Claude xhigh effort pin drifted",
 )
+require("sandbox" not in claude, "Claude tracked sandboxing must remain disabled")
 require("effortLevel" not in claude, "Claude effort must use the environment pin")
 require(claude["permissions"]["defaultMode"] == "auto", "Claude default mode drifted")
 require(

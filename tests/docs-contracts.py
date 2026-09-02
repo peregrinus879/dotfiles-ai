@@ -126,6 +126,22 @@ require_terms(
     ),
     "shared safety policy",
 )
+require_terms(
+    section(shared, "Work and Review"),
+    (
+        "Before every commit or publication-readiness assessment, load `/commit`",
+        "H approves one exact candidate before staging",
+        "requires a refreshed candidate",
+        "push, release, pull request, or other publication",
+        "Any unmatched record",
+    ),
+    "shared workflow authority",
+)
+require_terms(
+    section(agents, "Workflow Authority"),
+    ("publication-readiness assessment", "push, release, pull request, or other publication"),
+    "AGENTS publication authority",
+)
 
 expected_commit_sections = [
     "Format",
@@ -147,19 +163,52 @@ for skill in commit_skills:
         "commit documentation check",
     )
     require_terms(
+        section(skill, "Candidate bindings"),
+        ("candidate-status-v1", "candidate-tracked-v1", "candidate-new-v1"),
+        "commit candidate bindings",
+    )
+    require_terms(
+        section(skill, "Review gate"),
+        ("Custom input never authorizes staging or commit", "requires a refreshed packet"),
+        "commit review gate",
+    )
+    require_terms(
+        section(skill, "Staging and commit"),
+        ("Proceed only after", "exact staged path/status/mode set"),
+        "commit staging gate",
+    )
+    require_terms(
+        section(skill, "Rules"),
+        ("Push: user handles manually. Do not push.",),
+        "commit push ownership",
+    )
+    require_terms(
         section(skill, "Post-commit routing"),
         ("Commit and resume", "Commit and pause", "publication review automatically"),
         "commit completion routing",
     )
     require_terms(
         section(skill, "Publication review and push hint"),
-        ("single configured upstream", "default to world-readable", "immutable source", "expected-old-value guard"),
+        (
+            "push, release, pull request, or other publication",
+            "single configured upstream",
+            "default to world-readable",
+            "immutable source",
+            "Any count mismatch",
+            "Never rely on a bare `git push`",
+            "expected-old-value guard",
+        ),
         "commit publication review",
     )
 
-require(
-    "never reproduces the complete diff or new-file contents unless the user asks" in readme,
-    "README commit-review disclosure drifted",
+require_terms(
+    section(readme, "Workflows"),
+    (
+        "never reproduces the complete diff or new-file contents unless the user asks",
+        "before every commit or publication-readiness assessment",
+        "push, release, pull request, or other publication",
+    ),
+    "README commit workflow",
 )
 
 print("ok: documentation ownership and workflow contracts")

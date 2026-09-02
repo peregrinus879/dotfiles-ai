@@ -87,7 +87,7 @@ Claude Code reviews with Codex through `spar-codex`. Codex-to-Claude review runs
 
 ### Commit Review
 
-The `/commit` skill reviews and privacy-screens the complete candidate. Its packet reports fingerprint-bound scope and never reproduces the complete diff or new-file contents unless the user asks. After the final approved commit, it performs destination-bound publication review before presenting a push command.
+The `/commit` skill reviews and privacy-screens the complete candidate. Its packet reports fingerprint-bound scope and never reproduces the complete diff or new-file contents unless the user asks. Load it before every commit or publication-readiness assessment. It performs destination-bound review before presenting a push, release, pull request, or other publication as ready, including when no new commit is needed.
 
 ## Verify
 
@@ -101,7 +101,7 @@ make lint
 When practical, use fresh processes to confirm:
 
 - Claude Code, Codex, and OpenCode load their managed instructions, models, permissions, and credential-path denials.
-- `/commit` presents an exact candidate before staging and completes publication review before a push instruction.
+- `/commit` presents an exact candidate before staging and completes publication review before presenting any publication as ready.
 - `/spar` uses read-only reviewer bridges without changing user authority.
 
 Restart OpenCode after changing its config, agents, skills, or plugins because they load at process startup.
