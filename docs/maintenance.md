@@ -19,7 +19,17 @@ This ledger contains unresolved decisions, deferred work, active limitations, an
 
 ## Deferred Work
 
-- Complete the WSL host pass: inspect status and diff before pulling, and obtain H's approval before discarding any local edits to the retired `codex/.codex/config.toml`; keep config content out of chat and logs; run `make migrate-codex-config`, which seeds the host-local Codex config from the template because the old managed link dangles, then re-enable any desktop-app plugins locally; run `make restow` from the supplying clone, which unfolds the old directory links and removes dangling managed links; run `make verify`; add a WSL-compatible Codex installation; confirm OpenCode's app-temp root.
+- WSL host pass, for the agent to run in a session opened in the WSL clone, stopping at the first mismatch:
+  - Confirm the host: `/proc/version` names Microsoft, and `readlink -f ~/.claude/settings.json` resolves into this clone.
+  - Run `git status --short` and `git diff --stat`. If `codex/.codex/config.toml` carries local edits, show H the hunks and obtain a ruling before anything is discarded; keep config content out of chat and logs.
+  - `git pull --ff-only`.
+  - `make migrate-codex-config`; the old managed link dangles, so expect `installed host-local Codex config from .../templates/codex/config.toml` and a mode-600 single-link regular file. H then re-enables desktop-app plugins locally.
+  - `make restow`; report the dangling links it removed and confirm `~/.claude`, `~/.claude/rules`, `~/.claude/skills/*`, `~/.agents/skills/*`, and `~/.config/opencode` are real directories.
+  - `make verify`.
+  - Confirm `codex --version` runs; if Codex is not installed, add it through the same manager as Omarchy (`mise ls --current`) and record the version.
+  - Confirm OpenCode's default temp root is `/tmp/opencode`, which the `external_directory` allow depends on.
+  - One live `spar-codex review` from Claude Code and one live `spar-claude review` from OpenCode, each with a small artifact in this repository; record the result here and close the OpenCode-to-Claude limitation above if the second one reads its artifact.
+  - Report `claude --version`, `mise ls --current`, and `stat -c '%a %h' ~/.codex/config.toml` as the evidence, then remove this item.
 - Run `/fewer-permission-prompts` against accumulated host transcripts and promote only durable read-only rules. Keep `gh api` excluded.
 - Run fresh primary external-read canaries for Claude Code and Codex when each tool is next started.
 - Revisit native cross-model review when a managed tool provides a suitable read-only cross-vendor path under subscription authentication.
