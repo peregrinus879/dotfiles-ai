@@ -126,7 +126,7 @@ See [`docs/maintenance.md`](docs/maintenance.md) for the full cross-host checkli
 
 ## Maintenance
 
-Run `make verify` and `make lint` after changing tracked payloads. The deferred `make migrate-codex-config` cross-host transition is not normal setup; after it succeeds, do not run `make clean`, `make stow`, `make restow`, or `make verify` until tracked runtime retirement. Review the maintenance ledger before major tool or plugin upgrades, permission or bridge changes, cross-host validation, `/doctor`, deferred work, or investigation of changed behavior. Restart OpenCode after changing its config, agents, skills, or plugins because they load at process startup.
+Run `make verify` and `make lint` after changing tracked payloads. The deferred `make migrate-codex-config` cross-host transition documented in [`docs/maintenance.md`](docs/maintenance.md) is not normal setup; after it succeeds, do not run `make clean`, `make stow`, `make restow`, or `make verify` until tracked runtime retirement. Review the maintenance ledger before major tool or plugin upgrades, permission or bridge changes, cross-host validation, `/doctor`, deferred work, or investigation of changed behavior. Restart OpenCode after changing its config, agents, skills, or plugins because they load at process startup.
 
 ## License
 
