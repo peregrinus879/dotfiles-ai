@@ -232,7 +232,7 @@ verify:
 	  grep -Fq 'Any normalization change requires a new scheme suffix' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'Do not reproduce the complete diff or intended new-file contents in the conversation unless H explicitly asks.' claude-code/.claude/skills/commit/SKILL.md && \
 	  grep -Fq 'exact staged path/status/mode set' claude-code/.claude/skills/commit/SKILL.md && \
-	  grep -Fq 'never reproduces the complete diff or new-file contents unless H asks' README.md && \
+	  grep -Fq 'never reproduces the complete diff or new-file contents unless the user asks' README.md && \
 	  grep -Fq 'Proceed only after `Commit and resume` or `Commit and pause`' claude-code/.claude/skills/commit/SKILL.md; then \
 	  echo "ok:   fingerprint-bound commit workflow controls"; \
 	else echo "FAIL: fingerprint-bound commit workflow controls drifted"; fail=1; fi; \
