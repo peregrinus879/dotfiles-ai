@@ -13,5 +13,7 @@
 !skills/
 !skills/commit/
 !skills/commit/**
+!skills/publish/
+!skills/publish/**
 !skills/spar/
 !skills/spar/**

@@ -17,10 +17,12 @@ make_payload() {
   mkdir -p "$repo/claude-code/.claude/agents" \
     "$repo/claude-code/.claude/rules" \
     "$repo/claude-code/.claude/skills/commit" \
+    "$repo/claude-code/.claude/skills/publish" \
     "$repo/claude-code/.claude/skills/spar" \
     "$repo/claude-code/.local/bin" \
     "$repo/codex/.codex" \
     "$repo/codex/.agents/skills/commit" \
+    "$repo/codex/.agents/skills/publish" \
     "$repo/codex/.agents/skills/spar" \
     "$repo/codex/.local/bin" \
     "$repo/opencode/.config/opencode/plugins" \

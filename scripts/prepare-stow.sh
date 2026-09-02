@@ -186,6 +186,7 @@ prepare_claude() {
     queue_link "$HOME/.claude/rules" "claude-code/.claude/rules"
     if prepare_real_dir "$HOME/.claude/skills" "claude-code/.claude/skills"; then
       queue_link "$HOME/.claude/skills/commit" "claude-code/.claude/skills/commit"
+      queue_link "$HOME/.claude/skills/publish" "claude-code/.claude/skills/publish"
       queue_link "$HOME/.claude/skills/spar" "claude-code/.claude/skills/spar"
     fi
   else
@@ -204,6 +205,7 @@ prepare_codex() {
   if prepare_real_dir "$HOME/.agents" "codex/.agents"; then
     if prepare_real_dir "$HOME/.agents/skills" "codex/.agents/skills"; then
       queue_link "$HOME/.agents/skills/commit" "codex/.agents/skills/commit"
+      queue_link "$HOME/.agents/skills/publish" "codex/.agents/skills/publish"
       queue_link "$HOME/.agents/skills/spar" "codex/.agents/skills/spar"
     fi
   else
