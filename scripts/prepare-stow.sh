@@ -57,7 +57,7 @@ write_migration_temp() {
 }
 
 migrate_codex_config() {
-  local dependency script_dir repository_root template
+  local dependency script_dir repository_root template managed_source
   local home_path codex_root config target mode
 
   for dependency in cat chmod cmp id mktemp mv realpath rm stat sync; do
@@ -71,6 +71,7 @@ migrate_codex_config() {
   script_dir=$(dirname -- "${BASH_SOURCE[0]}")
   repository_root=$(realpath -e -- "$script_dir/..") || abort 'cannot resolve repository root'
   template="$repository_root/templates/codex/config.toml"
+  managed_source="$repository_root/codex/.codex/config.toml"
   require_safe_regular_file "$template" "Codex portable template"
 
   require_owner_controlled_directory "$home_path" 'HOME'
@@ -94,15 +95,13 @@ migrate_codex_config() {
 
   if [[ -L "$config" ]]; then
     target=$(realpath -e -- "$config") || abort "Codex config symlink is dangling: $config"
-    case "$target" in
-      */codex/.codex/config.toml) ;;
-      *) abort "Codex config symlink is not a recognized managed leaf: $config" ;;
-    esac
-    require_safe_regular_file "$target" "managed Codex config source"
-    write_migration_temp "$target" "$codex_root"
+    [[ "$target" == "$managed_source" ]] ||
+      abort "Codex config symlink does not target this repository's managed leaf: $config -> $target"
+    require_safe_regular_file "$managed_source" "managed Codex config source"
+    write_migration_temp "$managed_source" "$codex_root"
     [[ -L "$config" ]] || abort "Codex config changed during migration: $config"
-    [[ "$(realpath -e -- "$config")" == "$target" ]] || abort "Codex config target changed during migration: $config"
-    cmp -s -- "$MIGRATION_TMP" "$target" || abort "managed Codex config changed during migration"
+    [[ "$(realpath -e -- "$config")" == "$managed_source" ]] || abort "Codex config target changed during migration: $config"
+    cmp -s -- "$MIGRATION_TMP" "$managed_source" || abort "managed Codex config changed during migration"
     mv -T -- "$MIGRATION_TMP" "$config" || abort "cannot install migrated Codex config"
     MIGRATION_TMP=
     printf 'prepare-stow: converted managed Codex config to a host-local regular file\n'

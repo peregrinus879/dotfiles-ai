@@ -41,12 +41,21 @@ make_payload() {
   : >"$repo/opencode/.config/opencode/tools/.gitkeep"
 }
 
+make_migration_clone() {
+  local repo=$1
+  make_payload "$repo"
+  mkdir -p "$repo/scripts" "$repo/templates/codex"
+  cp -- "$ROOT/scripts/prepare-stow.sh" "$repo/scripts/prepare-stow.sh"
+  cp -- "$ROOT/templates/codex/config.toml" "$repo/templates/codex/config.toml"
+}
+
 run_prepare() {
   HOME=$1 bash "$ROOT/scripts/prepare-stow.sh"
 }
 
 run_migration() {
-  HOME=$1 bash "$ROOT/scripts/prepare-stow.sh" --migrate-codex-config
+  local home=$1 script=${2:-"$ROOT/scripts/prepare-stow.sh"}
+  HOME=$home bash "$script" --migrate-codex-config
 }
 
 case_fresh_home() {
@@ -316,12 +325,12 @@ case_codex_migration_managed_leaf() {
   local home="$TMP/migration-managed/home" repo="$TMP/migration-managed/eyragents"
   local config source_before source_after
   mkdir -p "$home/.codex"
-  make_payload "$repo"
+  make_migration_clone "$repo"
   printf 'host-specific tracked config\n' >"$repo/codex/.codex/config.toml"
   config="$home/.codex/config.toml"
   ln -s "$repo/codex/.codex/config.toml" "$config"
   source_before=$(sha256sum "$repo/codex/.codex/config.toml")
-  run_migration "$home"
+  run_migration "$home" "$repo/scripts/prepare-stow.sh"
   source_after=$(sha256sum "$repo/codex/.codex/config.toml")
   [[ $source_before == "$source_after" ]] || fail "migration changed the managed Codex source"
   [[ -f $config && ! -L $config ]] || fail "managed Codex leaf was not converted to a regular file"
@@ -367,15 +376,27 @@ case_codex_migration_refusals() {
   fi
   [[ -L $home/.codex/config.toml ]] || fail "failed migration changed an unmanaged Codex config symlink"
 
+  home="$TMP/migration-other-clone/home"
+  repo="$TMP/migration-other-clone/eyragents"
+  mkdir -p "$home/.codex"
+  make_payload "$repo"
+  printf 'other clone\n' >"$repo/codex/.codex/config.toml"
+  ln -s "$repo/codex/.codex/config.toml" "$home/.codex/config.toml"
+  if run_migration "$home" >/dev/null 2>&1; then
+    fail "migration accepted a managed Codex source from another clone"
+  fi
+  [[ -L $home/.codex/config.toml ]] || fail "failed migration changed another clone's Codex config"
+  [[ $(<"$repo/codex/.codex/config.toml") == "other clone" ]] || fail "failed migration changed another clone's source"
+
   home="$TMP/migration-aliased/home"
   repo="$TMP/migration-aliased/eyragents"
   mkdir -p "$home/.codex" "$TMP/migration-aliased/source"
-  make_payload "$repo"
+  make_migration_clone "$repo"
   printf 'aliased\n' >"$TMP/migration-aliased/source/config.toml"
   rm -- "$repo/codex/.codex/config.toml"
   ln -s "$TMP/migration-aliased/source/config.toml" "$repo/codex/.codex/config.toml"
   ln -s "$repo/codex/.codex/config.toml" "$home/.codex/config.toml"
-  if run_migration "$home" >/dev/null 2>&1; then
+  if run_migration "$home" "$repo/scripts/prepare-stow.sh" >/dev/null 2>&1; then
     fail "migration accepted an aliased managed Codex source"
   fi
   [[ -L $home/.codex/config.toml ]] || fail "failed migration changed an aliased Codex config"
@@ -440,22 +461,24 @@ EOF
 
 case_codex_migration_atomic_failure() {
   local home="$TMP/migration-atomic/home" repo="$TMP/migration-atomic/eyragents"
-  local fake_bin="$TMP/migration-atomic/bin" config path
+  local fake_bin="$TMP/migration-atomic/bin" config path sync_called="$TMP/migration-atomic/sync-called"
   mkdir -p "$home/.codex" "$fake_bin"
-  make_payload "$repo"
+  make_migration_clone "$repo"
   config="$home/.codex/config.toml"
   printf 'durable source\n' >"$repo/codex/.codex/config.toml"
   ln -s "$repo/codex/.codex/config.toml" "$config"
   printf 'keep\n' >"$home/.codex/.config.toml.migrate.keep"
   cat >"$fake_bin/sync" <<'EOF'
 #!/usr/bin/env bash
+: >"$SYNC_CALLED"
 exit 1
 EOF
   chmod 755 "$fake_bin/sync"
-  if PATH="$fake_bin:$PATH" HOME="$home" \
-    bash "$ROOT/scripts/prepare-stow.sh" --migrate-codex-config >/dev/null 2>&1; then
+  if SYNC_CALLED="$sync_called" PATH="$fake_bin:$PATH" HOME="$home" \
+    bash "$repo/scripts/prepare-stow.sh" --migrate-codex-config >/dev/null 2>&1; then
     fail "migration succeeded after its durability step failed"
   fi
+  [[ -f $sync_called ]] || fail "migration failed before reaching its durability step"
   [[ -L $config ]] || fail "failed migration replaced the managed Codex symlink"
   [[ $(<"$config") == "durable source" ]] || fail "failed migration changed managed Codex bytes"
   shopt -s nullglob
