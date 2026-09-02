@@ -26,8 +26,8 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 ## Reviewer Bridges
 
 - Claude Code reviews with Codex through `spar-codex`. Codex reviews with Claude manually outside its strict profile. OpenCode's configured Claude path is `spar-claude`; active availability is recorded in the maintenance ledger.
-- Bridges hard-code read-only, offline, subscription-authenticated reviewer launches from the caller's repository root and relay scanned replies. Handoffs use one private `/var/tmp/spar-<session-id>/` directory that the bridge creates, validates, flushes, scans, and cleans; native handoff writes pass the Claude hook or OpenCode plugin.
-- `spar-payload-scan` bounds and scans outbound prompts, handoff files, and replies for credential-shaped values and sensitive diff paths.
+- Each bridge runs one read-only, offline, subscription-authenticated, single-turn reviewer from the caller's repository root and only when `git config spar.consent` is true there. Flags are hard-coded in the bridge: the reviewer reads the repository except Git internals and credential-shaped paths, has no write, shell, web, MCP, plugin, subagent, or project-instruction surface, and runs under a hard timeout in its own process group.
+- `spar-payload-scan` bounds the request and artifact files, rejects credential-shaped values and sensitive diff paths, inlines the artifacts into the prompt, and rescans the reply. Artifacts live in the session scratch directory; no handoff directory, hook, or plugin grant exists.
 
 ## State and Deployment
 

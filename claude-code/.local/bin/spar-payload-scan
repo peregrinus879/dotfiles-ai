@@ -1,27 +1,31 @@
 #!/usr/bin/python3 -I
-"""Bound and scan spar payloads without exposing rejected bytes."""
+"""Bound, scan, and assemble spar reviewer payloads without exposing rejected bytes.
+
+Modes:
+  outbound [artifact-file...]  read the review request on stdin, read each
+      artifact file, reject credential-shaped values and sensitive diff paths in
+      any of them, and write the assembled prompt (request followed by one
+      delimited section per artifact) on stdout
+  reply  read a reviewer reply on stdin and reject credential-shaped values
+
+Exit codes: 0 accepted, 2 rejected or malformed input, 64 usage. Diagnostics
+name the rule and line, never the matched bytes.
+"""
 
 from __future__ import annotations
 
 import bisect
-import hashlib
 import os
 import re
 import shlex
 import stat
 import sys
-import unicodedata
 from dataclasses import dataclass
-from pathlib import Path
 
-
-DETECTOR_SCHEMA = "spar-content-v1"
-PROMPT_MAX = 256 * 1024
-ENTRY_MAX = 512 * 1024
+REQUEST_MAX = 256 * 1024
+ARTIFACT_MAX = 512 * 1024
 TOTAL_MAX = 1024 * 1024
-ENTRY_COUNT_MAX = 128
 FINDING_REPORT_MAX = 8
-HANDOFF_RE = re.compile(r"^/var/tmp/spar-[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
 
 PATTERN_ENVELOPE = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")
 PATTERN_PROVIDER_A = re.compile(r"\bsk-[A-Za-z0-9_-]{16,}\b")
@@ -39,34 +43,25 @@ PATTERN_SAFE_VALUE = re.compile(
     r"fake(?:[-_ ][a-z0-9]+)*|test(?:[-_ ][a-z0-9]+)*|your[-_ ][a-z0-9_-]+|"
     r"\$\{[A-Z_][A-Z0-9_]*\}|\{env:[^}\r\n]+\}|<[^>\r\n]{1,80}>)"
 )
-PATTERN_PACKAGE_AUTH = re.compile(
-    r"(?im)^[ \t+\-]*//[^\r\n]*:_authToken\s*=\s*([^\s#]+)"
-)
+PATTERN_PACKAGE_AUTH = re.compile(r"(?im)^[ \t+\-]*//[^\r\n]*:_authToken\s*=\s*([^\s#]+)")
 PATTERN_NETRC_VALUE = re.compile(r"(?im)^[ \t+\-]*password\s+(\S+)")
 PATTERN_NETRC_HOST = re.compile(r"(?im)^[ \t+\-]*machine\s+\S+")
+PATTERN_QUOTED = re.compile(r'"(?:[^"\\]|\\.)*"')
 
-RESERVED_HANDOFF_NAMES = {
-    ".git",
-    "agents.md",
-    "agents.override.md",
-    "claude.md",
-    "claude.local.md",
-    "reviewer-id",
-}
-
-# These detector-span digests identify public synthetic values already present
-# in this repository. Any changed span remains blocked.
-PUBLIC_FINDINGS = frozenset(
-    {
-        ("cloud-access-id-v1", "90df53b892f02c56a9ac257e62b03dec2b71b1b92005e62a12c9eb7365a658f0"),
-        ("credential-assignment-v1", "35073e528e7a1e75b3dfdfcd6737e4d505fbe0d61ecaffb854affae141599a54"),
-        ("credential-assignment-v1", "3a190e6f2167eace506544001d96cbccd41b60c154d3d554f65afe6538617ff0"),
-        ("provider-c-token-v1", "f9a6ae28ec3a6ec93bd3e0854df808528823669b3a2d89f628a5e0c395eb26cc"),
-        ("credential-assignment-v1", "88410c8e88290dedce53fdfe0050b07db6813a02b0196b746554273b6172eae5"),
-        ("key-envelope-v1", "2bbbd02db29ea579a75b63dd32d112600c61b73232b210a613bf6c17e58ae3ff"),
-        ("provider-b-token-v1", "e75d8f87b5e64a0cc6970fca5b675619a1429eb0cb4e6d8b9d0c6ecc2dd76770"),
-    }
+DIFF_HEADER_PREFIXES = (
+    "diff --git ",
+    "diff --cc ",
+    "diff --combined ",
+    "--- ",
+    "+++ ",
+    "rename from ",
+    "rename to ",
+    "rename old ",
+    "rename new ",
+    "copy from ",
+    "copy to ",
 )
+GIT_C_ESCAPES = {"a": "\a", "b": "\b", "t": "\t", "n": "\n", "v": "\v", "f": "\f", "r": "\r", '"': '"', "\\": "\\"}
 
 
 @dataclass(frozen=True)
@@ -74,24 +69,6 @@ class Finding:
     label: str
     line: int
     rule: str
-    span: bytes
-
-    @property
-    def digest(self) -> str:
-        payload = b"\0".join(
-            (
-                b"spar-public-vector-v1",
-                DETECTOR_SCHEMA.encode(),
-                self.rule.encode(),
-                self.span,
-            )
-        )
-        return hashlib.sha256(payload).hexdigest()
-
-
-def abort(message: str) -> None:
-    print(f"SPAR-PAYLOAD ABORT: {message}", file=sys.stderr)
-    raise SystemExit(2)
 
 
 def reject(label: str, rule: str) -> None:
@@ -105,286 +82,76 @@ def safe_assignment_value(value: str) -> bool:
     except ValueError:
         return False
     return not tokens or (
-        len(tokens) == 1
-        and (tokens[0] == "" or PATTERN_SAFE_VALUE.fullmatch(tokens[0]) is not None)
+        len(tokens) == 1 and (tokens[0] == "" or PATTERN_SAFE_VALUE.fullmatch(tokens[0]) is not None)
     )
 
 
 def sensitive_path(value: str) -> bool:
-    parts = value.lower().split("/")
-
     def sensitive_component(name: str) -> bool:
-        return (
-            re.fullmatch(r"\.env(?:[._~-].*)?", name) is not None
-            or re.search(r"\.(?:key|pem|p12|pfx)(?:[._~-].*)?$", name) is not None
-            or re.fullmatch(r"secrets?(?:[._~-].*)?", name) is not None
+        return bool(
+            re.fullmatch(r"\.env(?:[._~-].*)?", name)
+            or re.search(r"\.(?:key|pem|p12|pfx)(?:[._~-].*)?$", name)
+            or re.fullmatch(r"secrets?(?:[._~-].*)?", name)
             or "credentials" in name
-            or re.fullmatch(r"auth\.json(?:[._~-].*)?", name) is not None
-            or re.fullmatch(r"\.(?:netrc|npmrc|pypirc)(?:[._~-].*)?", name) is not None
-            or re.fullmatch(r"id_(?:rsa|dsa|ecdsa|ed25519)(?:[._~-].*)?", name) is not None
+            or re.fullmatch(r"auth\.json(?:[._~-].*)?", name)
+            or re.fullmatch(r"\.(?:netrc|npmrc|pypirc)(?:[._~-].*)?", name)
+            or re.fullmatch(r"id_(?:rsa|dsa|ecdsa|ed25519)(?:[._~-].*)?", name)
         )
 
-    return any(sensitive_component(part) for part in parts)
+    return any(sensitive_component(part) for part in value.lower().split("/"))
 
 
-def validate_repository_paths(root: Path) -> None:
-    try:
-        metadata = root.lstat()
-    except OSError:
-        reject("repository", "cannot inspect repository root")
-    if not stat.S_ISDIR(metadata.st_mode) or root.is_symlink():
-        reject("repository", "repository root is not a real directory")
-
-    def walk_error(_error: OSError) -> None:
-        reject("repository", "cannot enumerate repository paths")
-
-    def validate_spelling(name: str) -> None:
-        try:
-            name.encode("utf-8")
-        except UnicodeEncodeError:
-            reject("repository", "non-UTF-8 repository path")
-        if any(character in name for character in ("\\", "'", '"')) or any(
-            unicodedata.category(character) == "Cc" for character in name
-        ):
-            reject("repository", "repository path cannot be represented safely")
-
-    def validate_name(name: str) -> tuple[str, bool]:
-        validate_spelling(name)
-        folded = name.lower()
-        sensitive = sensitive_path(name)
-        if (sensitive or folded == ".git") and name != folded:
-            reject("repository", "case-variant sensitive repository path")
-        return folded, sensitive
-
-    for component in root.parts:
-        if component != root.anchor:
-            validate_spelling(component)
-
-    for current, directories, files in os.walk(root, topdown=True, followlinks=False, onerror=walk_error):
-        relative_parent = os.path.relpath(current, root)
-        inside_recursive_secrets = "secrets" in Path(relative_parent).parts
-        retained = []
-        for name in directories:
-            folded, sensitive = validate_name(name)
-            relative = name if relative_parent == "." else f"{relative_parent}/{name}"
-            candidate = Path(current, name)
-            if candidate.is_symlink():
-                if folded == ".git" or sensitive or inside_recursive_secrets:
-                    reject("repository", "repository symlink cannot be covered by reviewer deny globs")
-                continue
-            if folded == ".git":
-                if relative != ".git":
-                    reject("repository", "nested Git metadata directory")
-                continue
-            if inside_recursive_secrets:
-                retained.append(name)
-                continue
-            if sensitive:
-                if name == "secrets":
-                    if relative == "secrets":
-                        continue
-                    retained.append(name)
-                    continue
-                reject("repository", "sensitive repository directory needs an exact subtree deny")
-            retained.append(name)
-        directories[:] = retained
-
-        for name in files:
-            folded, sensitive = validate_name(name)
-            if Path(current, name).is_symlink() and (
-                folded == ".git" or sensitive or inside_recursive_secrets
-            ):
-                reject("repository", "repository symlink cannot be covered by reviewer deny globs")
-
-
-GIT_C_ESCAPES = {
-    "a": 7,
-    "b": 8,
-    "t": 9,
-    "n": 10,
-    "v": 11,
-    "f": 12,
-    "r": 13,
-    '"': 34,
-    "\\": 92,
-}
-
-
-def decode_quoted_git_path(value: str, start: int = 0) -> tuple[str, int]:
-    decoded = bytearray()
-    index = start + 1
-    while index < len(value):
-        character = value[index]
+def unquote_git_path(value: str) -> str:
+    """Decode one Git C-quoted path; raise ValueError on malformed quoting."""
+    body = value[1:-1]
+    decoded = []
+    index = 0
+    while index < len(body):
+        character = body[index]
         if character == '"':
-            try:
-                path = decoded.decode("utf-8")
-            except UnicodeDecodeError as error:
-                raise ValueError("non-UTF-8 Git path") from error
-            if "\0" in path:
-                raise ValueError("NUL in Git path")
-            return path, index + 1
+            raise ValueError("unescaped quote")
         if character != "\\":
-            decoded.extend(character.encode("utf-8"))
+            decoded.append(character)
             index += 1
             continue
         index += 1
-        if index >= len(value):
-            raise ValueError("truncated Git path escape")
-        escaped = value[index]
+        if index >= len(body):
+            raise ValueError("truncated escape")
+        escaped = body[index]
         if escaped in GIT_C_ESCAPES:
             decoded.append(GIT_C_ESCAPES[escaped])
             index += 1
             continue
-        digits = value[index : index + 3]
-        if (
-            escaped not in "0123"
-            or len(digits) != 3
-            or any(digit not in "01234567" for digit in digits[1:])
-        ):
-            raise ValueError("invalid Git path escape")
-        decoded.append(int(digits, 8))
+        octal = body[index : index + 3]
+        if len(octal) != 3 or any(digit not in "01234567" for digit in octal):
+            raise ValueError("invalid escape")
+        decoded.append(chr(int(octal, 8)))
         index += 3
-
-    raise ValueError("unterminated Git path")
-
-
-def decode_git_path(value: str) -> str:
-    if not value:
-        raise ValueError("empty Git path")
-    if not value.startswith('"'):
-        if '"' in value or "\\" in value or any(
-            unicodedata.category(character) == "Cc" for character in value
-        ):
-            raise ValueError("malformed Git path quoting")
-        return value
-
-    path, end = decode_quoted_git_path(value)
-    if end != len(value):
-        raise ValueError("extra Git path data")
+    path = "".join(decoded)
+    if "\0" in path:
+        raise ValueError("NUL in path")
     return path
 
 
-def split_git_header_paths(value: str) -> list[str] | None:
-    if not value:
-        raise ValueError("missing Git path")
+def diff_header_sensitive(value: str) -> bool:
+    """Decide conservatively whether a diff header names a sensitive path.
 
-    if value.startswith('"'):
-        first, end = decode_quoted_git_path(value)
-        rest = value[end:]
-        if not rest.startswith(" "):
-            raise ValueError("missing Git path")
-        rest = rest[1:]
-        if not rest:
-            raise ValueError("missing Git path")
-        return [first, decode_git_path(rest)]
-
-    quote = value.find('"')
-    if quote >= 0:
-        if quote == 0 or value[quote - 1] != " ":
-            raise ValueError("malformed Git path quoting")
-        first = value[: quote - 1]
-        if not first or "\\" in first:
-            raise ValueError("malformed Git path quoting")
-        return [decode_git_path(first), decode_git_path(value[quote:])]
-
-    if "\\" in value:
-        raise ValueError("malformed Git path quoting")
-
-    candidates = []
-    if value.startswith("a/"):
-        for index in range(2, len(value) - 2):
-            if value[index : index + 3] != " b/":
-                continue
-            first = value[:index]
-            second = value[index + 1 :]
-            if first.removeprefix("a/") == second.removeprefix("b/"):
-                candidates.append([first, second])
-    else:
-        for index, character in enumerate(value):
-            if character != " ":
-                continue
-            first = value[:index]
-            second = value[index + 1 :]
-            if first and first == second:
-                candidates.append([first, second])
-    if len(candidates) == 1:
-        return [decode_git_path(path) for path in candidates[0]]
-    return None
-
-
-def resolve_ambiguous_git_header(value: str, paths: dict[str, list[str]]) -> list[str]:
-    def matches(header_path: str, path: str) -> bool:
-        return header_path == path or header_path.endswith(f"/{path}")
-
-    candidates = []
-    for index, character in enumerate(value):
-        if character != " ":
-            continue
-        if value.startswith("a/") and value[index : index + 3] != " b/":
-            continue
-        first = value[:index]
-        second = value[index + 1 :]
-        if not first or not second:
-            continue
-        if any(matches(first, path) for path in paths["old"]) and any(
-            matches(second, path) for path in paths["new"]
-        ):
-            candidates.append([first, second])
-    if len(candidates) != 1:
-        raise ValueError("unresolved Git diff header")
-    return [decode_git_path(path) for path in candidates[0]]
-
-
-def diff_paths(text: str):
-    pending_header = None
-    pending_paths = {"old": [], "new": []}
-    path_prefixes = {
-        "--- ": "old",
-        "+++ ": "new",
-        "rename from ": "old",
-        "rename to ": "new",
-        "rename old ": "old",
-        "rename new ": "new",
-        "copy from ": "old",
-        "copy to ": "new",
-    }
-
-    for line in text.split("\n"):
-        if line.startswith("diff --git "):
-            if pending_header is not None:
-                yield from resolve_ambiguous_git_header(pending_header, pending_paths)
-            pending_header = None
-            pending_paths = {"old": [], "new": []}
-            value = line[len("diff --git ") :]
-            paths = split_git_header_paths(value)
-            if paths is None:
-                pending_header = value
-            else:
-                yield from paths
-            continue
-        for prefix in ("diff --cc ", "diff --combined "):
-            if line.startswith(prefix):
-                if pending_header is not None:
-                    yield from resolve_ambiguous_git_header(pending_header, pending_paths)
-                pending_header = None
-                pending_paths = {"old": [], "new": []}
-                yield decode_git_path(line[len(prefix) :])
-                break
-        else:
-            for prefix, side in path_prefixes.items():
-                if not line.startswith(prefix):
-                    continue
-                value = line[len(prefix) :]
-                if prefix in ("--- ", "+++ "):
-                    value = value.split("\t", 1)[0]
-                path = decode_git_path(value)
-                if pending_header is not None:
-                    pending_paths[side].append(path)
-                yield path
-                break
-
-    if pending_header is not None:
-        yield from resolve_ambiguous_git_header(pending_header, pending_paths)
+    Every quoted segment, every whitespace-delimited token, and the whole value
+    are checked, so a space-bearing name can only over-reject, never hide a
+    sensitive component. Malformed quoting raises ValueError.
+    """
+    if any(ord(character) < 32 for character in value):
+        raise ValueError("control character in header")
+    candidates = [value]
+    remainder = value
+    for match in PATTERN_QUOTED.finditer(value):
+        candidates.append(unquote_git_path(match.group(0)))
+        remainder = remainder.replace(match.group(0), " ", 1)
+    if '"' in remainder or "\\" in remainder:
+        raise ValueError("malformed quoting")
+    candidates.extend(value.split())
+    candidates.extend(candidate[2:] for candidate in list(candidates) if candidate.startswith(("a/", "b/")))
+    return any(sensitive_path(candidate) for candidate in candidates)
 
 
 def decode_text(label: str, data: bytes) -> str:
@@ -396,8 +163,7 @@ def decode_text(label: str, data: bytes) -> str:
         reject(label, "non-UTF-8 content")
 
 
-def content_findings(label: str, data: bytes, check_paths: bool) -> list[Finding]:
-    text = decode_text(label, data)
+def content_findings(label: str, text: str, check_paths: bool) -> list[Finding]:
     newline_offsets = [match.start() for match in re.finditer("\n", text)]
 
     def line_number(offset: int) -> int:
@@ -405,12 +171,19 @@ def content_findings(label: str, data: bytes, check_paths: bool) -> list[Finding
 
     findings: list[Finding] = []
     if check_paths:
-        try:
-            for path in diff_paths(text):
-                if sensitive_path(path):
-                    reject(label, "sensitive diff path")
-        except ValueError:
-            reject(label, "malformed Git diff path")
+        for number, line in enumerate(text.split("\n"), start=1):
+            for prefix in DIFF_HEADER_PREFIXES:
+                if not line.startswith(prefix):
+                    continue
+                value = line[len(prefix) :]
+                if prefix in ("--- ", "+++ "):
+                    value = value.split("\t", 1)[0]
+                try:
+                    if diff_header_sensitive(value):
+                        findings.append(Finding(label, number, "sensitive-diff-path-v1"))
+                except ValueError:
+                    findings.append(Finding(label, number, "malformed-diff-path-v1"))
+                break
 
     for rule, pattern in (
         ("key-envelope-v1", PATTERN_ENVELOPE),
@@ -420,178 +193,90 @@ def content_findings(label: str, data: bytes, check_paths: bool) -> list[Finding
         ("cloud-access-id-v1", PATTERN_CLOUD_ID),
     ):
         for match in pattern.finditer(text):
-            findings.append(
-                Finding(label, line_number(match.start()), rule, match.group(0).encode())
-            )
-
+            findings.append(Finding(label, line_number(match.start()), rule))
     for match in PATTERN_ASSIGNMENT.finditer(text):
-        value = match.group(1)
-        if not safe_assignment_value(value):
-            findings.append(
-                Finding(
-                    label,
-                    line_number(match.start()),
-                    "credential-assignment-v1",
-                    value.encode(),
-                )
-            )
+        if not safe_assignment_value(match.group(1)):
+            findings.append(Finding(label, line_number(match.start()), "credential-assignment-v1"))
     for match in PATTERN_PACKAGE_AUTH.finditer(text):
-        value = match.group(1)
-        if PATTERN_SAFE_VALUE.fullmatch(value) is None:
-            findings.append(
-                Finding(
-                    label,
-                    line_number(match.start()),
-                    "package-auth-value-v1",
-                    value.encode(),
-                )
-            )
+        if PATTERN_SAFE_VALUE.fullmatch(match.group(1)) is None:
+            findings.append(Finding(label, line_number(match.start()), "package-auth-value-v1"))
     if PATTERN_NETRC_HOST.search(text):
         for match in PATTERN_NETRC_VALUE.finditer(text):
-            findings.append(
-                Finding(
-                    label,
-                    line_number(match.start()),
-                    "netrc-value-v1",
-                    match.group(1).encode(),
-                )
-            )
+            findings.append(Finding(label, line_number(match.start()), "netrc-value-v1"))
     return findings
 
 
-def enforce_findings(findings: list[Finding], allow_public: bool) -> None:
-    blocked = [
-        finding
-        for finding in findings
-        if not allow_public or (finding.rule, finding.digest) not in PUBLIC_FINDINGS
-    ]
-    if not blocked:
+def enforce(findings: list[Finding]) -> None:
+    if not findings:
         return
-    for finding in blocked[:FINDING_REPORT_MAX]:
+    for finding in findings[:FINDING_REPORT_MAX]:
+        print(f"SPAR-PAYLOAD FINDING: {finding.label}:{finding.line}: {finding.rule}", file=sys.stderr)
+    if len(findings) > FINDING_REPORT_MAX:
         print(
-            f"SPAR-PAYLOAD FINDING: {finding.label}:{finding.line}: {finding.rule}",
+            f"SPAR-PAYLOAD FINDING: {len(findings) - FINDING_REPORT_MAX} additional findings omitted",
             file=sys.stderr,
         )
-    if len(blocked) > FINDING_REPORT_MAX:
-        print(
-            f"SPAR-PAYLOAD FINDING: {len(blocked) - FINDING_REPORT_MAX} additional findings omitted",
-            file=sys.stderr,
-        )
-    reject(blocked[0].label, blocked[0].rule)
+    reject(findings[0].label, findings[0].rule)
 
 
-def open_handoff(root: Path) -> tuple[int, list[str]]:
-    if not root.is_absolute() or HANDOFF_RE.fullmatch(str(root)) is None:
-        abort("handoff path must be /var/tmp/spar-<UUID>")
-    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_DIRECTORY
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
+def read_artifact(path: str, label: str) -> bytes:
+    flags = os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
     try:
-        descriptor = os.open(root, flags)
+        descriptor = os.open(path, flags)
+    except OSError:
+        reject(label, "cannot open artifact without following links")
+    try:
         metadata = os.fstat(descriptor)
-    except OSError:
-        abort("cannot open handoff directory")
-    if (
-        not stat.S_ISDIR(metadata.st_mode)
-        or metadata.st_uid != os.getuid()
-        or stat.S_IMODE(metadata.st_mode) != 0o700
-    ):
-        os.close(descriptor)
-        abort("handoff ownership or mode is unsafe")
-    try:
-        entries = sorted(os.listdir(descriptor))
-    except OSError:
-        os.close(descriptor)
-        abort("cannot list handoff directory")
-    if len(entries) > ENTRY_COUNT_MAX:
-        os.close(descriptor)
-        reject("handoff", "too many handoff entries")
-    return descriptor, entries
-
-
-def read_entry(root_descriptor: int, name: str, label: str) -> bytes:
-    flags = os.O_RDONLY | os.O_CLOEXEC
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
-    try:
-        descriptor = os.open(name, flags, dir_fd=root_descriptor)
-        metadata = os.fstat(descriptor)
-    except OSError:
-        reject(label, "cannot open handoff entry safely")
-    try:
-        if (
-            not stat.S_ISREG(metadata.st_mode)
-            or metadata.st_uid != os.getuid()
-            or metadata.st_nlink != 1
-        ):
-            reject(label, "handoff entry ownership, type, or link count is unsafe")
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid():
+            reject(label, "artifact is not a regular file owned by the current user")
         with os.fdopen(descriptor, "rb", closefd=False) as stream:
-            data = stream.read(ENTRY_MAX + 1)
+            data = stream.read(ARTIFACT_MAX + 1)
     finally:
         os.close(descriptor)
-    if len(data) > ENTRY_MAX:
-        reject(label, "handoff entry exceeds the review limit")
+    if len(data) > ARTIFACT_MAX:
+        reject(label, "artifact exceeds the review limit")
     return data
 
 
-def scan_outbound(root: Path) -> None:
-    prompt = sys.stdin.buffer.read(PROMPT_MAX + 1)
-    if not prompt:
-        abort("review prompt is empty")
-    if len(prompt) > PROMPT_MAX:
-        reject("prompt", "prompt exceeds the review limit")
-    enforce_findings(content_findings("prompt", prompt, True), True)
-    total = len(prompt)
-    root_descriptor, entries = open_handoff(root)
-    try:
-        for index, name in enumerate(entries, start=1):
-            label = f"handoff entry {index}"
-            try:
-                name_bytes = name.encode("utf-8")
-            except UnicodeEncodeError:
-                reject(label, "non-UTF-8 path")
-            enforce_findings(content_findings(f"{label} name", name_bytes, False), False)
-            folded = name.casefold()
-            if folded == "reviewer-id":
-                if name != "reviewer-id":
-                    reject(label, "reviewer manifest alias")
-            elif folded in RESERVED_HANDOFF_NAMES:
-                reject(label, "reviewer instruction or repository marker")
-            if sensitive_path(name):
-                reject(label, "sensitive handoff path")
-            data = read_entry(root_descriptor, name, label)
-            if folded == "reviewer-id":
-                continue
-            total += len(data)
-            if total > TOTAL_MAX:
-                reject("handoff", "payload exceeds the aggregate review limit")
-            enforce_findings(content_findings(label, data, True), True)
-    finally:
-        os.close(root_descriptor)
-    sys.stdout.buffer.write(prompt)
+def scan_outbound(artifacts: list[str]) -> None:
+    request = sys.stdin.buffer.read(REQUEST_MAX + 1)
+    if not request.strip():
+        reject("request", "review request is empty")
+    if len(request) > REQUEST_MAX:
+        reject("request", "request exceeds the review limit")
+    enforce(content_findings("request", decode_text("request", request), True))
+    sections = [request.decode("utf-8")]
+    total = len(request)
+    for index, path in enumerate(artifacts, start=1):
+        label = f"artifact {index}"
+        name = os.path.basename(path)
+        if sensitive_path(name):
+            reject(label, "sensitive artifact name")
+        data = read_artifact(path, label)
+        total += len(data)
+        if total > TOTAL_MAX:
+            reject("payload", "payload exceeds the aggregate review limit")
+        text = decode_text(label, data)
+        enforce(content_findings(label, text, True))
+        sections.append(f"===== artifact: {name} =====\n{text}\n===== end artifact: {name} =====")
+    sys.stdout.write("\n\n".join(sections))
 
 
 def scan_reply() -> None:
     data = sys.stdin.buffer.read(TOTAL_MAX + 1)
     if len(data) > TOTAL_MAX:
         reject("reply", "reply exceeds the review limit")
-    enforce_findings(content_findings("reply", data, False), True)
+    enforce(content_findings("reply", decode_text("reply", data), False))
 
 
 def main() -> None:
-    if len(sys.argv) == 3 and sys.argv[1] == "repository":
-        validate_repository_paths(Path(sys.argv[2]))
-        return
-    if len(sys.argv) == 3 and sys.argv[1] == "outbound":
-        scan_outbound(Path(sys.argv[2]))
+    if len(sys.argv) >= 2 and sys.argv[1] == "outbound":
+        scan_outbound(sys.argv[2:])
         return
     if len(sys.argv) == 2 and sys.argv[1] == "reply":
         scan_reply()
         return
-    print(
-        "usage: spar-payload-scan repository <repo-dir> | outbound <handoff-dir> | reply",
-        file=sys.stderr,
-    )
+    print("usage: spar-payload-scan outbound [artifact-file...] | reply", file=sys.stderr)
     raise SystemExit(64)
 
 

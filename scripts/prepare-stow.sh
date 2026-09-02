@@ -183,6 +183,7 @@ prepare_claude() {
     queue_link "$HOME/.claude/settings.json" "claude-code/.claude/settings.json"
     queue_link "$HOME/.claude/statusline.sh" "claude-code/.claude/statusline.sh"
     queue_link "$HOME/.claude/agents" "claude-code/.claude/agents"
+    queue_retired_link "$HOME/.claude/hooks" "claude-code/.claude/hooks"
     queue_link "$HOME/.claude/rules" "claude-code/.claude/rules"
     if prepare_real_dir "$HOME/.claude/skills" "claude-code/.claude/skills"; then
       queue_link "$HOME/.claude/skills/commit" "claude-code/.claude/skills/commit"

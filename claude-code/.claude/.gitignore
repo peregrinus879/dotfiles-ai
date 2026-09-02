@@ -6,8 +6,6 @@
 !statusline.sh
 !agents/
 !agents/**
-!hooks/
-!hooks/spar-handoff-approve.sh
 !rules/
 !rules/**
 !skills/

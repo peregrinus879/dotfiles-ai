@@ -91,14 +91,7 @@
       "Read(~/.netrc)",
       "Read(~/.npmrc)",
       "Read(~/.pypirc)",
-      "Read(~/.ssh/**)",
-      "Read(../*var/tmp/spar-*/*.key)",
-      "Read(../*var/tmp/spar-*/*.pem)",
-      "Read(../*var/tmp/spar-*/*credentials*)",
-      "Read(../*var/tmp/spar-*/.env)",
-      "Read(../*var/tmp/spar-*/.env.*)",
-      "Read(../*var/tmp/spar-*/auth.json)",
-      "Read(../*var/tmp/spar-*/secrets/*)"
+      "Read(~/.ssh/**)"
     ]
   },
   "autoMode": {
@@ -114,19 +107,6 @@
     ],
     "allow": [
       "$defaults"
-    ]
-  },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/spar-handoff-approve.sh"
-          }
-        ]
-      }
     ]
   },
   "env": {

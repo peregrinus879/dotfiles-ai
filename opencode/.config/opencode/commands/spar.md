@@ -1,6 +1,6 @@
 ---
-description: Run value-based cross-model brainstorming, plan, build, or diff review
+description: Run an optional read-only cross-model review of a plan, diff, or decision
 agent: build
 ---
 
-Use the `spar` skill for this repository. Select the review purpose, timing, context, and depth from expected value; plan and build are primary checkpoints, and spar may run anywhere else it can materially improve the outcome.
+Use the `spar` skill. Choose the review purpose, context, and depth from expected value; the bridge is `spar-claude`, and reviewer agreement authorizes nothing by itself.

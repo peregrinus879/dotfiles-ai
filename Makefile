@@ -4,7 +4,6 @@
 SHELL := /bin/bash
 PACKAGES := claude-code codex opencode
 SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
-  claude-code/.claude/hooks/spar-handoff-approve.sh \
   claude-code/.local/bin/spar-claude \
   codex/.local/bin/spar-codex \
   $(wildcard scripts/*.sh tests/*.sh)

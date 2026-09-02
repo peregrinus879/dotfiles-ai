@@ -83,20 +83,12 @@
     },
     "edit": {
       "*": "allow",
-      "../*var/tmp/spar-*": "allow",
       "**/*.key": "deny",
       "**/*.pem": "deny",
       ".env": "deny",
       "secrets/**": "deny",
       "~/.aws/**": "deny",
       "~/.gnupg/**": "deny",
-      "../*var/tmp/spar-*/*.key": "deny",
-      "../*var/tmp/spar-*/*.pem": "deny",
-      "../*var/tmp/spar-*/*credentials*": "deny",
-      "../*var/tmp/spar-*/.env": "deny",
-      "../*var/tmp/spar-*/.env.*": "deny",
-      "../*var/tmp/spar-*/auth.json": "deny",
-      "../*var/tmp/spar-*/secrets/*": "deny",
       "../*tmp/opencode*/*.key": "deny",
       "../*tmp/opencode*/*.pem": "deny",
       "../*tmp/opencode*/*credentials*": "deny",
@@ -108,7 +100,6 @@
     "external_directory": {
       "*": "ask",
       "/tmp/opencode/*": "allow",
-      "/var/tmp/spar-*": "allow",
       "~/.aws/**": "deny",
       "~/.claude/.credentials.json": "deny",
       "~/.config/gh/hosts.yml": "deny",
@@ -163,34 +154,10 @@
       "~/.netrc": "deny",
       "~/.npmrc": "deny",
       "~/.pypirc": "deny",
-      "~/.ssh/**": "deny",
-      "../*var/tmp/spar-*/*.key": "deny",
-      "../*var/tmp/spar-*/*.pem": "deny",
-      "../*var/tmp/spar-*/*credentials*": "deny",
-      "../*var/tmp/spar-*/.env": "deny",
-      "../*var/tmp/spar-*/.env.*": "deny",
-      "../*var/tmp/spar-*/auth.json": "deny",
-      "../*var/tmp/spar-*/secrets/*": "deny"
+      "~/.ssh/**": "deny"
     },
     "webfetch": "allow",
     "websearch": "allow"
-  },
-  "agent": {
-    "plan": {
-      "permission": {
-        "edit": {
-          "*": "deny",
-          "../*var/tmp/spar-*": "allow",
-          "../*var/tmp/spar-*/*.key": "deny",
-          "../*var/tmp/spar-*/*.pem": "deny",
-          "../*var/tmp/spar-*/*credentials*": "deny",
-          "../*var/tmp/spar-*/.env": "deny",
-          "../*var/tmp/spar-*/.env.*": "deny",
-          "../*var/tmp/spar-*/auth.json": "deny",
-          "../*var/tmp/spar-*/secrets/*": "deny"
-        }
-      }
-    }
   },
   "provider": {
     "openai": {
