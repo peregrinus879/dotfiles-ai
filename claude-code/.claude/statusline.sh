@@ -3,30 +3,25 @@
 # Docs: https://code.claude.com/docs/en/statusline
 #
 # Design conventions:
-# - Every segment must earn its place. No burn rate ($/hr); show extra-usage
-#   spend only, cumulative, hidden until extra usage first occurs. No duration
-#   segment.
-# - No redundant indicators when the tool already surfaces the information natively.
+# - Every segment must earn its place: directory, Git branch, model, context,
+#   and the two rate-limit windows. No cost, duration, or host segments.
 # - Consistent "label: pct% (remaining)" pattern: ctx: 42% (116k),
 #   5h: 38% (2:11), 7d: 24% (5:06:38). The dim bracket holds what remains:
 #   context tokens, or the countdown (h:mm, d:hh:mm) to the window reset.
-# - Three-space separators between segments, not special characters; single
-#   spaces bind label, value, and bracket within a segment.
-# - Colors pin the Omarchy gruvbox palette as truecolor, so rendering does not
+# - Three-space separators between segments; single spaces bind label, value,
+#   and bracket within a segment.
+# - Colors pin the Omarchy gruvbox palette as truecolor so rendering does not
 #   depend on the terminal's ANSI palette; re-pin when the theme changes.
-# - Color roles: dim = labels, brackets, metadata; bold = identity (directory,
-#   SSH host); italic = the Git branch; green/yellow/red = severity thresholds;
-#   yellow also marks accruing extra spend.
-# - Runtime state uses hashed keys in one owner-only directory. Existing state
-#   must be a regular, owner-only, single-link file; updates replace atomically.
+# - Color roles: dim = labels and brackets; bold = the directory; italic = the
+#   Git branch; green/yellow/red = severity thresholds.
+# - Stateless: nothing is cached or persisted between renders.
 # - Intentionally no Bash strict mode, and [ ] guards throughout: parse failures
 #   degrade to blank segments instead of killing the status line.
 
-umask 077
 input=$(cat)
 
-# --- Parse JSON input (single jq call for performance); NUL-delimited so an
-# embedded newline in a payload string cannot shift later fields ---
+# --- Parse JSON input (single jq call); NUL-delimited so an embedded newline in
+# a payload string cannot shift later fields ---
 readarray -d '' -t _f < <(printf '%s' "$input" | jq -j '
   [ (.workspace.current_dir // .cwd // ""),
     (.model.display_name // ""),
@@ -35,23 +30,16 @@ readarray -d '' -t _f < <(printf '%s' "$input" | jq -j '
     (.context_window.context_window_size // 0),
     (.rate_limits.five_hour.used_percentage // ""),
     (.rate_limits.seven_day.used_percentage // ""),
-    (.cost.total_cost_usd // ""),
     (.rate_limits.five_hour.resets_at // ""),
-    (.rate_limits.seven_day.resets_at // ""),
-    (.session_id // "")
+    (.rate_limits.seven_day.resets_at // "")
   ] | map(tostring) | join([0] | implode)
 ' 2>/dev/null)
-# Scrub C0 control bytes so payload text cannot break line or state integrity.
+# Scrub C0 control bytes so payload text cannot break line integrity.
 # shellcheck disable=SC2004  # Keep the indexed-array subscript explicit.
 for i in "${!_f[@]}"; do _f[$i]="${_f[$i]//[$'\001'-$'\037']/}"; done
 cwd="${_f[0]}" model="${_f[1]}" used_pct="${_f[2]}" ctx_tokens="${_f[3]}" ctx_size="${_f[4]}"
-rate_5h="${_f[5]}" rate_7d="${_f[6]}" cost_usd="${_f[7]}"
-
-# Round the rate percentages once; empty stands for absent or null.
-rate_5h_int="" rate_7d_int=""
-[ -n "$rate_5h" ] && rate_5h_int=$(printf '%.0f' "$rate_5h" 2>/dev/null)
-[ -n "$rate_7d" ] && rate_7d_int=$(printf '%.0f' "$rate_7d" 2>/dev/null)
-reset_5h="${_f[8]}" reset_7d="${_f[9]}" session_id="${_f[10]}"
+rate_5h="${_f[5]}" rate_7d="${_f[6]}" reset_5h="${_f[7]}" reset_7d="${_f[8]}"
+now=$(date +%s)
 
 # --- Colors: Omarchy gruvbox palette (themes/gruvbox/colors.toml), truecolor.
 # Real escape bytes, so the final printf can use %s and payload-derived text
@@ -60,7 +48,6 @@ dim=$'\033[38;2;124;111;100m'          # dark_foreground #7c6f64
 bold_cyan=$'\033[1;38;2;137;180;130m'  # cyan #89b482
 italic_cyan=$'\033[3;38;2;137;180;130m'
 yellow=$'\033[38;2;216;166;87m'        # yellow #d8a657
-bold_yellow=$'\033[1;38;2;216;166;87m'
 green=$'\033[38;2;169;182;101m'        # green #a9b665
 red=$'\033[38;2;234;105;98m'           # red #ea6962
 reset=$'\033[0m'
@@ -97,116 +84,29 @@ fmt_countdown() {
   fi
 }
 
-# Initialize one private runtime-state directory. A malformed or pre-positioned
-# path disables persistence; the status line still renders without cached state.
-state_ready=0
-state_root=""
-state_uid=$(id -u 2>/dev/null)
-state_base="/tmp"
-
-# dir_private <path>: a real, non-symlink directory resolving to itself and
-# owned by this uid with mode exactly 700.
-dir_private() {
-  local dir=$1 meta real
-  meta=$(stat -c '%u:%a' -- "$dir" 2>/dev/null)
-  real=$(realpath -e -- "$dir" 2>/dev/null)
-  [ -d "$dir" ] && [ ! -L "$dir" ] && \
-    [ "$real" = "$dir" ] && [ "$meta" = "${state_uid}:700" ]
-}
-
-if [ -n "${XDG_RUNTIME_DIR:-}" ] && dir_private "${XDG_RUNTIME_DIR%/}"; then
-  state_base="${XDG_RUNTIME_DIR%/}"
-fi
-if [ -n "$state_uid" ]; then
-  state_root="$state_base/claude-statusline-$state_uid"
-  if [ ! -e "$state_root" ] && [ ! -L "$state_root" ]; then
-    mkdir -m 700 -- "$state_root" 2>/dev/null
-  fi
-  dir_private "$state_root" && state_ready=1
-fi
-
-state_key() {
-  local digest
-  digest=$(printf '%s' "$1" | sha256sum 2>/dev/null)
-  digest=${digest%% *}
-  case "$digest" in
-    *[!0-9a-f]*|"") return 1 ;;
-    *) printf '%s' "$digest" ;;
-  esac
-}
-
-state_file_safe() {
-  local metadata
-  [ "$state_ready" -eq 1 ] && [ -f "$1" ] && [ ! -L "$1" ] || return 1
-  metadata=$(stat -c '%u:%a:%h' -- "$1" 2>/dev/null)
-  [ "$metadata" = "${state_uid}:600:1" ]
-}
-
-write_state() {
-  local target=$1 temp
-  shift
-  [ "$state_ready" -eq 1 ] || return 1
-  if [ -e "$target" ] || [ -L "$target" ]; then
-    state_file_safe "$target" || return 1
-  fi
-  temp=$(mktemp "$state_root/.state.XXXXXX") || return 1
-  chmod 600 -- "$temp" 2>/dev/null || { rm -f -- "$temp"; return 1; }
-  printf '%s\n' "$@" > "$temp" || { rm -f -- "$temp"; return 1; }
-  mv -fT -- "$temp" "$target" 2>/dev/null || { rm -f -- "$temp"; return 1; }
-}
-
 # Render one rate-limit segment on stdout: label: pct% (countdown); the dim
 # bracket holds the time remaining until the window resets.
 # Args: label pct reset_epoch countdown_style
 build_rate_seg() {
   local label=$1 pct=$2 epoch=$3 style=$4
-  local detail=""
+  local pct_int detail=""
 
   [ -z "$pct" ] && return
-
+  pct_int=$(printf '%.0f' "$pct" 2>/dev/null) || return
   [ "${epoch:-0}" -gt "$now" ] 2>/dev/null && detail=$(fmt_countdown "$((epoch - now))" "$style")
 
-  printf '%s' "${dim}${label}:${reset} $(pct_color "$pct")${pct}%${reset}${detail:+ ${dim}(${detail})${reset}}"
-}
-
-# --- Detect extra usage (5h OR 7d at 100%) ---
-extra_usage=0
-[ "$rate_5h_int" -ge 100 ] 2>/dev/null && extra_usage=1
-[ "$extra_usage" -eq 0 ] && [ "$rate_7d_int" -ge 100 ] 2>/dev/null && extra_usage=1
-
-# --- Git cache (docs: cache expensive operations) ---
-git_cache=""
-if [ "$state_ready" -eq 1 ]; then
-  cwd_key=$(state_key "$cwd") && git_cache="$state_root/git-$cwd_key"
-fi
-git_cache_max_age=60
-now=$(date +%s)
-
-git_cache_stale() {
-  [ -n "$git_cache" ] && state_file_safe "$git_cache" || return 0
-  [ $((now - $(stat -c %Y "$git_cache" 2>/dev/null || echo 0))) -gt $git_cache_max_age ]
+  printf '%s' "${dim}${label}:${reset} $(pct_color "$pct_int")${pct_int}%${reset}${detail:+ ${dim}(${detail})${reset}}"
 }
 
 # --- Segments ---
 
-# SSH hostname (shown only for remote sessions)
-host_seg=""
-if [ -n "$SSH_CONNECTION" ]; then
-  host_seg="${bold_yellow}${HOSTNAME%%.*}${reset}"
-fi
-
-# Directory and Git branch (cached, refreshed every 60s)
+# Directory and Git branch
 branch=""
 repo_root=""
 if [ -n "$cwd" ] && [ -d "$cwd" ]; then
-  if git_cache_stale; then
-    branch=$(GIT_OPTIONAL_LOCKS=0 git -C "$cwd" symbolic-ref --short HEAD 2>/dev/null \
-             || GIT_OPTIONAL_LOCKS=0 git -C "$cwd" rev-parse --short HEAD 2>/dev/null)
-    repo_root=$(GIT_OPTIONAL_LOCKS=0 git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)
-    [ -n "$git_cache" ] && write_state "$git_cache" "$branch" "$repo_root"
-  else
-    { read -r branch; read -r repo_root; } < "$git_cache"
-  fi
+  branch=$(GIT_OPTIONAL_LOCKS=0 git -C "$cwd" symbolic-ref --short HEAD 2>/dev/null \
+           || GIT_OPTIONAL_LOCKS=0 git -C "$cwd" rev-parse --short HEAD 2>/dev/null)
+  repo_root=$(GIT_OPTIONAL_LOCKS=0 git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)
 fi
 
 # Directory: repo root + relative path inside git repos, last 2 components
@@ -253,50 +153,12 @@ if [ -n "$used_pct" ]; then
 fi
 
 # Rate limits: 5h and 7d (bracketed countdown to the window reset)
-rate5_seg=$(build_rate_seg "5h" "$rate_5h_int" "$reset_5h" "hm")
-rate7_seg=$(build_rate_seg "7d" "$rate_7d_int" "$reset_7d" "dhm")
-
-# Extra-usage cost (hidden until overage first occurs)
-# State: line 1 = active|frozen, line 2 = baseline, line 3 = prior extra, line 4 = last displayed
-extra_state=""
-if [ "$state_ready" -eq 1 ] && [ -n "$session_id" ]; then
-  session_key=$(state_key "$session_id") && extra_state="$state_root/extra-$session_key"
-fi
-_st="" _bl="" _pr="" _ld=""
-extra_state_ok=0
-if [ -n "$extra_state" ] && state_file_safe "$extra_state"; then
-  { read -r _st; read -r _bl; read -r _pr; read -r _ld; } < "$extra_state"
-  extra_state_ok=1
-fi
-cost_seg=""
-if [ "$extra_usage" -eq 1 ] 2>/dev/null; then
-  if [ "$extra_state_ok" -eq 1 ]; then
-    if [ "$_st" = "frozen" ]; then
-      # Re-entering extra usage: carry over frozen value, set new baseline
-      _pr="${_ld:-0}"
-      _bl="${cost_usd:-0}"
-    fi
-  else
-    _bl="${cost_usd:-0}" _pr="0" _ld="0"
-  fi
-  if [ -n "$cost_usd" ]; then
-    extra_cost=$(jq -n --argjson c "$cost_usd" --argjson b "${_bl:-0}" --argjson p "${_pr:-0}" '[$p + $c - $b, 0] | max' 2>/dev/null) || extra_cost=0
-    [ -n "$extra_state" ] && write_state "$extra_state" "active" "$_bl" "$_pr" "$extra_cost"
-    cost_seg="${dim}extra:${reset} ${yellow}$(printf '$%.2f' "$extra_cost")${reset}"
-  fi
-else
-  if [ "$extra_state_ok" -eq 1 ]; then
-    if [ "$_st" = "active" ]; then
-      # Transition to frozen: use last displayed value, not recomputed
-      write_state "$extra_state" "frozen" "0" "0" "${_ld:-0}"
-    fi
-    cost_seg="${dim}extra: $(printf '$%.2f' "${_ld:-0}")${reset}"
-  fi
-fi
+rate5_seg=$(build_rate_seg "5h" "$rate_5h" "$reset_5h" "hm")
+rate7_seg=$(build_rate_seg "7d" "$rate_7d" "$reset_7d" "dhm")
 
 # --- Output ---
 line=""
-for seg in "$host_seg" "$dir_seg" "$branch_seg" "$model_seg" "$ctx_seg" "$rate5_seg" "$rate7_seg" "$cost_seg"; do
+for seg in "$dir_seg" "$branch_seg" "$model_seg" "$ctx_seg" "$rate5_seg" "$rate7_seg"; do
   [ -n "$seg" ] && line+="${line:+   }${seg}"
 done
 printf '%s\n' "$line"

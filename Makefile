@@ -48,7 +48,7 @@ lint:
 test:
 	python3 tests/config-contracts.py
 	node --experimental-strip-types tests/reviewed-writes.mjs
-	bash tests/statusline-state.sh
+	bash tests/statusline.sh
 	bash tests/prepare-stow.sh
 	bash tests/spar-bridges.sh
 	@echo "ok:   test"
