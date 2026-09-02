@@ -647,6 +647,7 @@ require("!hooks.json" not in codex_ignore, "retired Codex hooks ignore exception
 # the absolute prefix form.
 HANDOFF_EDIT_ALLOW = "../*var/tmp/spar-*"
 HANDOFF_EXTERNAL_ALLOW = "/var/tmp/spar-*"
+APP_TEMP_EXTERNAL_ALLOW = "/tmp/opencode/*"
 HANDOFF_SENSITIVE_DENIES = (
     "../*var/tmp/spar-*/*.key",
     "../*var/tmp/spar-*/*.pem",
@@ -655,6 +656,15 @@ HANDOFF_SENSITIVE_DENIES = (
     "../*var/tmp/spar-*/.env.*",
     "../*var/tmp/spar-*/auth.json",
     "../*var/tmp/spar-*/secrets/*",
+)
+APP_TEMP_SENSITIVE_DENIES = (
+    "../*tmp/opencode*/*.key",
+    "../*tmp/opencode*/*.pem",
+    "../*tmp/opencode*/*credentials*",
+    "../*tmp/opencode*/.env",
+    "../*tmp/opencode*/.env.*",
+    "../*tmp/opencode*/auth.json",
+    "../*tmp/opencode*/secrets/*",
 )
 
 bash = opencode["permission"]["bash"]
@@ -755,6 +765,7 @@ edit_expected = {
     "~/.aws/**": "deny",
     "~/.gnupg/**": "deny",
     **{path: "deny" for path in HANDOFF_SENSITIVE_DENIES},
+    **{path: "deny" for path in APP_TEMP_SENSITIVE_DENIES},
 }
 require(
     list(opencode["permission"]["edit"].items()) == list(edit_expected.items()),
@@ -803,6 +814,15 @@ for path in (
 for path in HANDOFF_SENSITIVE_DENIES:
     require(read_rules[path] == "deny", f"OpenCode handoff read deny drifted: {path}")
 require(external_rules["*"] == "ask", "OpenCode external-directory approval drifted")
+require(
+    external_rules[APP_TEMP_EXTERNAL_ALLOW] == "allow",
+    "OpenCode app-temp external-directory allow drifted",
+)
+for path in ("/tmp*", "/tmp/*", "/tmp/**", "/tmp/opencode*"):
+    require(
+        external_rules.get(path) != "allow",
+        f"OpenCode broad temporary-directory allow introduced: {path}",
+    )
 # The external subject is a parent-directory glob, while read receives a
 # worktree-relative path. Directory globs and the **-prefixed read entries are
 # load-bearing; file-level external and ~-keyed read entries are retained only
@@ -812,6 +832,14 @@ require(
     "OpenCode spar external-directory allow drifted",
 )
 external_keys = list(external_rules)
+require(
+    external_keys.index(APP_TEMP_EXTERNAL_ALLOW) > external_keys.index("*"),
+    "OpenCode app-temp allow precedes the catch-all",
+)
+require(
+    external_keys.index(HANDOFF_EXTERNAL_ALLOW) > external_keys.index(APP_TEMP_EXTERNAL_ALLOW),
+    "OpenCode spar allow precedes the app-temp allowance",
+)
 require(
     external_keys.index(HANDOFF_EXTERNAL_ALLOW) > external_keys.index("*"),
     "OpenCode spar allow precedes the catch-all",
