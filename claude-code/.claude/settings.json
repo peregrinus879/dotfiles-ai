@@ -96,7 +96,7 @@
     "soft_deny": [
       "$defaults",
       "Reading or displaying the contents of credential files (~/.ssh, ~/.aws, ~/.claude/.credentials.json, ~/.codex/auth.json, ~/.gnupg, ~/.kube, ~/.netrc, .env files, private keys) clears only when the user names the specific credential file; tools implicitly consuming their own credentials (git over SSH, cloud CLIs reading their config) and authored templates outside the .env.* namespace, such as example.env, are not this rule.",
-      "Filesystem mutations that bypass diff review (moving, copying, syncing, extracting, or patching over existing files; restoring or resetting paths from version control; deleting files) clear only on explicit instruction naming the paths; creating genuinely new files at fresh paths via mv or cp is not this rule."
+      "Deleting files and restoring, resetting, or checking out paths from version control clear only on explicit instruction naming the paths; creating, moving, copying, formatting, generating, or patching files inside the repository is ordinary editing and is not this rule."
     ],
     "allow": [
       "$defaults"
