@@ -5,7 +5,7 @@
 
 SHELL := /bin/bash
 PACKAGES := claude-code codex opencode
-STOW := stow --no-folding -t ~
+STOW := stow --no-folding --ignore='__pycache__' -t ~
 SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
   claude-code/.local/bin/spar-claude \
   codex/.local/bin/spar-codex \
@@ -83,11 +83,13 @@ verify-deploy:
 	    echo "FAIL: $$target does not resolve into the repo"; fail=1; \
 	  fi; \
 	done < <(git ls-files -z --cached --others --exclude-standard -- $(PACKAGES)); \
-	while IFS= read -r -d '' dir; do \
+	while IFS= read -r dir; do \
 	  target="$$HOME/$${dir#*/}"; \
 	  if [[ -d $$target && ! -L $$target ]]; then :; \
 	  else echo "FAIL: managed directory is folded or missing: $$target"; fail=1; fi; \
-	done < <(find $(PACKAGES) -mindepth 1 -type d -not -path '*/.git/*' -print0); \
+	done < <(git ls-files --cached --others --exclude-standard -- $(PACKAGES) | \
+	  while IFS= read -r src; do [[ -e $$src || -L $$src ]] || continue; dir=$${src%/*}; \
+	  while [[ $$dir == */* ]]; do echo "$$dir"; dir=$${dir%/*}; done; done | sort -u); \
 	for path in package.json package-lock.json bun.lock bun.lockb node_modules; do \
 	  target="opencode/.config/opencode/$$path"; \
 	  if [[ ! -e $$target && ! -L $$target ]]; then :; \
