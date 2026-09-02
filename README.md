@@ -29,7 +29,7 @@ Trusted-repository work is autonomous until the commit boundary: a clear impleme
 
 User-directed reads of relevant non-secret external context use each tool's native permission mechanism. Broad working-root grants remain prohibited.
 
-The `spar` workflow uses subscription-authenticated, read-only cross-vendor reviewers without web or command-network access. A reviewer may receive readable repository files, including private-repository files, except for Git internals and credential-shaped paths, so each bridge runs only in repositories where `git config spar.consent` is `true`.
+The `spar` workflow uses subscription-authenticated, read-only cross-vendor reviewers without web or command-network access. A reviewer may receive readable repository files, including private-repository files, except for Git internals and credential-shaped paths; a repository that must stay private opts out with `git config spar.consent false`, which every bridge honors.
 
 ## Setup
 
@@ -83,7 +83,7 @@ OPENCODE_DISABLE_PROJECT_CONFIG=1 OPENCODE_DISABLE_EXTERNAL_SKILLS=1 opencode
 
 - `commit` stages the intended paths, presents the staged candidate with its tree id, and commits only after approval.
 - `publish` reviews the commits between the tracking ref and `HEAD` before a push, release, or pull request is presented as ready.
-- `spar` runs an optional read-only cross-model review of a plan, diff, or decision: `spar-<reviewer> review "<request>" <artifact>...` from the repository, after `git config spar.consent true`. Claude Code reviews with `spar-codex`; Codex and OpenCode review with `spar-claude`. Consult the maintenance ledger for active bridge availability.
+- `spar` runs an optional read-only cross-model review of a plan, diff, or decision: `spar-<reviewer> review "<request>" <artifact>...` from the repository. Claude Code reviews with `spar-codex`; Codex and OpenCode review with `spar-claude`. Consult the maintenance ledger for active bridge availability.
 
 ## Verify
 

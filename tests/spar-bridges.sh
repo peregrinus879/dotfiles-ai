@@ -186,10 +186,11 @@ for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
   name=${bridge##*/}
   calls="$TMP/calls-$name"
 
-  run_bridge "$bridge" ok "$calls" "Review without consent."
+  git -C "$repo" config spar.consent false
+  run_bridge "$bridge" ok "$calls" "Review after opt-out."
   [[ $BRIDGE_RC == 2 && ! -e $calls && $(<"$calls.err") == *'spar.consent'* ]] ||
-    fail "$name ran without repository consent"
-  git -C "$repo" config spar.consent true
+    fail "$name ran in a repository that opted out"
+  git -C "$repo" config --unset spar.consent
 
   GIT_EDITOR=true run_bridge "$bridge" ok "$calls" "Review ordinary material." "$TMP/art/spar-plan.md"
   [[ $BRIDGE_RC == 0 && $(<"$calls.out") == 'review ok' ]] || fail "$name failed an ordinary review: $(<"$calls.err")"
@@ -260,8 +261,6 @@ for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
   if [[ -s $child_pid_file ]] && kill -0 "$(<"$child_pid_file")" 2>/dev/null; then
     fail "$name left a descendant after TERM"
   fi
-
-  git -C "$repo" config --unset spar.consent
 done
 
-printf 'ok: spar bridges relay scanned one-pass reviews from consenting repositories\n'
+printf 'ok: spar bridges relay scanned one-pass reviews and honor repository opt-out\n'

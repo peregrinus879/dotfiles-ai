@@ -13,7 +13,7 @@ Spar is optional. Use it where outside review can materially change the outcome:
 
 ## Disclosure
 
-The reviewer reads the repository except Git internals and credential-shaped paths, plus the artifacts you pass. The bridge refuses to run unless `git config spar.consent` is `true`; H sets it once per clone after deciding that the repository may reach the reviewer's vendor. The bridge also rejects requests, artifacts, and replies containing credential-shaped values or sensitive diff paths. Never edit an artifact merely to pass the scan: report the finding to H, who may rule the flagged span public, then replace only that span with `[redacted: <H's ruling>]` and say so in the request.
+The reviewer reads the repository except Git internals and credential-shaped paths, plus the artifacts you pass. Every stowed host consents by default; a repository that must not reach the reviewer's vendor opts out once with `git config spar.consent false`, and the bridge then refuses. Before the first review in a repository, consider whether H would want it excluded, and ask when unsure. The bridge also rejects requests, artifacts, and replies containing credential-shaped values or sensitive diff paths. Never edit an artifact merely to pass the scan: report the finding to H, who may rule the flagged span public, then replace only that span with `[redacted: <H's ruling>]` and say so in the request.
 
 ## Procedure
 

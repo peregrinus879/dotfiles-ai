@@ -9,9 +9,9 @@
 # can weaken it. The request and each artifact pass the payload scanner, which
 # inlines the artifacts into one prompt sent on stdin. The reply arrives on
 # stdout; the thread id arrives on stderr as "SPAR-BRIDGE ID: <thread-id>".
-# The bridge refuses to run unless `git config spar.consent` is true in the
-# repository, which records H's decision that its readable files may reach the
-# reviewer's vendor.
+# Every stowed host consents to disclosure by default; the bridge refuses to
+# run in a repository where `git config spar.consent` is false, which records
+# H's decision that its readable files must not reach the reviewer's vendor.
 #
 # Exit codes: 0 reply relayed, 2 refused before the reviewer ran, 3 usage limit,
 # 5 reviewer failure, 64 usage, 124 timeout (SPAR_BRIDGE_TIMEOUT seconds,
@@ -63,8 +63,8 @@ repo=$(realpath -e -- "$repo") || abort "cannot resolve the repository root"
 [[ $repo != *'"'* && $repo != *"'"* && $repo != *\\* && $repo != *'*'* && $repo != *'?'* &&
   $repo != *'['* && $repo != *']'* && $repo != *[[:cntrl:]]* ]] ||
   abort "the repository path cannot be represented safely in the reviewer profile"
-[[ $(git config --type=bool --get spar.consent 2>/dev/null) == true ]] ||
-  abort "spar.consent is not true for this repository; H may allow disclosure with: git config spar.consent true"
+[[ $(git config --type=bool --get spar.consent 2>/dev/null || echo true) != false ]] ||
+  abort "spar.consent is false for this repository; H may re-enable disclosure with: git config --unset spar.consent"
 
 # Scan and assemble the prompt before any reviewer process starts.
 prompt=$(printf '%s\n\n%s' "$SYSTEM_PROMPT" "$request" | "$scanner" outbound "$@") ||
