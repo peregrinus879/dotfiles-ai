@@ -4,40 +4,32 @@ Portable global configuration for [Claude Code](https://code.claude.com/docs/en/
 
 ## Scope
 
-EyrAgents provides shared cross-tool guidance, runtime configuration, commit and review workflows, and read-only cross-vendor reviewer bridges. It excludes authentication, session state, machine-local files, and generated host-specific state except for the documented app-managed rewrites in tracked runtime configuration.
+EyrAgents provides shared cross-tool guidance, runtime configuration, commit and review workflows, and read-only cross-vendor reviewer bridges. Authentication, session state, and generated host state remain local, except for the tracked runtime files identified in [`AGENTS.md`](AGENTS.md).
 
-Current repository invariants live in [`AGENTS.md`](AGENTS.md). Exact workflow procedure lives in the managed skills. Dated evidence, limitations, deferred work, and upgrade notes live in [`docs/maintenance.md`](docs/maintenance.md).
+[`AGENTS.md`](AGENTS.md) contains current repository invariants. Managed skills contain exact workflow procedure. [`docs/maintenance.md`](docs/maintenance.md) contains active limitations, open decisions, deferred work, and revalidation triggers.
 
-## Structure
+## Layout
 
 ```text
 eyragents/
-├── claude-code/   # Stow package for ~/.claude and reviewer executables
-├── codex/         # Stow package for ~/.codex, ~/.agents, and reviewer executable
-├── opencode/      # Stow package for ~/.config/opencode
-├── docs/          # maintenance ledger
+├── claude-code/   # Claude Code package and reviewer executables
+├── codex/         # Codex package, shared skills, and reviewer executable
+├── opencode/      # OpenCode package
+├── docs/          # active maintenance ledger
 ├── scripts/       # preparation and migration support
 ├── templates/     # portable Codex profile
 ├── tests/         # configuration, safety, and deployment contracts
-├── AGENTS.md      # current repository invariants
-└── Makefile       # setup, Stow, verification, and cleanup targets
+├── AGENTS.md      # repository invariants
+└── Makefile       # setup, verification, and cleanup targets
 ```
 
-The package order is Claude Code, Codex, OpenCode. The root `CLAUDE.md`, `.claude/settings.json`, and `opencode.json` are repository-maintenance wrappers or inert project placeholders, not deployed user configuration.
+## Safety Model
 
-## Behavior
+Trusted-repository work is autonomous until the commit boundary. Sensitive paths, destructive operations, external writes, uploads, and remote mutations remain restricted. OpenCode also blocks direct nested-agent launches from its autonomous Bash surface. Every commit requires approval of one exact candidate before staging, and the user performs pushes manually.
 
-Trusted-repository work is autonomous until the commit boundary. Sensitive paths, destructive operations, external writes, uploads, and remote mutations remain denied. OpenCode also denies direct nested-agent launches from its broadly autonomous Bash surface. Every commit requires the user's approval of one exact candidate before staging; pushes remain manual.
+User-directed reads of relevant non-secret external context use each tool's native permission mechanism. Credential-path denies and prohibitions on broad grants remain active.
 
-When the user requests relevant non-secret context outside the workspace, the primary agent may discover, inspect, search, and locally convert it through each tool's native permission mechanism. Credential-path denies and prohibitions on broad grants remain active.
-
-The `/spar` workflow uses subscription-authenticated, read-only cross-vendor reviewers with no web tools or command network. A reviewer can read the current repository and its exact private handoff, except for Git internals and credential-shaped paths, and cannot modify the repository. Readable files outside those denied paths may reach the vendor reviewer, including files in private repositories.
-
-## State Ownership
-
-- Claude Code may rewrite app-managed keys and ordering in tracked `claude-code/.claude/settings.json`; review and preserve those rewrites.
-- `templates/codex/config.toml` is the portable Codex profile. While `codex/.codex/config.toml` remains tracked, it must contain the complete template plus eligible top-level app state. Additions or changes inside bounded portable or permission-bearing tables require explicit reconciliation before commit or migration.
-- OpenCode package manifests, lockfiles, dependencies, authentication, and session state remain host-local beneath a real `~/.config/opencode`; Stow manages the tracked child paths.
+The `/spar` workflow uses subscription-authenticated, read-only cross-vendor reviewers without web or command-network access. Reviewers may receive readable repository files, including private-repository files, except for Git internals and credential-shaped paths.
 
 ## Setup
 
@@ -61,25 +53,25 @@ git clone https://github.com/peregrinus879/eyragents.git
 cd eyragents
 ```
 
-### Prepare And Stow
+### Manage Links
 
-From the repository root:
+Run from the repository root:
 
 ```bash
-make clean     # prepare real state directories and remove recognized package links
+make clean     # prepare state directories and remove recognized package links
 make stow      # prepare, then create managed links
-make dry-run   # preview raw Stow actions without preparation
+make dry-run   # preview raw Stow actions
 make restow    # prepare, then refresh managed links
 make unstow    # remove managed package links
 ```
 
-Preparation preflights every managed endpoint before changing anything. It preserves regular files and directories, removes only links recognized as this package layout, and keeps runtime-state parents real. Reconcile any conflicting regular managed endpoint explicitly.
+Preparation validates managed endpoints, preserves host-local state, and removes only recognized package links. Reconcile conflicting regular managed endpoints explicitly.
 
-When moving clones, run `make unstow` in the old clone and `make stow` in the new clone. If the old clone is unavailable, run the new clone's `make clean` before stowing; cleanup recognizes old-clone package links only to remove and restow them from the current clone.
+When moving clones, run `make unstow` in the old clone and `make stow` in the new clone. If the old clone is unavailable, run `make clean` from the new clone before stowing.
 
 ## Untrusted Checkouts
 
-Normal interactive use assumes the repository is trusted. Use project-disabled launches for untrusted code:
+Normal interactive use assumes a trusted repository. Use project-disabled launches for untrusted code:
 
 ```bash
 claude --safe-mode --setting-sources user
@@ -87,46 +79,34 @@ codex -C /var/empty -c 'default_permissions=":read-only"' "Inspect /absolute/pat
 OPENCODE_DISABLE_PROJECT_CONFIG=1 OPENCODE_DISABLE_EXTERNAL_SKILLS=1 opencode
 ```
 
-## Reviewer Bridges
+## Workflows
 
-Claude Code reviews with Codex through `spar-codex`; OpenCode reviews with Claude through `spar-claude`. Automated Codex-to-Claude review remains deferred under Codex's strict primary profile and can be run manually outside Codex when needed.
+### Reviewer Bridges
 
-From the repository being reviewed, initialize the selected bridge:
+Claude Code reviews with Codex through `spar-codex`. Codex-to-Claude review runs manually outside the strict Codex profile. OpenCode is configured to review with Claude through `spar-claude`; consult the maintenance ledger for active bridge availability. Invoke `/spar` from the repository being reviewed; the skill owns bridge and handoff procedure.
 
-```bash
-spar-codex init
-spar-claude init
-```
+### Commit Review
 
-Add the review brief and supporting material to the returned private handoff with native file tools, run the same bridge's `flush` mode after each write, then use `new` or `resume` as documented by `/spar`. The bridge binds the handoff to the repository and scans it before reviewer access.
-
-## Commit Review
-
-The `/commit` skill internally reviews and privacy-screens the complete status, proposed message, paths, diff, and intended new-file contents. The packet reports a fingerprint-bound summary and never reproduces the complete diff or new-file contents unless the user asks. The user reviews the content in an editor or with read-only Git commands, then explicitly approves one exact candidate before staging.
-
-Publication review remains destination-bound and separate from code review. The user handles pushes.
+The `/commit` skill reviews and privacy-screens the complete candidate. Its packet reports fingerprint-bound scope and never reproduces the complete diff or new-file contents unless the user asks. After the final approved commit, it performs destination-bound publication review before presenting a push command.
 
 ## Verify
 
-After stowing or changing payloads:
+After stowing or changing managed payloads:
 
 ```bash
 make verify
 make lint
 ```
 
-Also verify in genuinely fresh processes when practical:
+When practical, use fresh processes to confirm:
 
-- Claude Code loads auto mode, shared guidance, the status line, ordinary workspace edits, external reads on request, and credential-path denials.
-- Codex loads `trusted-workspace` with automatic review, allows ordinary workspace edits, grants external reads only for the current turn, and denies session grants, credentials, and external writes.
-- OpenCode loads the managed model, global write-review plugin, workspace autonomy, external-read prompts, disabled sharing, and credential-path denials.
-- `/commit` presents a fingerprint-bound candidate before staging, and `/spar` uses value-based plan and build review without changing user authority.
+- Claude Code, Codex, and OpenCode load their managed instructions, models, permissions, and credential-path denials.
+- `/commit` presents an exact candidate before staging and completes publication review before a push instruction.
+- `/spar` uses read-only reviewer bridges without changing user authority.
 
-See [`docs/maintenance.md`](docs/maintenance.md) for the full cross-host checklist and version-sensitive probes.
+Restart OpenCode after changing its config, agents, skills, or plugins because they load at process startup.
 
-## Maintenance
-
-Run `make verify` and `make lint` after changing tracked payloads. The deferred `make migrate-codex-config` cross-host transition documented in [`docs/maintenance.md`](docs/maintenance.md) is not normal setup; after it succeeds, do not run `make clean`, `make stow`, `make restow`, or `make verify` until tracked runtime retirement. Review the maintenance ledger before major tool or plugin upgrades, permission or bridge changes, cross-host validation, `/doctor`, deferred work, or investigation of changed behavior. Restart OpenCode after changing its config, agents, skills, or plugins because they load at process startup.
+Consult [`docs/maintenance.md`](docs/maintenance.md) before major tool or plugin changes, permission or bridge changes, cross-host work, `/doctor`, or work on a listed limitation or deferred item.
 
 ## License
 
