@@ -4,7 +4,7 @@ Portable global configuration for [Claude Code](https://code.claude.com/docs/en/
 
 ## Scope
 
-EyrAgents provides shared cross-tool guidance, runtime configuration, commit and publication workflows, and read-only cross-vendor reviewer bridges. Authentication, session state, and generated host state remain local, except for the tracked runtime files identified in [`AGENTS.md`](AGENTS.md).
+EyrAgents provides shared cross-tool guidance, runtime configuration, commit and publication workflows, and read-only cross-vendor reviewer bridges. Authentication, session state, and generated host state remain local; the Codex config is installed from a portable template as a host-local file.
 
 [`AGENTS.md`](AGENTS.md) contains repository invariants. Managed skills contain workflow procedure. [`docs/maintenance.md`](docs/maintenance.md) contains active limitations, open decisions, deferred work, and revalidation triggers.
 

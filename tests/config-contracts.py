@@ -66,17 +66,6 @@ def require(condition: bool, message: str) -> None:
         raise SystemExit(f"FAIL: {message}")
 
 
-def require_recursive_subset(expected: dict, actual: dict, prefix: tuple[str, ...] = ()) -> None:
-    for key, expected_value in expected.items():
-        path = ".".join((*prefix, key))
-        require(key in actual, f"tracked Codex runtime is missing portable key {path}")
-        if isinstance(expected_value, dict):
-            require(isinstance(actual[key], dict), f"tracked Codex runtime table changed at {path}")
-            require_recursive_subset(expected_value, actual[key], (*prefix, key))
-        else:
-            require(actual[key] == expected_value, f"tracked Codex runtime value changed at {path}")
-
-
 def allows_precede_denies(rules: dict, label: str) -> None:
     actions = list(rules.values())
     allows = [index for index, action in enumerate(actions) if action == "allow"]
@@ -110,7 +99,6 @@ for rule in permissions["allow"]:
 
 # Codex
 codex_template = load_toml("templates/codex/config.toml")
-codex_runtime = load_toml("codex/.codex/config.toml")
 
 
 def check_codex(config: dict, label: str) -> None:
@@ -134,8 +122,6 @@ def check_codex(config: dict, label: str) -> None:
 
 
 check_codex(codex_template, "Codex portable template")
-check_codex(codex_runtime, "tracked Codex runtime")
-require_recursive_subset(codex_template, codex_runtime)
 
 # OpenCode
 opencode = load_json("opencode/.config/opencode/opencode.json")

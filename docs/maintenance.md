@@ -10,7 +10,6 @@ This ledger contains unresolved decisions, deferred work, active limitations, an
 - Source-checked 2026-09-01 on OpenCode 1.18.25: upstream `packages/opencode/src/tool/apply_patch.ts` applies accepted operations sequentially after `reviewed-writes.ts` validates them, so same-user path replacement between validation and write remains a TOCTOU residual. Recheck both when either changes.
 - The spar payload scanner recognizes a finite set of credential formats, and the reviewer reads repository files directly. Repository consent, not the scanner, is the disclosure decision.
 - Observed 2026-09-01 on OpenCode 1.18.25: an explicitly selected TUI model variant persisted across restarts and overrode configured base effort. Confirm xhigh in the selector when effective effort matters.
-- Observed 2026-08-15: while the tracked Codex runtime config remains deployed, app rewrites can include plugin, MCP, and desktop state. Reconcile those changes without copying host state into the portable template, and watch openai/codex#30045 for runtime-write corruption.
 - OpenCode-to-Claude spar last failed live on 2026-09-02 (Claude Code 2.1.258) because the reviewer could not read its handoff directory. The bridge now inlines artifacts into the prompt, which removes that path; run one live `spar-claude review` from OpenCode with an artifact before treating the route as available.
 
 ## Open Decisions
@@ -21,8 +20,7 @@ This ledger contains unresolved decisions, deferred work, active limitations, an
 
 ## Deferred Work
 
-- Complete the WSL host pass: inspect status and diff before pulling; reconcile app-managed state and obtain H's approval before discarding generated or obsolete hunks; keep config content out of chat and logs; restow from the supplying clone; run `make verify`; migrate Codex config from that clone; verify `~/.codex` is real and owner-controlled and its config is a current-user-owned mode-600 single-link regular file; preserve the evidence and stop on any mismatch; add a WSL-compatible Codex installation; confirm OpenCode's app-temp root; remove stale links at retired endpoints (`~/.claude/hooks`, `~/.codex/hooks.json`, `~/.local/bin/context-read-gate.sh`, `~/.config/opencode/tools/*`). After migration, do not run `make clean`, `make stow`, `make restow`, or `make verify` until tracked runtime retirement.
-- Retire the tracked Codex runtime config, the migration command, and the retired-endpoint tombstones in `scripts/prepare-stow.sh` together after the WSL migration evidence is reviewed and a separate candidate is approved.
+- Complete the WSL host pass: inspect status and diff before pulling, and obtain H's approval before discarding any local edits to the retired `codex/.codex/config.toml`; keep config content out of chat and logs; run `make migrate-codex-config`, which seeds the host-local Codex config from the template because the old managed link dangles, then re-enable any desktop-app plugins locally; run `make restow` from the supplying clone, which unfolds the old directory links and removes dangling managed links; run `make verify`; add a WSL-compatible Codex installation; confirm OpenCode's app-temp root.
 - Run `/fewer-permission-prompts` against accumulated host transcripts and promote only durable read-only rules. Keep `gh api` excluded.
 - Run fresh primary external-read canaries for Claude Code and Codex when each tool is next started.
 - Revisit native cross-model review when a managed tool provides a suitable read-only cross-vendor path under subscription authentication.
