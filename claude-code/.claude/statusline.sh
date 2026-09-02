@@ -42,6 +42,7 @@ readarray -d '' -t _f < <(printf '%s' "$input" | jq -j '
   ] | map(tostring) | join([0] | implode)
 ' 2>/dev/null)
 # Scrub C0 control bytes so payload text cannot break line or state integrity.
+# shellcheck disable=SC2004  # Keep the indexed-array subscript explicit.
 for i in "${!_f[@]}"; do _f[$i]="${_f[$i]//[$'\001'-$'\037']/}"; done
 cwd="${_f[0]}" model="${_f[1]}" used_pct="${_f[2]}" ctx_tokens="${_f[3]}" ctx_size="${_f[4]}"
 rate_5h="${_f[5]}" rate_7d="${_f[6]}" cost_usd="${_f[7]}"

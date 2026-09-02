@@ -723,8 +723,8 @@ for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
   rc=0
 done
 
-# Initialization writes a six-field repository binding. Old manifests, other
-# bridges, other repositories, and cold sessions cannot resume.
+# Resumes require a current six-field binding for the same bridge, repository,
+# and session.
 for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
   handoff=$(init_handoff "$bridge")
   awk -F '\t' -v repo="$REPO_ROOT" 'NF == 6 && $3 == "initializer" && $4 == "initialized" && $5 == "-" && $6 == repo { ok=1 } END { exit ok ? 0 : 1 }' \

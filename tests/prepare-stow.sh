@@ -10,9 +10,8 @@ fail() {
   exit 1
 }
 
-# The fixture mirrors the full package shape even though prepare-stow.sh reads
-# only a few endpoints today: the realism guards a future preparation step that
-# inspects targets, at zero cost.
+# Mirror the full package shape so endpoint checks are not constrained by an
+# artificially narrow fixture.
 make_payload() {
   local repo=$1
   mkdir -p "$repo/claude-code/.claude/agents" \

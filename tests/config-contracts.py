@@ -825,8 +825,8 @@ for path in ("/tmp*", "/tmp/*", "/tmp/**", "/tmp/opencode*"):
     )
 # The external subject is a parent-directory glob, while read receives a
 # worktree-relative path. Directory globs and the **-prefixed read entries are
-# load-bearing; file-level external and ~-keyed read entries are retained only
-# as forward-compatible defense.
+# required; file-level external and ~-keyed read entries defend other subject
+# formats.
 require(
     external_rules[HANDOFF_EXTERNAL_ALLOW] == "allow",
     "OpenCode spar external-directory allow drifted",
