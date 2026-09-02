@@ -137,24 +137,45 @@ edit_rules = opencode["permission"]["edit"]
 external_rules = opencode["permission"]["external_directory"]
 require(read_rules["*"] == "allow" and edit_rules["*"] == "allow", "OpenCode workspace autonomy drifted")
 require(external_rules["*"] == "ask", "OpenCode external directories no longer ask")
-for path in CREDENTIAL_STORES:
-    covered = any(
-        rules.get(candidate) == "deny"
-        for rules in (read_rules, external_rules)
-        for candidate in (path, f"{path}/**")
-    )
-    require(covered, f"OpenCode credential store reachable: {path}")
-for path in ("**/.env", "**/.env.*", "**/secrets/**", "**/*.key", "**/*.pem", "**/auth.json"):
+# Read and edit subjects are worktree-relative; external subjects are parent
+# directories. Credential stores under $HOME therefore rely on the external
+# directory globs and the ask default, and worktree denies use **/ globs.
+for path in (
+    "**/.aws/**",
+    "**/.config/gh/**",
+    "**/.docker/**",
+    "**/.gnupg/**",
+    "**/.kube/**",
+    "**/.local/share/opencode/**",
+    "**/.ssh/**",
+    "**/secrets/**",
+):
+    require(external_rules.get(path) == "deny", f"OpenCode external credential store deny missing: {path}")
+for path in (
+    "**/.env",
+    "**/.env.*",
+    "**/secrets/**",
+    "**/*.key",
+    "**/*.pem",
+    "**/auth.json",
+    "**/.netrc",
+    "**/.npmrc",
+    "**/.pypirc",
+    "**/credentials",
+    "**/.ssh/**",
+    "**/.aws/**",
+    "**/.gnupg/**",
+    "**/.kube/**",
+):
     require(read_rules.get(path) == "deny", f"OpenCode credential-shaped read deny missing: {path}")
-for path in ("**/*.key", "**/*.pem", ".env", "secrets/**"):
+for path in ("**/*.key", "**/*.pem", "**/.env", "**/.env.*", "**/secrets/**"):
     require(edit_rules.get(path) == "deny", f"OpenCode credential-shaped edit deny missing: {path}")
 for label, rules in (("read", read_rules), ("edit", edit_rules), ("external_directory", external_rules)):
     allows_precede_denies(rules, label)
 for path in ("/tmp*", "/tmp/*", "/tmp/**"):
     require(external_rules.get(path) != "allow", f"OpenCode broad temporary-directory allow: {path}")
-require("build" not in opencode.get("agent", {}), "OpenCode build agent overrides global policy")
+require("agent" not in opencode, "OpenCode agent overrides bypass global policy")
 load_json("opencode/.config/opencode/tui.json")
-load_json("opencode/.config/opencode/plugins/package.json")
 
 # Project placeholders stay inert.
 require(

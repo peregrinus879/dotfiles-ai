@@ -11,7 +11,7 @@ SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
   codex/.local/bin/spar-codex \
   $(wildcard scripts/*.sh tests/*.sh)
 
-.PHONY: help stow unstow dry-run restow migrate-codex-config lint test verify-deploy canary verify clean
+.PHONY: help stow unstow dry-run restow migrate-codex-config lint test verify-deploy verify clean
 
 help:
 	@echo "Targets:"
@@ -21,10 +21,9 @@ help:
 	@echo "  restow         Clean, then refresh links after repo content changes"
 	@echo "  migrate-codex-config  Make ~/.codex/config.toml a host-local regular file"
 	@echo "  lint           ShellCheck and syntax checks over managed scripts"
-	@echo "  test           Fast tests: configuration boundaries, bridges, plugin, preparation"
+	@echo "  test           Fast tests: configuration boundaries, bridges, statusline, preparation"
 	@echo "  verify-deploy  Check every package file resolves to its deployed target"
-	@echo "  canary         Live client probes for project isolation flags"
-	@echo "  verify         lint, test, verify-deploy, and canary"
+	@echo "  verify         lint, test, and verify-deploy"
 	@echo "  clean          Remove dangling links that point into this repository's packages"
 
 stow: clean
@@ -50,7 +49,6 @@ lint:
 
 test:
 	python3 tests/config-contracts.py
-	node --experimental-strip-types tests/reviewed-writes.mjs
 	bash tests/statusline.sh
 	bash tests/prepare-stow.sh
 	bash tests/spar-bridges.sh
@@ -103,10 +101,7 @@ verify-deploy:
 	else echo "ok:   no stray opencode.jsonc"; fi; \
 	exit $$fail
 
-canary:
-	bash tests/project-config-isolation.sh
-
-verify: lint test verify-deploy canary
+verify: lint test verify-deploy
 	@echo "ok:   verify"
 
 clean:

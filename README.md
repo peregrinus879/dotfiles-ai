@@ -36,14 +36,14 @@ The `spar` workflow uses subscription-authenticated, read-only cross-vendor revi
 ### Prerequisites
 
 - GNU Stow
-- jq, Python, and Node.js
+- jq and Python
 - ShellCheck
-- GNU coreutils and util-linux
+- GNU coreutils
 
 On Arch Linux:
 
 ```bash
-sudo pacman -S --needed stow jq nodejs python shellcheck
+sudo pacman -S --needed stow jq python shellcheck
 ```
 
 ### Clone
@@ -94,7 +94,7 @@ make lint
 make test
 ```
 
-After stowing, `make verify` adds deployment checks and live client canaries. Restart OpenCode after changing its config, skills, or plugins because they load at process startup.
+After stowing, `make verify` adds deployment checks. Restart OpenCode after changing its config or skills because they load at process startup.
 
 Consult [`docs/maintenance.md`](docs/maintenance.md) before major tool or plugin changes, permission or bridge changes, cross-host work, `/doctor`, or work on a listed limitation or deferred item.
 
