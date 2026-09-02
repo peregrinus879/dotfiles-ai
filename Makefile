@@ -5,7 +5,6 @@ SHELL := /bin/bash
 PACKAGES := claude-code codex opencode
 SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
   claude-code/.claude/hooks/spar-handoff-approve.sh \
-  claude-code/.local/bin/context-read-gate.sh \
   claude-code/.local/bin/spar-claude \
   codex/.local/bin/spar-codex \
   $(wildcard scripts/*.sh tests/*.sh)
@@ -53,13 +52,21 @@ verify:
 	[[ $$fail == 0 ]] || exit $$fail; \
 	while IFS= read -r -d '' src; do \
 	  [[ "$$src" == */.gitignore ]] && continue; \
+	  target="$$HOME/$${src#*/}"; \
 	  if [[ ! -e $$src && ! -L $$src ]]; then \
 	    if git diff --quiet -- "$$src"; then \
 	      echo "FAIL: tracked package source is missing without a pending deletion: $$src"; fail=1; \
-	    else echo "ok:   pending package-source deletion: $$src"; fi; \
+	    elif [[ -L $$target ]]; then \
+	      echo "FAIL: retired package endpoint remains linked: $$target"; fail=1; \
+	    elif [[ ! -e $$target ]]; then \
+	      echo "ok:   retired package endpoint absent: $$target"; \
+	    elif [[ -f $$target && -O $$target ]]; then \
+	      echo "ok:   retired package endpoint is owner-controlled: $$target"; \
+	    else \
+	      echo "FAIL: retired package endpoint has an unsupported replacement: $$target"; fail=1; \
+	    fi; \
 	    continue; \
 	  fi; \
-	  target="$$HOME/$${src#*/}"; \
 	  target_resolved=$$(readlink -f -- "$$target"); \
 	  src_resolved=$$(readlink -f -- "$$src"); \
 	  if [[ -n $$target_resolved && -n $$src_resolved && $$target_resolved == "$$src_resolved" ]]; then \
@@ -77,15 +84,11 @@ verify:
 	  "$$HOME/.claude/skills/spar/SKILL.md=claude-code/.claude/skills/spar/SKILL.md" \
 	  "$$HOME/.codex/config.toml=codex/.codex/config.toml" \
 	  "$$HOME/.codex/AGENTS.md=codex/.codex/AGENTS.md" \
-	  "$$HOME/.codex/hooks.json=codex/.codex/hooks.json" \
 	  "$$HOME/.agents/skills/commit/SKILL.md=codex/.agents/skills/commit/SKILL.md" \
 	  "$$HOME/.agents/skills/spar/SKILL.md=codex/.agents/skills/spar/SKILL.md" \
-	  "$$HOME/.local/bin/context-read-gate.sh=claude-code/.local/bin/context-read-gate.sh" \
 	  "$$HOME/.config/opencode/opencode.json=opencode/.config/opencode/opencode.json" \
 	  "$$HOME/.config/opencode/plugins/package.json=opencode/.config/opencode/plugins/package.json" \
 	  "$$HOME/.config/opencode/plugins/reviewed-writes.ts=opencode/.config/opencode/plugins/reviewed-writes.ts" \
-	  "$$HOME/.config/opencode/tools/package.json=opencode/.config/opencode/tools/package.json" \
-	  "$$HOME/.config/opencode/tools/external-context.ts=opencode/.config/opencode/tools/external-context.ts" \
 	  "$$HOME/.config/opencode/tui.json=opencode/.config/opencode/tui.json" \
 	  "$$HOME/.config/opencode/commands/commit.md=opencode/.config/opencode/commands/commit.md" \
 	  "$$HOME/.config/opencode/commands/spar.md=opencode/.config/opencode/commands/spar.md" \
@@ -118,18 +121,15 @@ verify:
 	  if [[ ! -e $$target && ! -L $$target ]]; then :; \
 	  else echo "FAIL: generated OpenCode root state reached the package source: $$target"; fail=1; fi; \
 	done; \
-	for directory in plugins tools; do \
-	  for path in package-lock.json bun.lock bun.lockb node_modules; do \
-	    target="opencode/.config/opencode/$$directory/$$path"; \
-	    if [[ ! -e $$target && ! -L $$target ]]; then :; \
-	    else echo "FAIL: generated state appeared below the tracked $$directory marker: $$target"; fail=1; fi; \
-	  done; \
+	for path in package-lock.json bun.lock bun.lockb node_modules; do \
+	  target="opencode/.config/opencode/plugins/$$path"; \
+	  if [[ ! -e $$target && ! -L $$target ]]; then :; \
+	  else echo "FAIL: generated state appeared below the tracked plugin marker: $$target"; fail=1; fi; \
 	done; \
-	for b in context-read-gate.sh spar-claude spar-codex spar-payload-scan; do \
+	for b in spar-claude spar-codex spar-payload-scan; do \
 	  if [[ -x "$$HOME/.local/bin/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
 	done; \
-	if bash -n claude-code/.claude/statusline.sh claude-code/.local/bin/context-read-gate.sh tests/external-context.sh; then echo "ok:   managed shell syntax"; else echo "FAIL: managed shell syntax"; fail=1; fi; \
-	bash tests/external-context.sh || { echo "FAIL: bounded external context controls"; fail=1; }; \
+	if bash -n claude-code/.claude/statusline.sh; then echo "ok:   statusline shell syntax"; else echo "FAIL: statusline shell syntax"; fail=1; fi; \
 	bash -n tests/statusline-state.sh && bash tests/statusline-state.sh || { echo "FAIL: statusline runtime-state controls"; fail=1; }; \
 	bash -n scripts/prepare-stow.sh tests/prepare-stow.sh tests/spar-bridges.sh || { echo "FAIL: managed shell syntax"; fail=1; }; \
 	bash tests/prepare-stow.sh || { echo "FAIL: non-destructive stow preparation"; fail=1; }; \
@@ -170,12 +170,13 @@ verify:
 	  grep -Fq 'verbatim only when H requests exact wording' claude-code/.claude/rules/shared-guidance.md; then \
 	  echo "ok:   supplied-copy semantic contract"; \
 	else echo "FAIL: supplied-copy semantic contract drifted"; fail=1; fi; \
-	if grep -Fq 'only when H names the exact existing absolute path for the current task' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Use one bounded primary-agent call' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'The approval covers only that path and call, never writes, recursion, future calls, subagents, reviewers' claude-code/.claude/rules/shared-guidance.md && \
-	  grep -Fq 'Never use broad directory grants' claude-code/.claude/rules/shared-guidance.md; then \
-	  echo "ok:   bounded external-context guidance contract"; \
-	else echo "FAIL: bounded external-context guidance drifted"; fail=1; fi; \
+	if grep -Fq 'When H asks to inspect or search context outside the workspace' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'including path discovery and local format conversion' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'do not require an exact filename, redaction, or a repository-owned format handler' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Ordinary personal and professional documents H directs the agent to use are not secret' claude-code/.claude/rules/shared-guidance.md && \
+	  grep -Fq 'Never use broad working-root grants' claude-code/.claude/rules/shared-guidance.md; then \
+	  echo "ok:   generic external-context guidance contract"; \
+	else echo "FAIL: generic external-context guidance drifted"; fail=1; fi; \
 	skill_frontmatter_keys() { \
 	  awk 'NR == 1 { next } /^---$$/ { exit } /^[A-Za-z0-9_-]+:/ { key=$$1; sub(/:$$/, "", key); print key }' "$$1"; \
 	}; \

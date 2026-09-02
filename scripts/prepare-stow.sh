@@ -135,6 +135,15 @@ queue_link() { # path, expected package suffix, optional canonical target suffix
   fi
 }
 
+queue_retired_link() { # path, expected package suffix
+  local path=$1 suffix=$2 target
+  [[ -L $path ]] || return 0
+  target=$(realpath -m -- "$path")
+  [[ $target == */"$suffix" ]] ||
+    abort "refusing unmanaged symlink: $path -> $(readlink -- "$path")"
+  remove_links+=("$path")
+}
+
 queue_generated_state() { # path, expected type, recognized legacy suffix or empty
   local path=$1 expected_type=$2 suffix=${3:-} target
   if [[ -L $path ]]; then
@@ -190,7 +199,7 @@ prepare_codex() {
     queue_link "$HOME/.codex/AGENTS.md" "codex/.codex/AGENTS.md" \
       "claude-code/.claude/rules/shared-guidance.md"
     queue_link "$HOME/.codex/config.toml" "codex/.codex/config.toml"
-    queue_link "$HOME/.codex/hooks.json" "codex/.codex/hooks.json"
+    queue_retired_link "$HOME/.codex/hooks.json" "codex/.codex/hooks.json"
   fi
 
   if prepare_real_dir "$HOME/.agents" "codex/.agents"; then
@@ -209,7 +218,8 @@ prepare_bins() {
       queue_link "$HOME/.local/bin/spar-claude" "claude-code/.local/bin/spar-claude"
       queue_link "$HOME/.local/bin/spar-codex" "codex/.local/bin/spar-codex"
       queue_link "$HOME/.local/bin/spar-payload-scan" "claude-code/.local/bin/spar-payload-scan"
-      queue_link "$HOME/.local/bin/context-read-gate.sh" "claude-code/.local/bin/context-read-gate.sh"
+      queue_retired_link "$HOME/.local/bin/context-read-gate.sh" \
+        "claude-code/.local/bin/context-read-gate.sh"
     fi
   else
     create_dirs+=("$HOME/.local/bin")
@@ -235,7 +245,14 @@ prepare_opencode() {
   queue_link "$root/plugins" "opencode/.config/opencode/plugins"
   queue_link "$root/skills" "opencode/.config/opencode/skills"
   queue_link "$root/themes" "opencode/.config/opencode/themes"
-  queue_link "$root/tools" "opencode/.config/opencode/tools"
+  if [[ -d $root/tools && ! -L $root/tools ]]; then
+    queue_retired_link "$root/tools/external-context.ts" \
+      "opencode/.config/opencode/tools/external-context.ts"
+    queue_retired_link "$root/tools/package.json" \
+      "opencode/.config/opencode/tools/package.json"
+  else
+    queue_link "$root/tools" "opencode/.config/opencode/tools"
+  fi
   queue_link "$root/tui.json" "opencode/.config/opencode/tui.json"
   queue_generated_state "$root/package.json" file "opencode/.config/opencode/package.json"
   queue_generated_state "$root/package-lock.json" file "opencode/.config/opencode/package-lock.json"

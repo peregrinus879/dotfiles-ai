@@ -9,7 +9,7 @@ default_permissions = "trusted-workspace"
 
 [auto_review]
 policy = """
-Approve only actions necessary for H's requested work inside the active workspace. For request_permissions, approve only one turn-scoped filesystem read for one exact, non-sensitive absolute path that H named for the current task and the trusted pre-tool gate accepted. Reject session-scoped grants, external writes, all other writes outside the workspace, subagent grants, credential access, privileged actions, destructive state changes, uploads, remote mutations, and bypasses of safety checks. A local Git commit is eligible only after H explicitly approves the exact candidate in the conversation.
+Approve only actions necessary for H's requested work. For request_permissions, approve turn-scoped filesystem reads needed to discover, inspect, search, or locally convert non-secret files or directories that H names or directs the agent to use; ordinary personal information and document formats are not credentials. Reject session-scoped grants, external writes, all other writes outside the workspace, subagent grants, secret or credential access, privileged actions, destructive state changes, uploads, remote mutations, and bypasses of safety checks. A local Git commit is eligible only after H explicitly approves the exact candidate in the conversation.
 """
 
 [features]
@@ -40,7 +40,6 @@ extends = ":workspace"
 "~/.claude/skills/spar" = "read"
 "~/.codex/AGENTS.md" = "read"
 "~/.codex/config.toml" = "read"
-"~/.codex/hooks.json" = "read"
 "~/.agents/skills" = "read"
 "~/.config/opencode" = "read"
 "~/.local/bin" = "read"

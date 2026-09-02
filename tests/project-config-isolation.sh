@@ -12,7 +12,7 @@ OPENCODE_TEST_ENV=(
   -u OPENCODE_DISABLE_PROJECT_CONFIG
   -u OPENCODE_PURE
 )
-mkdir -p "$TMP/home/.config/opencode" "$TMP/package/opencode/plugins" "$TMP/package/opencode/tools" \
+mkdir -p "$TMP/home/.config/opencode" "$TMP/package/opencode/plugins" \
   "$TMP/home/.config/opencode/skills/commit" "$TMP/home/.config/opencode/skills/spar" \
   "$TMP/home/.claude/skills/omarchy" "$TMP/home/.claude/skills/external-claude-probe" \
   "$TMP/home/.agents/skills/external-agent-probe" "$TMP/project/.git" "$TMP/project/.opencode/plugins"
@@ -23,11 +23,6 @@ cp "$ROOT/opencode/.config/opencode/plugins/reviewed-writes.ts" \
 cp "$ROOT/opencode/.config/opencode/plugins/package.json" \
   "$TMP/package/opencode/plugins/package.json"
 ln -s "$TMP/package/opencode/plugins" "$TMP/home/.config/opencode/plugins"
-cp "$ROOT/opencode/.config/opencode/tools/external-context.ts" \
-  "$TMP/package/opencode/tools/external-context.ts"
-cp "$ROOT/opencode/.config/opencode/tools/package.json" \
-  "$TMP/package/opencode/tools/package.json"
-ln -s "$TMP/package/opencode/tools" "$TMP/home/.config/opencode/tools"
 cp "$ROOT/opencode/.config/opencode/skills/commit/SKILL.md" \
   "$TMP/home/.config/opencode/skills/commit/SKILL.md"
 cp "$ROOT/opencode/.config/opencode/skills/spar/SKILL.md" \
@@ -110,11 +105,6 @@ node --experimental-strip-types --input-type=module -e '
   const plugin = await module.ReviewedWritesPlugin({ directory: process.argv[2] })
   if (typeof plugin["tool.execute.before"] !== "function") process.exit(1)
 ' "$TMP/home/.config/opencode/plugins/reviewed-writes.ts" "$TMP/project"
-node --experimental-strip-types --input-type=module -e '
-  import { pathToFileURL } from "node:url"
-  const module = await import(pathToFileURL(process.argv[1]).href)
-  if (typeof module.default?.execute !== "function") process.exit(1)
-' "$TMP/home/.config/opencode/tools/external-context.ts"
 
 skills_disabled=$(run_opencode OPENCODE_DISABLE_EXTERNAL_SKILLS=1 opencode debug skill 2>&1)
 for managed in \

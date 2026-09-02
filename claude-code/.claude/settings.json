@@ -76,6 +76,10 @@
       "Read(//**/*.key)",
       "Read(//**/*.pem)",
       "Read(//**/*credentials*)",
+      "Read(//**/.env)",
+      "Read(//**/.env.*)",
+      "Read(//**/auth.json)",
+      "Read(//**/secrets/**)",
       "Read(~/.aws/**)",
       "Read(~/.claude/.credentials.json)",
       "Read(~/.config/gh/hosts.yml)",
@@ -120,17 +124,6 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/spar-handoff-approve.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Read|Grep|Glob",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/bin/context-read-gate.sh",
-            "timeout": 5,
-            "statusMessage": "Validating external read target"
           }
         ]
       }

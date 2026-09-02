@@ -30,19 +30,15 @@ make_payload() {
   printf 'tracked\n' >"$repo/claude-code/.claude/CLAUDE.md"
   printf 'tracked\n' >"$repo/claude-code/.claude/statusline.sh"
   printf 'tracked\n' >"$repo/codex/.codex/config.toml"
-  printf '{}\n' >"$repo/codex/.codex/hooks.json"
   ln -s ../../claude-code/.claude/rules/shared-guidance.md "$repo/codex/.codex/AGENTS.md"
   printf 'tracked\n' >"$repo/claude-code/.local/bin/spar-claude"
   printf 'tracked\n' >"$repo/claude-code/.local/bin/spar-payload-scan"
-  printf 'tracked\n' >"$repo/claude-code/.local/bin/context-read-gate.sh"
   printf 'tracked\n' >"$repo/codex/.local/bin/spar-codex"
   printf '{}\n' >"$repo/opencode/.config/opencode/opencode.json"
   printf 'export const plugin = true\n' >"$repo/opencode/.config/opencode/plugins/reviewed-writes.ts"
   printf '{"name":"eyragents-opencode-plugins","private":true,"type":"module"}\n' \
     >"$repo/opencode/.config/opencode/plugins/package.json"
-  printf 'export default {}\n' >"$repo/opencode/.config/opencode/tools/external-context.ts"
-  printf '{"name":"eyragents-opencode-tools","private":true,"type":"module"}\n' \
-    >"$repo/opencode/.config/opencode/tools/package.json"
+  : >"$repo/opencode/.config/opencode/tools/.gitkeep"
 }
 
 run_prepare() {
@@ -95,11 +91,45 @@ case_managed_links() {
   [[ ! -e $home/.codex/hooks.json && ! -L $home/.codex/hooks.json ]] || fail "managed Codex hooks link remains"
   [[ ! -e $home/.config/opencode/opencode.json ]] || fail "managed OpenCode link remains"
   [[ ! -e $home/.config/opencode/tools && ! -L $home/.config/opencode/tools ]] ||
-    fail "managed OpenCode tools link remains"
+    fail "managed OpenCode tools placeholder remains"
   for path in package.json package-lock.json node_modules; do
     [[ ! -e $home/.config/opencode/$path && ! -L $home/.config/opencode/$path ]] ||
       fail "legacy OpenCode link remains: $path"
   done
+}
+
+case_retired_regular_paths() {
+  local home="$TMP/retired-regular/home" repo="$TMP/retired-regular/eyragents"
+  local root="$home/.config/opencode" before after
+  mkdir -p "$home/.codex" "$home/.local/bin" "$root/tools"
+  make_payload "$repo"
+  printf 'user hooks\n' >"$home/.codex/hooks.json"
+  printf 'user gate\n' >"$home/.local/bin/context-read-gate.sh"
+  printf 'user tool\n' >"$root/tools/external-context.ts"
+  printf 'user marker\n' >"$root/tools/package.json"
+  before=$(sha256sum "$home/.codex/hooks.json" "$home/.local/bin/context-read-gate.sh" \
+    "$root/tools/external-context.ts" "$root/tools/package.json")
+  run_prepare "$home"
+  run_prepare "$home"
+  after=$(sha256sum "$home/.codex/hooks.json" "$home/.local/bin/context-read-gate.sh" \
+    "$root/tools/external-context.ts" "$root/tools/package.json")
+  [[ $before == "$after" ]] || fail "regular files at retired endpoints changed"
+}
+
+case_retired_tool_links() {
+  local home="$TMP/retired-tools/home" repo="$TMP/retired-tools/eyragents"
+  local root="$home/.config/opencode"
+  mkdir -p "$root/tools"
+  make_payload "$repo"
+  ln -s "$repo/opencode/.config/opencode/tools/external-context.ts" \
+    "$root/tools/external-context.ts"
+  ln -s "$repo/opencode/.config/opencode/tools/package.json" "$root/tools/package.json"
+  run_prepare "$home"
+  [[ -d $root/tools && ! -L $root/tools ]] || fail "regular tools directory was not preserved"
+  [[ ! -e $root/tools/external-context.ts && ! -L $root/tools/external-context.ts ]] ||
+    fail "retired external-context tool link remains"
+  [[ ! -e $root/tools/package.json && ! -L $root/tools/package.json ]] ||
+    fail "retired tool marker link remains"
 }
 
 case_folded_claude() {
@@ -448,12 +478,16 @@ case_actual_stow() {
     fail "OpenCode config child was not stowed"
   [[ $(readlink -f -- "$root/plugins/package.json") == "$repo/opencode/.config/opencode/plugins/package.json" ]] ||
     fail "nested OpenCode plugin marker was not stowed"
-  [[ $(readlink -f -- "$root/tools/package.json") == "$repo/opencode/.config/opencode/tools/package.json" ]] ||
-    fail "nested OpenCode tool marker was not stowed"
-  [[ $(readlink -f -- "$home/.codex/hooks.json") == "$repo/codex/.codex/hooks.json" ]] ||
-    fail "Codex hooks were not stowed"
-  [[ $(readlink -f -- "$home/.local/bin/context-read-gate.sh") == "$repo/claude-code/.local/bin/context-read-gate.sh" ]] ||
-    fail "external context gate was not stowed"
+  [[ $(readlink -f -- "$root/tools/.gitkeep") == "$repo/opencode/.config/opencode/tools/.gitkeep" ]] ||
+    fail "OpenCode tools placeholder was not stowed"
+  [[ ! -e $root/tools/external-context.ts && ! -L $root/tools/external-context.ts ]] ||
+    fail "retired OpenCode external-context tool was stowed"
+  [[ ! -e $root/tools/package.json && ! -L $root/tools/package.json ]] ||
+    fail "retired OpenCode tool marker was stowed"
+  [[ ! -e $home/.codex/hooks.json && ! -L $home/.codex/hooks.json ]] ||
+    fail "retired Codex hooks were stowed"
+  [[ ! -e $home/.local/bin/context-read-gate.sh && ! -L $home/.local/bin/context-read-gate.sh ]] ||
+    fail "retired external context gate was stowed"
 
   printf 'host-local\n' >"$root/package.json"
   mkdir "$root/node_modules"
@@ -469,6 +503,8 @@ case_actual_stow() {
 
 case_fresh_home
 case_managed_links
+case_retired_regular_paths
+case_retired_tool_links
 case_folded_claude
 case_folded_codex_local
 case_folded_opencode_parent
