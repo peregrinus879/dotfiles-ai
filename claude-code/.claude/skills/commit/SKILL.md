@@ -31,9 +31,22 @@ Co-Authored-By: <official display name of the active model> <provider no-reply a
 1. Stage only the intended paths with `git add -- <path>...`. When a file mixes the commit's hunks with unrelated changes, stage exactly the intended hunks with `git apply --cached` on a trimmed patch, or defer the file and ask H. Never use `git add -A` or `git add .`, and never stage credential-shaped files.
 2. Record the candidate: the tree from `git write-tree`, the parent from `git rev-parse HEAD`, and the branch from `git branch --show-current`.
 3. Run `git diff --cached | spar-payload-scan diff`. A finding names a credential-shaped value or a sensitive path in the staged content and blocks the packet until the span is removed or H rules it public; never stage around it. Then screen the staged diff, paths, and message for content unsuited to the audience, world-readable unless H says otherwise: machine, user, and host identifiers; local paths; security posture; private correspondence; session metadata. Report only metadata for binary or unreadable files and ask H to inspect them in a separate pane.
-4. Present the packet: `git diff --cached --stat`, the proposed message, the tree, parent, and branch, verification results and anything not run, the scanner and privacy screen results, and the scratch disposition. Do not paste the full diff unless H asks. Tell H to review with `git diff --cached` or Neovim's staged-hunk view, then offer `Commit and resume`, `Commit and pause`, and free-text revision, rejection, or questions.
+4. Present the packet: `git diff --cached --stat`, the proposed message, the tree, parent, and branch, verification results and anything not run, the scanner and privacy screen results, and the scratch disposition. Do not paste the full diff unless H asks. Follow the packet with the review cheat sheet below, then use the tool's interactive question selector (Claude Code, OpenCode, and Codex each have one) with `Commit and resume` first and `Commit and pause` second. Free text carries revision requests, rejection, and questions and never authorizes a commit by itself: a revision request updates the candidate and produces a fresh packet; a question is answered and the same packet and selector are presented again.
 
 Any change to the staged content, message, audience, or scratch disposition after approval requires a fresh packet. Rejection preserves the worktree; on H's instruction, `git restore --staged -- <paths>` clears the index.
+
+## Review cheat sheet
+
+Repeat this in every packet until H asks to retire it. Review from a separate terminal pane at the repository root:
+
+1. `nvim .`, then `<Space>gd`: open tracked staged and unstaged hunks.
+2. `<M-w>`: cycle the input, hunk list, and preview panes. `<C-n>`/`<C-p>` or arrow keys: move between hunks; the highlight updates the preview.
+3. `<M-p>`: toggle the preview. `<M-m>`: maximize or restore the active picker pane.
+4. `<Enter>`: open the selected file and close the picker. `<Space>sR`: resume after opening a file. `<Esc>`: close without opening.
+5. `<Space>gs`: open Git Status for intended untracked files. Highlight each file to inspect its preview; use `<Enter>` only when it must be opened, then `<Space>sR` to resume.
+6. Avoid `<Tab>`, which stages, and `<C-r>`, which restores, in both Git pickers.
+
+Terminal fallback: `git diff --cached --stat`, `git diff --cached`, and `git diff --cached -- path/to/file`.
 
 ## Commit
 
