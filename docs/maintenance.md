@@ -10,6 +10,7 @@ Unresolved decisions, deferred work, active limitations, and the dated evidence 
 - Codex sandbox (observed 2026-09-03 on 0.152.1): a literal denied workspace path creates an empty placeholder file wherever the path is absent, and a home-wide glob that matches inside an already denied directory or a runtime tree (`~/**/id_ed25519`, `~/**/.npmrc`) aborts or stalls startup. Profiles use `**/` globs in the workspace and deny directories, not their contents, under `$HOME`; recheck when the sandbox changes.
 - OpenCode TUI (observed 2026-09-01 on 1.18.25): a selected model variant persists across restarts and overrides the configured effort; confirm xhigh in the selector when it matters.
 - OpenCode-to-Claude spar last failed live on 2026-09-02 because the reviewer could not read its handoff directory, a path the bridge no longer uses. One live `spar-claude review` from OpenCode with an artifact closes this item.
+- Claude Code status line (source-checked 2026-09-03 on 2.1.259, the newest release): the `rate_limits` payload carries only `five_hour`, `seven_day`, and the gateway `spend_limit`. The per-model Fable weekly window, tracked internally as `seven_day_overage_included` and shown by `/usage` as "Current week (Fable)", is not exposed, and the only client-side route to it calls the usage API with the token in the credential store, which the security boundaries forbid. Add a `fable:` segment after `7d:` when a release exposes that window; recheck when the status line docs or a changelog entry mention `rate_limits`.
 
 ## Open Decisions
 

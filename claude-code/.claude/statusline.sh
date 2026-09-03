@@ -6,8 +6,9 @@
 # - Every segment must earn its place: directory, Git branch, model, context,
 #   and the two rate-limit windows. No cost, duration, or host segments.
 # - Consistent "label: pct% (remaining)" pattern: ctx: 42% (116k),
-#   5h: 38% (2:11), 7d: 24% (5:06:38). The dim bracket holds what remains:
-#   context tokens, or the countdown (h:mm, d:hh:mm) to the window reset.
+#   5h: 38% (2h:11m), 7d: 24% (5d:6h:38m). The dim bracket holds what remains:
+#   context tokens, or the countdown to the window reset as colon-joined unit
+#   fields from the largest nonzero unit down to minutes.
 # - Three-space separators between segments; single spaces bind label, value,
 #   and bracket within a segment.
 # - Colors pin the Omarchy gruvbox palette as truecolor so rendering does not
@@ -70,30 +71,32 @@ fmt_k() {
   echo "$((n / 1000))k"
 }
 
-# Format seconds remaining as clock fields, leading field unpadded: h:mm or
-# d:hh:mm
-# Args: seconds style(hm|dhm)
+# Format seconds remaining as colon-joined unit fields from the largest nonzero
+# unit down to minutes: 5d:6h:38m, 6h:38m, 59m; under one minute prints <1m
+# Args: seconds
 fmt_countdown() {
-  local remaining=${1:-0} style=$2
+  local remaining=${1:-0} d h m
   if [ "$remaining" -le 0 ] 2>/dev/null; then echo ""; return; fi
-  if [ "$style" = "dhm" ]; then
-    printf '%d:%02d:%02d\n' "$((remaining / 86400))" \
-      "$(( (remaining % 86400) / 3600 ))" "$(( (remaining % 3600) / 60 ))"
-  else
-    printf '%d:%02d\n' "$((remaining / 3600))" "$(( (remaining % 3600) / 60 ))"
+  d=$((remaining / 86400))
+  h=$(( (remaining % 86400) / 3600 ))
+  m=$(( (remaining % 3600) / 60 ))
+  if [ "$d" -gt 0 ]; then printf '%dd:%dh:%dm\n' "$d" "$h" "$m"
+  elif [ "$h" -gt 0 ]; then printf '%dh:%dm\n' "$h" "$m"
+  elif [ "$m" -gt 0 ]; then printf '%dm\n' "$m"
+  else echo "<1m"
   fi
 }
 
 # Render one rate-limit segment on stdout: label: pct% (countdown); the dim
 # bracket holds the time remaining until the window resets.
-# Args: label pct reset_epoch countdown_style
+# Args: label pct reset_epoch
 build_rate_seg() {
-  local label=$1 pct=$2 epoch=$3 style=$4
+  local label=$1 pct=$2 epoch=$3
   local pct_int detail=""
 
   [ -z "$pct" ] && return
   pct_int=$(printf '%.0f' "$pct" 2>/dev/null) || return
-  [ "${epoch:-0}" -gt "$now" ] 2>/dev/null && detail=$(fmt_countdown "$((epoch - now))" "$style")
+  [ "${epoch:-0}" -gt "$now" ] 2>/dev/null && detail=$(fmt_countdown "$((epoch - now))")
 
   printf '%s' "${dim}${label}:${reset} $(pct_color "$pct_int")${pct_int}%${reset}${detail:+ ${dim}(${detail})${reset}}"
 }
@@ -153,8 +156,8 @@ if [ -n "$used_pct" ]; then
 fi
 
 # Rate limits: 5h and 7d (bracketed countdown to the window reset)
-rate5_seg=$(build_rate_seg "5h" "$rate_5h" "$reset_5h" "hm")
-rate7_seg=$(build_rate_seg "7d" "$rate_7d" "$reset_7d" "dhm")
+rate5_seg=$(build_rate_seg "5h" "$rate_5h" "$reset_5h")
+rate7_seg=$(build_rate_seg "7d" "$rate_7d" "$reset_7d")
 
 # --- Output ---
 line=""
