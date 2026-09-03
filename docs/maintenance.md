@@ -23,8 +23,7 @@ This ledger contains unresolved decisions, deferred work, active limitations, an
   - Confirm the host: `/proc/version` names Microsoft, and `readlink -f ~/.claude/settings.json` resolves into this clone.
   - Run `git status --short` and `git diff --stat`. If `codex/.codex/config.toml` carries local edits, show H the hunks and obtain a ruling before anything is discarded; keep config content out of chat and logs.
   - `git pull --ff-only`.
-  - `make migrate-codex-config`; the old managed link dangles, so expect `installed host-local Codex config from .../templates/codex/config.toml` and a mode-600 single-link regular file. H then re-enables desktop-app plugins locally.
-  - `make restow`; report the dangling links it removed and confirm `~/.claude`, `~/.claude/rules`, `~/.claude/skills/*`, `~/.agents/skills/*`, and `~/.config/opencode` are real directories.
+  - `make restow`; report the dangling links it removed and confirm `~/.claude`, `~/.claude/rules`, `~/.claude/skills/*`, `~/.agents/skills/*`, and `~/.config/opencode` are real directories. The old managed Codex link dangles, so expect `installed host-local Codex config from the template` and a mode-600 regular file; H then re-enables desktop-app plugins locally.
   - `make verify`.
   - Confirm `codex --version` runs; if Codex is not installed, add it through the same manager as Omarchy (`mise ls --current`) and record the version.
   - Confirm OpenCode's default temp root is `/tmp/opencode`, which the `external_directory` allow depends on.

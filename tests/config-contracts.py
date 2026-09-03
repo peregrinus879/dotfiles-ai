@@ -61,6 +61,11 @@ def load_toml(path: str):
         return tomllib.load(handle)
 
 
+def load_toml_file(path: str):
+    with open(path, "rb") as handle:
+        return tomllib.load(handle)
+
+
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise SystemExit(f"FAIL: {message}")
@@ -109,6 +114,7 @@ def check_codex(config: dict, label: str) -> None:
     filesystem = profile["filesystem"]
     require(filesystem[":root"] == "deny", f"{label} filesystem root is not denied")
     require(profile["network"]["enabled"] is False, f"{label} command network is enabled")
+    require(filesystem.get("~/.local/share/mise") == "read", f"{label} cannot execute mise-managed runtimes")
     for path in CREDENTIAL_STORES:
         require(filesystem.get(path) == "deny", f"{label} credential store readable: {path}")
     for path in ("~/**/.env", "~/**/.env.*", "~/**/secrets", "~/**/*.key", "~/**/*.pem"):
@@ -122,6 +128,8 @@ def check_codex(config: dict, label: str) -> None:
 
 
 check_codex(codex_template, "Codex portable template")
+if os.environ.get("HOST_CODEX_CONFIG"):
+    check_codex(load_toml_file(os.environ["HOST_CODEX_CONFIG"]), "host Codex config")
 
 # OpenCode
 opencode = load_json("opencode/.config/opencode/opencode.json")

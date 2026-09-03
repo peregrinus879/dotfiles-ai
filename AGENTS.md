@@ -19,7 +19,7 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 ## Tool Configuration
 
 - Claude Code runs in auto mode with bypass disabled and no tracked sandbox; deterministic denies cover pushes, repository-host mutations, privilege escalation, destructive Git operations, and credential reads. `/doctor` may rewrite `~/.claude.json` and local allowlists; curate durable rules instead of restoring machine state.
-- Codex runs the root-denied `trusted-workspace` profile from `templates/codex/config.toml`, installed host-locally by `make migrate-codex-config`, with automatic approval review and command network disabled. Scripted `codex exec` calls use one finite prompt and never `--last`.
+- Codex runs the root-denied `trusted-workspace` profile from `templates/codex/config.toml`, installed host-locally by `make stow`, with automatic approval review and command network disabled. The profile grants the mise install directory so the sandbox can execute mise-managed runtimes. Scripted `codex exec` calls use one finite prompt and never `--last`.
 - OpenCode allows ordinary workspace edits and shell commands, asks for native access outside the app temp root, and denies pushes, repository-host mutations, destructive Git operations, privilege escalation, remote shells and transfers, and nested agent launches. Permission order is last-match-wins; read and edit subjects are worktree-relative and external subjects are parent directories, so credential stores under `$HOME` rely on the external-directory globs and the ask default. OpenCode has no classifier or sandbox, so its Bash rules are guardrails, not containment.
 
 ## Reviewer Bridges
@@ -30,7 +30,7 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 
 ## State and Deployment
 
-- Stow runs with `--no-folding`, so every managed parent under `$HOME` is a real directory and only leaf files are links; generated host state therefore never reaches a package source. `make clean` removes only dangling links whose text points into this repository's packages. `make migrate-codex-config` makes `~/.codex/config.toml` a host-local owner-only file.
+- Stow runs with `--no-folding`, so every managed parent under `$HOME` is a real directory and only leaf files are links; generated host state therefore never reaches a package source. `make clean` removes only dangling links whose text points into this repository's packages. `make stow` and `make restow` reconcile `~/.codex/config.toml`: the template owns root keys and its tables, host-only tables are preserved verbatim, and `make verify` attests that the host file carries the template's boundaries.
 - Empty package directories are not tracked; a directory appears in a package only when it holds a managed file.
 - `make lint` and `make test` run after every managed change; `make verify` adds deployment checks after stowing. Restart OpenCode after changing its config or skills. Record only unresolved failures or live revalidation needs in `docs/maintenance.md`.
 

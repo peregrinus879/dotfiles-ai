@@ -31,7 +31,16 @@ make_clone() {
   printf '{}\n' >"$repo/opencode/.config/opencode/opencode.json"
   ln -s ../../../../../claude-code/.claude/skills/commit/SKILL.md "$repo/opencode/.config/opencode/skills/commit/SKILL.md"
   cp -- "$ROOT/scripts/prepare-stow.sh" "$repo/scripts/prepare-stow.sh"
+  cp -- "$ROOT/scripts/reconcile-codex-config.py" "$repo/scripts/reconcile-codex-config.py"
   cp -- "$ROOT/templates/codex/config.toml" "$repo/templates/codex/config.toml"
+}
+
+toml_value() { # file dotted.key
+  python3 -c 'import sys, tomllib
+data = tomllib.load(open(sys.argv[1], "rb"))
+for part in sys.argv[2].split("."):
+    data = data[part]
+print(data)' "$1" "$2"
 }
 
 prepare() { HOME=$1 bash "$2/scripts/prepare-stow.sh"; }
@@ -99,16 +108,28 @@ case_migration() {
   cmp -s -- "$config" "$repo/templates/codex/config.toml" || fail "seeded config differs from the template"
   local inode; inode=$(stat -c '%i' -- "$config")
   migrate "$home" "$repo"
-  [[ $(stat -c '%i' -- "$config") == "$inode" ]] || fail "repeat migration rewrote a safe regular config"
+  [[ $(stat -c '%i' -- "$config") == "$inode" ]] || fail "repeat migration rewrote a matching config"
   chmod 640 "$config"
-  if migrate "$home" "$repo" >/dev/null 2>&1; then fail "migration accepted a group-readable config"; fi
-  rm -- "$config"
-
-  ln -s "$repo/codex/.codex/config.toml" "$config"
   migrate "$home" "$repo"
-  [[ -f $config && ! -L $config && $(<"$config") == "tracked" && $(stat -c '%a' -- "$config") == 600 ]] ||
-    fail "managed link was not converted in place with its bytes"
-  [[ $(<"$repo/codex/.codex/config.toml") == "tracked" ]] || fail "migration changed the managed source"
+  [[ $(stat -c '%a' -- "$config") == 600 ]] || fail "migration did not restore owner-only mode"
+
+  # App-written host tables survive; template-owned values are restored.
+  {
+    sed 's/^model_reasoning_effort = .*/model_reasoning_effort = "low"/' "$repo/templates/codex/config.toml"
+    printf '\n[projects."/srv/example"]\ntrust_level = "trusted"\n\n[plugins."sites@openai-bundled"]\nenabled = true\n\n[desktop]\nfollowUpQueueMode = "queue"\n'
+  } >"$config"
+  chmod 600 "$config"
+  migrate "$home" "$repo"
+  [[ $(toml_value "$config" model_reasoning_effort) == xhigh ]] || fail "template-owned value was not restored"
+  [[ $(toml_value "$config" 'projects./srv/example.trust_level') == trusted ]] || fail "host project table was lost"
+  [[ $(toml_value "$config" 'plugins.sites@openai-bundled.enabled') == True ]] || fail "host plugin table was lost"
+  [[ $(toml_value "$config" desktop.followUpQueueMode) == queue ]] || fail "host desktop table was lost"
+  [[ $(stat -c '%a' -- "$config") == 600 ]] || fail "reconciled config is not owner-only"
+  python3 "$repo/scripts/reconcile-codex-config.py" check "$repo/templates/codex/config.toml" "$config" ||
+    fail "reconciled config does not pass the drift check"
+  inode=$(stat -c '%i' -- "$config")
+  migrate "$home" "$repo"
+  [[ $(stat -c '%i' -- "$config") == "$inode" ]] || fail "repeat reconciliation rewrote a matching config"
   rm -- "$config"
 
   ln -s "$repo/codex/.codex/config.toml" "$config"
@@ -123,8 +144,9 @@ case_migration() {
   [[ -L $config ]] || fail "failed migration changed an unmanaged link"
   rm -- "$config"
 
-  ln -s "$TMP/migrate/eyragents/templates/codex/config.toml" "$config"
-  if migrate "$home" "$repo" >/dev/null 2>&1; then fail "migration accepted a link to a non-runtime leaf"; fi
+  printf 'not = [valid\n' >"$config"
+  if migrate "$home" "$repo" >/dev/null 2>&1; then fail "migration accepted an unparseable host config"; fi
+  [[ $(<"$config") == 'not = [valid' ]] || fail "failed migration changed an unparseable host config"
   rm -- "$config"
 
   rm -rf -- "$home/.codex"

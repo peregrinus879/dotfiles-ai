@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prepare $HOME for `stow --no-folding`, and migrate the Codex config on request.
+# Prepare $HOME for `stow --no-folding`, and reconcile the Codex config on request.
 #
 # Without arguments: remove dangling symlinks under the managed target
 # directories whose link text points into one of this repository's packages
@@ -8,9 +8,11 @@
 # remaining conflict without changing the filesystem.
 #
 # --migrate-codex-config: make ~/.codex/config.toml a host-local, owner-only
-# regular file. A managed symlink is converted in place with its current bytes;
-# a dangling managed symlink or a missing file is seeded from the portable
-# template; an existing regular file is preserved.
+# regular file that carries the portable template's root keys and tables and
+# preserves every host-only table Codex or the desktop app wrote (projects,
+# marketplaces, plugins, mcp_servers, shell_environment_policy, desktop). A
+# missing file or a managed symlink is replaced by the template; a regular file
+# that already matches the template is left untouched.
 set -euo pipefail
 
 abort() {
@@ -47,39 +49,41 @@ clean_links() {
 }
 
 migrate_codex_config() {
-  local codex_root="$HOME/.codex" config template source temp
+  local codex_root="$HOME/.codex" config template reconcile temp
+  local -a host=()
   template="$repository_root/templates/codex/config.toml"
+  reconcile="$repository_root/scripts/reconcile-codex-config.py"
   config="$codex_root/config.toml"
   [[ -f $template && ! -L $template ]] || abort "Codex portable template is missing: $template"
+  [[ -f $reconcile ]] || abort "Codex reconciliation script is missing: $reconcile"
+  command -v python3 >/dev/null || abort 'python3 is required for Codex config reconciliation'
   [[ -d $codex_root && ! -L $codex_root && -O $codex_root ]] ||
     abort "Codex runtime root must be a real directory owned by you: $codex_root"
 
   if [[ -L $config ]]; then
-    if source=$(realpath -e -- "$config" 2>/dev/null); then
-      [[ $source == "$repository_root/codex/.codex/config.toml" ]] ||
-        abort "Codex config symlink does not target this clone's managed leaf: $config -> $source"
-    else
-      managed_link_text "$(readlink -- "$config")" ||
-        abort "refusing to replace an unmanaged dangling Codex config symlink: $config"
-      source=$template
-    fi
+    managed_link_text "$(readlink -- "$config")" ||
+      abort "refusing to replace an unmanaged Codex config symlink: $config"
   elif [[ -e $config ]]; then
-    [[ -f $config && -O $config && $(stat -c '%a' -- "$config") =~ ^[46]00$ ]] ||
-      abort "host-local Codex config must be a regular owner-only file: $config"
-    printf 'prepare-stow: preserved existing host-local Codex config\n'
-    return
-  else
-    source=$template
+    [[ -f $config && -O $config ]] || abort "host-local Codex config must be a regular file owned by you: $config"
+    if python3 "$reconcile" check "$template" "$config" && [[ $(stat -c '%a' -- "$config") =~ ^[46]00$ ]]; then
+      printf 'prepare-stow: host-local Codex config already matches the template\n'
+      return
+    fi
+    host=("$config")
   fi
 
   umask 077
-  temp=$(mktemp -- "$codex_root/.config.toml.XXXXXX") || abort 'cannot create migration temporary file'
+  temp=$(mktemp -- "$codex_root/.config.toml.XXXXXX") || abort 'cannot create reconciliation temporary file'
   trap 'rm -f -- "$temp"' EXIT
-  cat -- "$source" >"$temp" || abort 'cannot copy migration source'
-  sync -f -- "$temp" || abort 'cannot flush migration temporary file'
-  mv -T -- "$temp" "$config" || abort "cannot install migrated Codex config: $config"
+  python3 "$reconcile" merge "$template" "${host[@]}" >"$temp" || abort 'cannot reconcile the Codex config'
+  sync -f -- "$temp" || abort 'cannot flush the reconciled Codex config'
+  mv -T -- "$temp" "$config" || abort "cannot install the reconciled Codex config: $config"
   trap - EXIT
-  printf 'prepare-stow: installed host-local Codex config from %s\n' "$source"
+  if ((${#host[@]})); then
+    printf 'prepare-stow: reconciled host-local Codex config with the template, host tables preserved\n'
+  else
+    printf 'prepare-stow: installed host-local Codex config from the template\n'
+  fi
 }
 
 case ${1:-} in

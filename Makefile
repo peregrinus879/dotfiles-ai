@@ -15,11 +15,11 @@ SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
 
 help:
 	@echo "Targets:"
-	@echo "  stow           Clean dangling managed links, then stow all packages into ~"
+	@echo "  stow           Clean dangling links, stow all packages into ~, reconcile the Codex config"
 	@echo "  unstow         Remove all package links"
 	@echo "  dry-run        Preview Stow actions"
-	@echo "  restow         Clean, then refresh links after repo content changes"
-	@echo "  migrate-codex-config  Make ~/.codex/config.toml a host-local regular file"
+	@echo "  restow         Clean, refresh links, and reconcile the Codex config"
+	@echo "  migrate-codex-config  Reconcile ~/.codex/config.toml with the template, keeping host tables"
 	@echo "  lint           ShellCheck and syntax checks over managed scripts"
 	@echo "  test           Fast tests: configuration boundaries, bridges, statusline, preparation"
 	@echo "  verify-deploy  Check every package file resolves to its deployed target"
@@ -28,6 +28,7 @@ help:
 
 stow: clean
 	$(STOW) -v $(PACKAGES)
+	bash scripts/prepare-stow.sh --migrate-codex-config
 
 unstow:
 	$(STOW) -D -v $(PACKAGES)
@@ -37,6 +38,7 @@ dry-run:
 
 restow: clean
 	$(STOW) -R -v $(PACKAGES)
+	bash scripts/prepare-stow.sh --migrate-codex-config
 
 migrate-codex-config:
 	bash scripts/prepare-stow.sh --migrate-codex-config
@@ -44,7 +46,7 @@ migrate-codex-config:
 lint:
 	shellcheck -s bash $(SHELLCHECK_FILES)
 	python3 -I -c 'import sys; [compile(open(p, "rb").read(), p, "exec") for p in sys.argv[1:]]' \
-	  claude-code/.local/bin/spar-payload-scan tests/config-contracts.py
+	  claude-code/.local/bin/spar-payload-scan scripts/reconcile-codex-config.py tests/config-contracts.py
 	@echo "ok:   lint"
 
 test:
@@ -98,6 +100,12 @@ verify-deploy:
 	for b in spar-claude spar-codex spar-payload-scan; do \
 	  if [[ -x "$$HOME/.local/bin/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
 	done; \
+	config="$$HOME/.codex/config.toml"; \
+	if [[ -f $$config && ! -L $$config && -O $$config && $$(stat -c '%a' -- "$$config") =~ ^[46]00$$ ]] && \
+	  python3 scripts/reconcile-codex-config.py check templates/codex/config.toml "$$config" && \
+	  HOST_CODEX_CONFIG="$$config" python3 tests/config-contracts.py >/dev/null; then \
+	  echo "ok:   host Codex config carries the template boundaries"; \
+	else echo "FAIL: host Codex config is missing, exposed, or drifted from the template (run make restow)"; fail=1; fi; \
 	if [[ -e "$$HOME/.config/opencode/opencode.jsonc" ]]; then \
 	  echo "FAIL: stray ~/.config/opencode/opencode.jsonc shadows the stowed config"; fail=1; \
 	else echo "ok:   no stray opencode.jsonc"; fi; \
