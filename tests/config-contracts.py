@@ -44,6 +44,9 @@ CREDENTIAL_FILES = (
 CREDENTIAL_SHAPES = (
     ".env",
     ".env.*",
+    ".netrc",
+    ".npmrc",
+    ".pypirc",
     "*.key",
     "*.p12",
     "*.pem",
@@ -170,12 +173,13 @@ def check_codex(config: dict, label: str) -> None:
     require(filesystem.get("~/.local/share/mise") == "read", f"{label} cannot execute mise-managed runtimes")
     for path in (*CREDENTIAL_DIRECTORIES, *CREDENTIAL_FILES):
         require(filesystem.get(path) == "deny", f"{label} credential store reachable: {path}")
-    # OpenSSH keys live under ~/.ssh, which is denied as a directory; a
-    # home-wide id_* glob scans the whole home and breaks sandbox startup.
+    # OpenSSH keys live under ~/.ssh and the rc files are denied as literal
+    # home paths; home-wide globs for them match files inside already denied
+    # or runtime trees and break or slow sandbox startup.
     for shape in CREDENTIAL_SHAPES:
         name = shape.removesuffix("/**")
-        if name.startswith("id_"):
-            require(f"~/**/{name}" not in filesystem, f"{label} home-wide key glob breaks sandbox startup: {name}")
+        if name.startswith("id_") or name in (".netrc", ".npmrc", ".pypirc"):
+            require(f"~/**/{name}" not in filesystem, f"{label} home-wide glob breaks sandbox startup: {name}")
             continue
         require(filesystem.get(f"~/**/{name}") == "deny", f"{label} home deny missing: {shape}")
     workspace = filesystem[":workspace_roots"]
