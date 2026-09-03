@@ -33,7 +33,7 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 
 - Stow runs with `--no-folding`, so every managed parent under `$HOME` is a real directory and only leaf files are links; generated host state therefore never reaches a package source. `make clean` removes only dangling links whose text points into this repository's packages. `make stow` and `make restow` reconcile `~/.codex/config.toml`: the template owns root keys and its tables, host-only tables are preserved verbatim, and `make verify` attests that the host file carries the template's boundaries.
 - Empty package directories are not tracked; a directory appears in a package only when it holds a managed file.
-- `make lint` and `make test` run after every managed change; `make verify` adds deployment checks after stowing. Restart OpenCode after changing its config or skills. Record only unresolved failures or live revalidation needs in `docs/maintenance.md`.
+- `make lint` and `make test` run after every managed change and in CI on every push; `make verify` adds deployment checks after stowing. Restart OpenCode after changing its config or skills. Record only unresolved failures or live revalidation needs in `docs/maintenance.md`.
 
 ## Skills
 

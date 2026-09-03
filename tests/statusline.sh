@@ -14,8 +14,9 @@ render() { XDG_RUNTIME_DIR="$TMP" HOME="$TMP" "$STATUSLINE" <<<"$1"; }
 future=$(( $(date +%s) + 3600 ))
 full=$(printf '{"workspace":{"current_dir":"%s"},"model":{"display_name":"Claude Test"},"context_window":{"used_percentage":42,"total_input_tokens":84000,"context_window_size":200000},"rate_limits":{"five_hour":{"used_percentage":20,"resets_at":%s},"seven_day":{"used_percentage":95,"resets_at":%s}}}\n' "$ROOT" "$future" "$future")
 output=$(render "$full")
-[[ $output == *'eyragents'* ]] || fail "repository directory segment did not render"
-[[ $output == *"$(git -C "$ROOT" symbolic-ref --short HEAD)"* ]] || fail "branch segment did not render"
+[[ $output == *"${ROOT##*/}"* ]] || fail "repository directory segment did not render"
+expected_branch=$(git -C "$ROOT" symbolic-ref --short HEAD 2>/dev/null || git -C "$ROOT" rev-parse --short HEAD)
+[[ -n $expected_branch && $output == *"$expected_branch"* ]] || fail "branch segment did not render"
 [[ $output == *'Test'* && $output != *'Claude Test'* ]] || fail "model segment did not strip the Claude prefix"
 [[ $output == *'ctx:'*'42%'*'(116k)'* ]] || fail "context segment did not render the remaining tokens"
 [[ $output =~ 5h:.*20%.*\((0:59|1:00)\) ]] || fail "five-hour segment did not render its countdown"

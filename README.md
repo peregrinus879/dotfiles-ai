@@ -109,7 +109,7 @@ make lint
 make test
 ```
 
-After stowing, `make verify` adds deployment checks. Restart OpenCode after changing its config or skills because they load at process startup.
+After stowing, `make verify` adds deployment checks. GitHub Actions runs `make lint` and `make test` on every push and pull request. Restart OpenCode after changing its config or skills because they load at process startup.
 
 Consult [`docs/maintenance.md`](docs/maintenance.md) before major tool or plugin changes, permission or bridge changes, cross-host work, `/doctor`, or work on a listed limitation or deferred item.
 
