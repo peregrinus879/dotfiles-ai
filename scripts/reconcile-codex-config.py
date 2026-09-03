@@ -8,12 +8,15 @@ The template owns every root-level key and every table it defines (auto_review,
 features, agents, permissions). Everything else in HOST is host-only state that
 Codex and the desktop app write (projects, marketplaces, plugins, mcp_servers,
 shell_environment_policy, desktop, and any table the template does not know)
-and is preserved verbatim, in its original order.
+and is preserved in its original order, trimmed of surrounding blank lines.
 
 `merge` prints the reconciled config: the template text followed by the
 host-only tables. `check` exits 0 when HOST already carries the template's
 root keys and tables with the template's values, 1 when it has drifted, and 2
-when either file does not parse.
+when either file does not parse. Sections are split on top-level table headers
+line by line; a multi-line string that contains a line shaped like a header
+makes the reconciled output fail to parse, which `merge` reports instead of
+writing.
 """
 
 from __future__ import annotations

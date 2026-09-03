@@ -5,9 +5,12 @@
 # directories whose link text names a path inside one of this repository's
 # packages, recognized by the package name followed by a top-level entry that
 # package really has, so retired files and moved or renamed clones are cleaned
-# and unrelated links with a similar spelling are not. Links that resolve,
-# links that point elsewhere, and regular files are never touched; Stow itself
-# reports any remaining conflict without changing the filesystem.
+# and unrelated links with a similar spelling are not. The match is not bound
+# to this clone's path, so a dangling link into another clone with the same
+# package layout is removed too; only dangling links are ever removed. Links
+# that resolve, links that point elsewhere, and regular files are never
+# touched; Stow itself reports any remaining conflict without changing the
+# filesystem.
 #
 # --migrate-codex-config: make ~/.codex/config.toml a host-local, owner-only
 # regular file that carries the portable template's root keys and tables and

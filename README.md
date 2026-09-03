@@ -45,7 +45,7 @@ Trusted-repository work is autonomous until the commit boundary: a clear impleme
 
 What each tool actually enforces differs, and the configuration says so:
 
-- Claude Code: deterministic allow and deny rules, plus an auto-mode classifier that reviews every other tool call. Pushes, `git clean`, repository-host mutations, privilege escalation, and credential reads and writes are denied outright; destructive Git operations, Git configuration changes, `gh` mutations, and persistence surfaces clear only on the user's explicit instruction.
+- Claude Code: deterministic allow and deny rules, plus an auto-mode classifier that reviews every other tool call. The named command forms of pushes, `git clean`, `gh` repository mutations, and privilege escalation are denied by rule, as are credential reads and writes through the file tools; everything else, including alternate command spellings, shell access to credential paths, destructive Git operations, Git configuration changes, and persistence surfaces, is the classifier's call and clears only on the user's explicit instruction.
 - Codex: an OS sandbox with the filesystem root denied, credential stores and shapes denied, `.git/config` and `.git/hooks` read-only, and command network off. Permission requests go through an automatic reviewer.
 - OpenCode: lexical Bash rules, worktree-relative read and edit rules, and an ask default outside the workspace and the app temp root. It has no sandbox or classifier, so its rules are guardrails against mistakes, not containment against a prompt-injected session.
 
@@ -98,7 +98,7 @@ When moving clones, run `make unstow` in the old clone and `make stow` in the ne
 
 ## Untrusted Checkouts
 
-Normal interactive use assumes a trusted repository. For a hostile checkout, use Claude Code in safe mode, which ignores the project's `CLAUDE.md`, hooks, and settings, or Codex with project instructions suppressed under its normal root-denied, network-off profile:
+Normal interactive use assumes a trusted repository. For a hostile checkout, use Claude Code in safe mode, which ignores the project's `CLAUDE.md`, hooks, and settings, or Codex with project instructions suppressed under its normal root-denied, network-off profile. Neither launch confines the model against instructions it reads in file contents; Codex keeps its writable workspace and whatever desktop-app surfaces are enabled:
 
 ```bash
 claude --safe-mode --setting-sources user
@@ -113,8 +113,8 @@ OpenCode has no untrusted mode: `OPENCODE_DISABLE_PROJECT_CONFIG=1 OPENCODE_DISA
 ## Workflows
 
 - `commit` stages the intended paths, presents the staged candidate with its tree id, and commits only after approval.
-- `publish` reviews the commits between the tracking ref and `HEAD` before a push, release, or pull request is presented as ready.
-- `spar` runs an optional read-only cross-model review of a plan, diff, or decision: `spar-<reviewer> review "<request>" <artifact>...` from the repository. Claude Code reviews with `spar-codex`; Codex and OpenCode review with `spar-claude`. Consult the maintenance ledger for active bridge availability.
+- `publish` reviews the commits between the destination's tracking ref and the reviewed commit, scans them, and binds the push to both ends with a lease before a push, release, or pull request is presented as ready.
+- `spar` runs an optional read-only cross-model review of a plan, diff, or decision: `spar-<reviewer> review "<request>" <artifact>...` from the repository. Claude Code reviews with `spar-codex`, OpenCode with `spar-claude`, and a Codex session hands the request to the user because its profile cannot launch the bridge. Consult the maintenance ledger for active bridge availability.
 
 ## Verify
 
@@ -125,7 +125,7 @@ make lint
 make test
 ```
 
-After stowing, `make verify` adds deployment checks. GitHub Actions runs `make lint` and `make test` on every push and pull request. Restart OpenCode after changing its config or skills because they load at process startup.
+After stowing, `make verify` adds deployment checks. GitHub Actions runs `make lint` and `make test` on every push to `main` and every pull request. Restart OpenCode after changing its config or skills because they load at process startup.
 
 Consult [`docs/maintenance.md`](docs/maintenance.md) before major tool or plugin changes, permission or bridge changes, cross-host work, `/doctor`, or work on a listed limitation or deferred item.
 
