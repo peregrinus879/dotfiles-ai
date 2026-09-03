@@ -203,6 +203,12 @@ printf 'Review.' | "$SCANNER" outbound "$TMP/art/safe-headers.md" >/dev/null 2>&
 
 printf 'The .env path is denied.\n' | "$SCANNER" reply >/dev/null || fail "reply scanner rejected sensitive-path prose"
 if printf '%s=%s\n' "$key_name" "$token" | "$SCANNER" reply >/dev/null 2>&1; then fail "reply scanner accepted a credential value"; fi
+# The diff mode used by the commit and publish skills checks content and paths.
+printf '%s\n' 'diff --git a/notes.md b/notes.md' '+harmless' | "$SCANNER" diff >/dev/null || fail "diff scanner rejected a safe diff"
+if printf '%s\n' 'diff --git a/.env b/.env' '+harmless' | "$SCANNER" diff >/dev/null 2>&1; then fail "diff scanner accepted a sensitive path"; fi
+if printf '%s\n' 'diff --git a/app.py b/app.py' "+$(printf '%s=%s' "$key_name" "$token")" | "$SCANNER" diff >/dev/null 2>&1; then
+  fail "diff scanner accepted a credential value"
+fi
 
 # The repository must stay reviewable by its own scanner.
 git -C "$ROOT" diff --binary "$(git -C "$ROOT" hash-object -t tree /dev/null)" -- . |

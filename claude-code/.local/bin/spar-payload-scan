@@ -7,6 +7,9 @@ Modes:
       any of them, and write the assembled prompt (request followed by one
       delimited section per artifact) on stdout
   reply  read a reviewer reply on stdin and reject credential-shaped values
+  diff   read a Git diff on stdin and reject credential-shaped values and
+      sensitive diff paths; the commit and publish skills run it over staged
+      and outbound diffs before presenting a candidate or a push
 
 Exit codes: 0 accepted, 2 rejected or malformed input, 64 usage. Diagnostics
 name the rule and line, never the matched bytes.
@@ -276,11 +279,11 @@ def scan_outbound(artifacts: list[str]) -> None:
     sys.stdout.write("\n\n".join(sections))
 
 
-def scan_reply() -> None:
+def scan_stream(label: str, check_paths: bool) -> None:
     data = sys.stdin.buffer.read(TOTAL_MAX + 1)
     if len(data) > TOTAL_MAX:
-        reject("reply", "reply exceeds the review limit")
-    enforce(content_findings("reply", decode_text("reply", data), False))
+        reject(label, f"{label} exceeds the review limit")
+    enforce(content_findings(label, decode_text(label, data), check_paths))
 
 
 def main() -> None:
@@ -288,9 +291,12 @@ def main() -> None:
         scan_outbound(sys.argv[2:])
         return
     if len(sys.argv) == 2 and sys.argv[1] == "reply":
-        scan_reply()
+        scan_stream("reply", False)
         return
-    print("usage: spar-payload-scan outbound [artifact-file...] | reply", file=sys.stderr)
+    if len(sys.argv) == 2 and sys.argv[1] == "diff":
+        scan_stream("diff", True)
+        return
+    print("usage: spar-payload-scan outbound [artifact-file...] | reply | diff", file=sys.stderr)
     raise SystemExit(64)
 
 
