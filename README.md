@@ -8,6 +8,22 @@ EyrAgents provides shared cross-tool guidance, runtime configuration, commit and
 
 [`AGENTS.md`](AGENTS.md) contains repository invariants. Managed skills contain workflow procedure. [`docs/maintenance.md`](docs/maintenance.md) contains active limitations, open decisions, deferred work, and revalidation triggers.
 
+## Repo Family
+
+Derivation model for this repo family:
+
+```text
+AI agent harness                → EyrAgents
+Omarchy + personal deviations   → EyrArcHy
+Omarchy + WSL deviations        → EyrWSL
+```
+
+- [`eyragents`](https://github.com/peregrinus879/eyragents) - AI agent harness: Claude Code, Codex, and OpenCode settings, shared guidance, and commit workflow
+- [`eyrarchy`](https://github.com/peregrinus879/eyrarchy) - Personal Omarchy customizations: Bash overrides, Hyprland bindings, Neovim plugins, and Yazi
+- [`eyrwsl`](https://github.com/peregrinus879/eyrwsl) - Self-contained WSL Arch environment: terminal baseline plus Windows Terminal and clipboard integration
+
+Local clones live side by side under `~/Projects/eyrie/`.
+
 ## Layout
 
 Each path inside a package mirrors its path under `~`; Stow links every leaf file into place.
@@ -64,7 +80,7 @@ The `spar` workflow uses subscription-authenticated, read-only cross-vendor revi
 - jq and Python
 - ShellCheck
 - GNU coreutils and util-linux (`setsid`)
-- Claude Code, Codex, and OpenCode installed through mise, so the Codex sandbox can execute them from `~/.local/share/mise`
+- Claude Code, Codex, and OpenCode installed where the Codex sandbox can execute them: through mise on Omarchy (`~/.local/share/mise`), and through the official Arch packages plus the Claude Code installer under `~/.claude/bin` on WSL
 
 On Arch Linux:
 

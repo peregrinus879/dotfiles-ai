@@ -23,9 +23,9 @@ Unresolved decisions, deferred work, active limitations, and the dated evidence 
   - Confirm the host: `/proc/version` names Microsoft, and `readlink -f ~/.claude/settings.json` resolves into this clone.
   - `git status --short` and `git diff --stat`; if `codex/.codex/config.toml` carries local edits, show H the hunks and obtain a ruling before anything is discarded, keeping config content out of chat and logs.
   - `git pull --ff-only`, then `make restow`: report the dangling links it removed, confirm the managed parents are real directories, and expect the Codex config to be installed from the template as a mode-600 file, after which H re-enables desktop-app plugins locally.
-  - `make verify`; confirm `codex --version` runs, installing Codex through mise if absent; confirm OpenCode's temp root is `/tmp/opencode`.
+  - `make verify`; confirm `codex --version` runs from the official `openai-codex` package, that the Codex sandbox can start `/usr/bin/codex`, and that `spar-claude` resolves `~/.claude/bin/claude` outside the repository and the temp roots; confirm OpenCode's temp root is `/tmp/opencode`.
   - One live `spar-codex review` from Claude Code and one live `spar-claude review` from OpenCode, each with a small artifact; close the OpenCode-to-Claude limitation if the second reads its artifact.
-  - Report `claude --version`, `mise ls --current`, and `stat -c '%a %h' ~/.codex/config.toml`, then remove this item.
+  - Report `claude --version`, `codex --version`, and `stat -c '%a %h' ~/.codex/config.toml`, then remove this item.
 - Run `/fewer-permission-prompts` against accumulated host transcripts and promote only durable read-only rules; keep `gh api` excluded.
 - Run fresh primary external-read canaries for Claude Code and Codex when each tool is next started.
 - Revisit native cross-model review when a managed tool offers a read-only cross-vendor path under subscription authentication.
