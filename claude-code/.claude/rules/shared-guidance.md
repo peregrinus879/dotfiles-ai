@@ -28,7 +28,7 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 
 ## Work and Review
 
-- A clear implementation request authorizes edits, project-defined verification, and value-based read-only reviewer calls inside the current trusted repository. Present a plan for approval before editing only when H asks for one, when material ambiguity or newly discovered scope would change the work, or when the change is hard to reverse.
+- A clear implementation request authorizes edits, project-defined verification, and value-based read-only reviewer calls inside the current trusted repository. In a stowed configuration repository on its target host, the repository's own deploy and verification targets (`make restow` and `make verify`, or their equivalents) are part of that work: run them after changing an owned package, without asking, and report the result; their link changes under `$HOME` are inside the edit boundary. Present a plan for approval before editing only when H asks for one, when material ambiguity or newly discovered scope would change the work, or when the change is hard to reverse.
 - Audit-only and plan-only requests stay read-only in the workspace. No request authorizes staging, committing, pushing, or external side effects by itself.
 - Every commit requires H's approval of one exact staged candidate; the `commit` skill owns the procedure. Every push, release, pull request, or other publication requires the `publish` skill's review before it is presented as ready. H performs pushes manually.
 - Preserve unrelated work and user-created untracked files. Never alter, stage, or revert hunks outside the current commit; defer a mixed file or ask H how to split it.
