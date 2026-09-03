@@ -10,17 +10,33 @@ EyrAgents provides shared cross-tool guidance, runtime configuration, commit and
 
 ## Layout
 
+Each path inside a package mirrors its path under `~`; Stow links every leaf file into place.
+
 ```text
 eyragents/
-├── claude-code/   # Claude Code package, canonical skills, and reviewer executables
-├── codex/         # Codex package and reviewer executable
-├── opencode/      # OpenCode package
-├── docs/          # active maintenance ledger
-├── scripts/       # preparation and migration support
-├── templates/     # portable Codex profile
-├── tests/         # configuration, safety, and deployment checks
-├── AGENTS.md      # repository invariants
-└── Makefile       # setup, verification, and cleanup targets
+├── claude-code/                          # Claude Code package
+│   ├── .claude/
+│   │   ├── rules/shared-guidance.md      # canonical cross-tool policy
+│   │   ├── skills/{commit,publish,spar}/SKILL.md   # canonical skills
+│   │   ├── settings.json                 # permissions and auto-mode rules
+│   │   └── statusline.sh
+│   └── .local/bin/{spar-claude,spar-payload-scan}   # Claude reviewer bridge and payload scanner
+├── codex/                                # Codex package
+│   ├── .codex/AGENTS.md                  # symlink to shared guidance
+│   ├── .agents/skills/{commit,publish,spar}/SKILL.md   # symlinks to the canonical skills
+│   └── .local/bin/spar-codex             # Codex reviewer bridge
+├── opencode/.config/opencode/            # OpenCode package
+│   ├── opencode.json                     # permissions and model
+│   ├── tui.json
+│   ├── commands/{commit,publish,spar}.md # slash commands that load the skills
+│   └── skills/{commit,publish,spar}/SKILL.md   # symlinks to the canonical skills
+├── templates/codex/config.toml           # portable Codex profile, installed host-locally by make stow
+├── scripts/                              # link cleanup and Codex config reconciliation
+├── tests/                                # configuration, bridge, statusline, and preparation checks
+├── docs/maintenance.md                   # active maintenance ledger
+├── .github/workflows/test.yml            # CI: make lint and make test
+├── AGENTS.md                             # repository invariants
+└── Makefile                              # setup, verification, and cleanup targets
 ```
 
 ## Safety Model
