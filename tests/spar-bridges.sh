@@ -209,6 +209,10 @@ if printf '%s\n' 'diff --git a/.env b/.env' '+harmless' | "$SCANNER" diff >/dev/
 if printf '%s\n' 'diff --git a/app.py b/app.py' "+$(printf '%s=%s' "$key_name" "$token")" | "$SCANNER" diff >/dev/null 2>&1; then
   fail "diff scanner accepted a credential value"
 fi
+printf '%s\n' 'diff --git a/app.py b/app.py' "-$(printf '%s=%s' "$key_name" "$token")" '+replaced' | "$SCANNER" diff >/dev/null ||
+  fail "diff scanner flagged a removed line that the base already publishes"
+printf '%s\n' 'diff --git a/config.toml b/config.toml' '+"secrets" = "deny"' '+secrets: allow' | "$SCANNER" diff >/dev/null ||
+  fail "diff scanner flagged a permission rule as a secret"
 
 # The repository must stay reviewable by its own scanner.
 git -C "$ROOT" diff --binary "$(git -C "$ROOT" hash-object -t tree /dev/null)" -- . |

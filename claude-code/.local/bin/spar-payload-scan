@@ -46,11 +46,13 @@ PATTERN_SAFE_VALUE = re.compile(
     r"fake(?:[-_ ][a-z0-9]+)*|test(?:[-_ ][a-z0-9]+)*|your[-_ ][a-z0-9_-]+|"
     r"\$\{[A-Z_][A-Z0-9_]*\}|\{env:[^}\r\n]+\}|<[^>\r\n]{1,80}>)"
 )
-# A value that is code rather than a literal: a call, a command substitution,
-# an environment lookup, a shell or template variable, or a language constant.
+# A value that is code or a configuration constant rather than a literal
+# secret: a call, a command substitution, an environment lookup, a shell or
+# template variable, a language constant, or a permission word.
 PATTERN_CODE_VALUE = re.compile(
     r"(?i)^(?:[A-Za-z_][\w.]*\(.*|\$\(.*|`.*|os\.(?:environ|getenv)\b.*|process\.env\b.*|"
-    r"System\.getenv\b.*|ENV\[.*|\$\{?[A-Za-z_]\w*.*|\{\{.*|none|null|nil|true|false|\d+)$"
+    r"System\.getenv\b.*|ENV\[.*|\$\{?[A-Za-z_]\w*.*|\{\{.*|none|null|nil|true|false|\d+|"
+    r"allow|deny|ask|read|write|on|off|yes|no|enabled|disabled|required|optional)$"
 )
 PATTERN_URL_CREDENTIAL = re.compile(r"(?i)\b[a-z][a-z0-9+.-]*://[^\s/:@]+:([^\s@/]+)@")
 PATTERN_PACKAGE_AUTH = re.compile(r"(?im)^[ \t+\-]*//[^\r\n]*:_authToken\s*=\s*([^\s#]+)")
@@ -283,7 +285,15 @@ def scan_stream(label: str, check_paths: bool) -> None:
     data = sys.stdin.buffer.read(TOTAL_MAX + 1)
     if len(data) > TOTAL_MAX:
         reject(label, f"{label} exceeds the review limit")
-    enforce(content_findings(label, decode_text(label, data), check_paths))
+    text = decode_text(label, data)
+    if check_paths:
+        # A diff exposes only its headers and added lines; removed and context
+        # lines already exist in the base.
+        text = "\n".join(
+            line for line in text.split("\n")
+            if line.startswith(("+", "diff ", "--- ", "rename ", "copy "))
+        )
+    enforce(content_findings(label, text, check_paths))
 
 
 def main() -> None:
