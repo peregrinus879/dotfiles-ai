@@ -31,6 +31,7 @@ eyragents/
 │   ├── commands/{commit,publish,spar}.md # slash commands that load the skills
 │   └── skills/{commit,publish,spar}/SKILL.md   # symlinks to the canonical skills
 ├── templates/codex/config.toml           # portable Codex profile, installed host-locally by make stow
+├── references.txt                        # reference clone the ledger's source checks read; the siblings' make refs keeps it
 ├── scripts/                              # link cleanup and Codex config reconciliation
 ├── tests/                                # configuration, bridge, statusline, and preparation checks
 ├── docs/maintenance.md                   # active maintenance ledger

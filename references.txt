@@ -1,0 +1,5 @@
+# Reference clones under ~/Projects/quarry that the maintenance ledger's source
+# checks read. One per line: <directory> <git URL>. The sibling repositories'
+# make refs keeps every clone the family lists and removes the rest, so a clone
+# this repository depends on is declared here.
+opencode https://github.com/anomalyco/opencode.git
