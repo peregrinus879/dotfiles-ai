@@ -72,19 +72,15 @@ extends = ":workspace"
 "~/**/*.pfx" = "deny"
 "~/**/credentials" = "deny"
 "~/**/credentials.*" = "deny"
-"~/**/id_rsa" = "deny"
-"~/**/id_dsa" = "deny"
-"~/**/id_ecdsa" = "deny"
-"~/**/id_ed25519" = "deny"
 glob_scan_max_depth = 64
 
+# Literal entries such as ".env" make the sandbox create empty placeholder
+# files in every workspace where the path is absent; the **/ globs mask only
+# paths that exist.
 [permissions.trusted-workspace.filesystem.":workspace_roots"]
 "." = "write"
 ".git/config" = "read"
 ".git/hooks" = "read"
-".env" = "deny"
-".env.*" = "deny"
-"secrets" = "deny"
 "**/.env" = "deny"
 "**/.env.*" = "deny"
 "**/secrets" = "deny"

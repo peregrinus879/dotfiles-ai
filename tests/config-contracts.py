@@ -170,16 +170,22 @@ def check_codex(config: dict, label: str) -> None:
     require(filesystem.get("~/.local/share/mise") == "read", f"{label} cannot execute mise-managed runtimes")
     for path in (*CREDENTIAL_DIRECTORIES, *CREDENTIAL_FILES):
         require(filesystem.get(path) == "deny", f"{label} credential store reachable: {path}")
+    # OpenSSH keys live under ~/.ssh, which is denied as a directory; a
+    # home-wide id_* glob scans the whole home and breaks sandbox startup.
     for shape in CREDENTIAL_SHAPES:
-        require(filesystem.get(f"~/**/{shape.removesuffix('/**')}") == "deny", f"{label} home deny missing: {shape}")
+        name = shape.removesuffix("/**")
+        if name.startswith("id_"):
+            require(f"~/**/{name}" not in filesystem, f"{label} home-wide key glob breaks sandbox startup: {name}")
+            continue
+        require(filesystem.get(f"~/**/{name}") == "deny", f"{label} home deny missing: {shape}")
     workspace = filesystem[":workspace_roots"]
     require(workspace["."] == "write", f"{label} workspace is not writable")
     require(workspace.get(".git/config") == "read" and workspace.get(".git/hooks") == "read",
             f"{label} Git configuration or hooks are writable in the workspace")
     for shape in CREDENTIAL_SHAPES:
         name = shape.removesuffix("/**")
-        require(workspace.get(f"**/{name}") == "deny" or workspace.get(name) == "deny",
-                f"{label} workspace deny missing: {shape}")
+        require(workspace.get(f"**/{name}") == "deny", f"{label} workspace deny missing: {shape}")
+        require(name not in workspace, f"{label} literal workspace entry creates placeholder files: {name}")
     policy = config["auto_review"]["policy"]
     require("explicitly approves the exact candidate" in policy, f"{label} auto review no longer gates commits")
 
