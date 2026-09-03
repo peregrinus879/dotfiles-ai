@@ -2,10 +2,12 @@
 # Prepare $HOME for `stow --no-folding`, and reconcile the Codex config on request.
 #
 # Without arguments: remove dangling symlinks under the managed target
-# directories whose link text points into one of this repository's packages
-# (retired files, moved clones). Links that resolve, links that point
-# elsewhere, and regular files are never touched; Stow itself reports any
-# remaining conflict without changing the filesystem.
+# directories whose link text names a path inside one of this repository's
+# packages, recognized by the package name followed by a top-level entry that
+# package really has, so retired files and moved or renamed clones are cleaned
+# and unrelated links with a similar spelling are not. Links that resolve,
+# links that point elsewhere, and regular files are never touched; Stow itself
+# reports any remaining conflict without changing the filesystem.
 #
 # --migrate-codex-config: make ~/.codex/config.toml a host-local, owner-only
 # regular file that carries the portable template's root keys and tables and
@@ -22,14 +24,15 @@ abort() {
 
 script_dir=$(dirname -- "${BASH_SOURCE[0]}")
 repository_root=$(realpath -e -- "$script_dir/..") || abort 'cannot resolve repository root'
-repository_name=${repository_root##*/}
 PACKAGES=(claude-code codex opencode)
 TARGET_ROOTS=("$HOME/.claude" "$HOME/.codex" "$HOME/.agents" "$HOME/.local/bin" "$HOME/.config/opencode")
 
 managed_link_text() { # link text
-  local package
+  local text=$1 package tail
   for package in "${PACKAGES[@]}"; do
-    [[ $1 != *"/$repository_name/$package/"* ]] || return 0
+    [[ $text == *"/$package/"* ]] || continue
+    tail=${text#*"/$package/"}
+    [[ -n $tail && -e "$repository_root/$package/${tail%%/*}" ]] && return 0
   done
   return 1
 }

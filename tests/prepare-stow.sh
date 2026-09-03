@@ -49,20 +49,24 @@ deploy() { HOME=$1 stow --no-folding -R -d "$2" -t "$1" claude-code codex openco
 
 case_clean_links() {
   local home="$TMP/clean/home" repo="$TMP/clean/eyragents" old="$TMP/clean/old/eyragents"
-  mkdir -p "$home/.claude/skills" "$home/.codex" "$home/.local/bin" "$home/.config/opencode"
+  mkdir -p "$home/.claude/skills" "$home/.codex" "$home/.agents/skills" "$home/.local/bin" "$home/.config/opencode"
   make_clone "$repo"
   ln -s "$old/claude-code/.claude/hooks" "$home/.claude/hooks"
   ln -s "$old/codex/.codex/config.toml" "$home/.codex/config.toml"
+  ln -s "../../Projects/renamed-clone/codex/.agents/skills/retired" "$home/.agents/skills/retired"
   ln -s "$repo/claude-code/.claude/settings.json" "$home/.claude/settings.json"
   ln -s /usr/share/nothing/here "$home/.claude/skills/vendor"
   ln -s "$old/unrelated/codex/thing" "$home/.local/bin/thing"
+  ln -s "$TMP/clean/other/eyragents/codex/tool" "$home/.local/bin/tool"
   printf 'user data\n' >"$home/.config/opencode/opencode.json"
   prepare "$home" "$repo"
   [[ ! -e $home/.claude/hooks && ! -L $home/.claude/hooks ]] || fail "dangling managed directory link remains"
   [[ ! -L $home/.codex/config.toml ]] || fail "dangling managed leaf link remains"
+  [[ ! -L $home/.agents/skills/retired ]] || fail "dangling link from a renamed clone remains"
   [[ -L $home/.claude/settings.json ]] || fail "resolving managed link was removed"
   [[ -L $home/.claude/skills/vendor ]] || fail "unmanaged dangling link was removed"
   [[ -L $home/.local/bin/thing ]] || fail "dangling link outside the package layout was removed"
+  [[ -L $home/.local/bin/tool ]] || fail "dangling link with the repository name but no package entry was removed"
   [[ $(<"$home/.config/opencode/opencode.json") == "user data" ]] || fail "regular file was changed"
 }
 
