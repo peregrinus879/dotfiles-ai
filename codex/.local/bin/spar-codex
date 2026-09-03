@@ -3,15 +3,19 @@
 #
 # Usage: spar-codex review [--resume <thread-id>] "<request>" [artifact-file...]
 #
-# The reviewer runs offline from the caller's repository root with read-only
-# repository access. Plugins, hooks, MCP, subagents, skills, web search, and
-# project instructions are disabled, and every flag is hard-coded so no caller
-# can weaken it. The request and each artifact pass the payload scanner, which
-# inlines the artifacts into one prompt sent on stdin. The reply arrives on
-# stdout; the thread id arrives on stderr as "SPAR-BRIDGE ID: <thread-id>".
-# Every stowed host consents to disclosure by default; the bridge refuses to
-# run in a repository where `git config spar.consent` is false, which records
-# H's decision that its readable files must not reach the reviewer's vendor.
+# The reviewer runs from the caller's repository root in a read-only,
+# network-off sandboxed shell. Plugins, hooks, MCP, subagents, skills, web
+# search, and project instructions are disabled, and every flag is hard-coded
+# so no caller can weaken it. The reviewer starts from a scrubbed environment
+# so caller variables cannot redirect authentication or routing, and the codex
+# runtime may not resolve inside the repository under review. The request and
+# each artifact pass the payload scanner, which inlines the artifacts into one
+# prompt sent on stdin; artifacts must live under the repository (outside
+# .git) or the temp root. The reply arrives on stdout; the thread id arrives
+# on stderr as "SPAR-BRIDGE ID: <thread-id>". Every stowed host consents to
+# disclosure by default; the bridge refuses where `git config spar.consent` is
+# set to anything but true, which records H's decision that the repository's
+# readable files must not reach the reviewer's vendor.
 #
 # Exit codes: 0 reply relayed, 2 refused before the reviewer ran, 3 usage limit,
 # 5 reviewer failure, 64 usage, 124 timeout (SPAR_BRIDGE_TIMEOUT seconds,
@@ -55,23 +59,37 @@ scanner=$(realpath -e -- "$(dirname -- "$script")/../../../claude-code/.local/bi
 reviewer=$(realpath -e -- "$(command -v codex)") || abort "cannot resolve the codex runtime"
 [[ $reviewer != *'"'* && $reviewer != *\\* && $reviewer != *[[:cntrl:]]* ]] ||
   abort "the codex runtime path cannot be represented safely in the reviewer profile"
+account_home=$(getent passwd "$(id -u)" | cut -d: -f6)
+[[ -n $account_home && -d $account_home ]] || abort "cannot determine the account home"
 
-# Repository binding and disclosure consent.
+# Repository binding, disclosure consent, and artifact confinement.
 repo=$(git rev-parse --show-toplevel 2>/dev/null) || abort "the current directory is not inside a Git worktree"
 repo=$(realpath -e -- "$repo") || abort "cannot resolve the repository root"
 [[ $repo != / ]] || abort "the repository root cannot be the filesystem root"
 [[ $repo != *'"'* && $repo != *"'"* && $repo != *\\* && $repo != *'*'* && $repo != *'?'* &&
   $repo != *'['* && $repo != *']'* && $repo != *[[:cntrl:]]* ]] ||
   abort "the repository path cannot be represented safely in the reviewer profile"
-[[ $(git config --type=bool --get spar.consent 2>/dev/null || echo true) != false ]] ||
-  abort "spar.consent is false for this repository; H may re-enable disclosure with: git config --unset spar.consent"
+consent=$(git config --get spar.consent 2>/dev/null || true)
+[[ -z $consent || $consent == true ]] ||
+  abort "spar.consent is '$consent' for this repository; only unset or true allows disclosure"
+[[ $reviewer != "$repo/"* ]] || abort "the codex runtime resolves inside the repository under review"
+temp_root=$(realpath -e -- "${TMPDIR:-/tmp}" 2>/dev/null) || temp_root=/tmp
+for artifact in "$@"; do
+  canonical=$(realpath -e -- "$artifact" 2>/dev/null) || abort "artifact does not exist: $artifact"
+  [[ $canonical != "$repo/.git/"* ]] || abort "artifact must not live under Git internals: $artifact"
+  [[ $canonical == "$repo/"* || $canonical == "$temp_root/"* || $canonical == /tmp/* ]] ||
+    abort "artifact must live under the repository or the temp root: $artifact"
+done
 
 # Scan and assemble the prompt before any reviewer process starts.
 prompt=$(printf '%s\n\n%s' "$SYSTEM_PROMPT" "$request" | "$scanner" outbound "$@") ||
   abort "the request or an artifact failed the outbound content scan"
 
+# Every reviewer process starts from a scrubbed environment.
+scrubbed=(/usr/bin/env -i -C "$repo" HOME="$account_home" PATH="$PATH" TERM="${TERM:-dumb}" LANG="${LANG:-C.UTF-8}")
+
 # Subscription authentication only.
-[[ $(timeout --kill-after=2 30 "$reviewer" login status 2>&1) == "Logged in using ChatGPT" ]] ||
+[[ $("${scrubbed[@]}" timeout --kill-after=2 30 "$reviewer" login status 2>&1) == "Logged in using ChatGPT"* ]] ||
   abort "codex is not on ChatGPT subscription auth"
 
 # Read-only reviewer profile: runtime-minimal reads plus the repository, with
@@ -145,7 +163,7 @@ stop_group() {
 }
 trap 'stop_group; rm -rf -- "$workdir"' EXIT
 trap 'trap - EXIT; stop_group; rm -rf -- "$workdir"; exit 130' INT TERM HUP
-setsid timeout --kill-after=2 "$TIMEOUT" /usr/bin/env -C "$repo" "$reviewer" exec "${args[@]}" \
+setsid "${scrubbed[@]}" timeout --kill-after=2 "$TIMEOUT" "$reviewer" exec "${args[@]}" \
   >"$workdir/events" 2>"$workdir/stderr" <<<"$prompt" &
 pid=$!
 rc=0
@@ -174,7 +192,7 @@ if ((rc == 124 || rc == 137)); then
 fi
 thread=$(jq -rR 'fromjson? | select(.type == "thread.started") | .thread_id // empty' "$workdir/events" | head -n1)
 errors=$(jq -cR 'fromjson? | select(.type == "error" or .type == "turn.failed")' "$workdir/events")
-reply=$(jq -cR 'fromjson? | select(.type == "item.completed" and .item.type == "agent_message") | .item.text | select(type == "string" and length > 0)' "$workdir/events" | tail -n1 | jq -r '.')
+reply=$(jq -cR 'fromjson? | select(.type == "item.completed" and .item.type == "agent_message") | .item.text | select(type == "string" and length > 0)' "$workdir/events" | jq -rs 'join("\n\n")')
 ((rc == 0)) || fail_reviewer "the reviewer exited $rc"
 [[ -z $errors ]] || fail_reviewer "the reviewer returned an error event"
 [[ -n $reply ]] || fail_reviewer "the reviewer ended without a reply"

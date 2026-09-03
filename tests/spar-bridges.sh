@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Behavioral checks for the spar reviewer bridges and payload scanner. Reviewer
-# CLIs are shimmed; fixtures that must look like credentials are assembled at
-# runtime so the repository itself stays scannable.
+# CLIs are shimmed and configured through a file, not the environment, because
+# the bridges scrub the reviewer's environment. Fixtures that must look like
+# credentials are assembled at runtime so the repository itself stays scannable.
 set -euo pipefail
 
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
@@ -9,7 +10,8 @@ CLAUDE_BRIDGE="$ROOT/claude-code/.local/bin/spar-claude"
 CODEX_BRIDGE="$ROOT/codex/.local/bin/spar-codex"
 SCANNER="$ROOT/claude-code/.local/bin/spar-payload-scan"
 TMP=$(mktemp -d)
-trap 'rm -rf -- "$TMP"' EXIT
+OUTSIDE=$(mktemp -d -p /var/tmp spar-outside.XXXXXX)
+trap 'rm -rf -- "$TMP" "$OUTSIDE"' EXIT
 mkdir -p "$TMP/bin" "$TMP/art"
 
 fail() {
@@ -19,13 +21,16 @@ fail() {
 
 cat >"$TMP/bin/claude" <<'SHIM'
 #!/usr/bin/env bash
+source "$(dirname -- "$0")/shim.env"
 [[ -z ${CLAUDE_CODE_EFFORT_LEVEL:-} ]] || exit 89
+[[ ${CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:-} == 1 && ${DISABLE_AUTOUPDATER:-} == 1 ]] || exit 88
 if [[ " $* " == *' auth status '* ]]; then
   printf '%s\n' '{"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty"}'
   exit
 fi
 printf '%s\n' "$*" >>"$SPAR_TEST_CALLS"
 printf '%s\n' "$PWD" >>"$SPAR_TEST_CALLS.pwd"
+env >"$SPAR_TEST_CALLS.env"
 cat >"$SPAR_TEST_CALLS.stdin"
 session="33333333-3333-4333-8333-333333333333"
 case ${SPAR_TEST_MODE:-ok} in
@@ -44,13 +49,15 @@ SHIM
 
 cat >"$TMP/bin/codex" <<'SHIM'
 #!/usr/bin/env bash
+source "$(dirname -- "$0")/shim.env"
 if [[ ${1:-} == login && ${2:-} == status ]]; then
-  printf 'Logged in using ChatGPT\n'
+  printf 'Logged in using ChatGPT (fixture workspace)\n'
   exit
 fi
 [[ ${1:-} == exec ]] || exit 90
 printf '%s\n' "$*" >>"$SPAR_TEST_CALLS"
 printf '%s\n' "$PWD" >>"$SPAR_TEST_CALLS.pwd"
+env >"$SPAR_TEST_CALLS.env"
 cat >"$SPAR_TEST_CALLS.stdin"
 thread="11111111-1111-4111-8111-111111111111"
 case ${SPAR_TEST_MODE:-ok} in
@@ -61,6 +68,11 @@ case ${SPAR_TEST_MODE:-ok} in
   reply)
     jq -cn --arg t "$thread" '{type:"thread.started",thread_id:$t}'
     jq -cn --arg t "$SPAR_TEST_REPLY" '{type:"item.completed",item:{type:"agent_message",text:$t}}'
+    jq -cn '{type:"turn.completed"}' ;;
+  multi)
+    jq -cn --arg t "$thread" '{type:"thread.started",thread_id:$t}'
+    jq -cn '{type:"item.completed",item:{type:"agent_message",text:"part one"}}'
+    jq -cn '{type:"item.completed",item:{type:"agent_message",text:"part two"}}'
     jq -cn '{type:"turn.completed"}' ;;
   failure) printf 'reviewer failed while reading .env policy\n' >&2; exit 1 ;;
   error-result)
@@ -75,6 +87,11 @@ case ${SPAR_TEST_MODE:-ok} in
 esac
 SHIM
 chmod 755 "$TMP/bin/claude" "$TMP/bin/codex"
+
+configure_shims() { # mode calls-file [reply-text] [child-pid-file]
+  printf 'SPAR_TEST_MODE=%q\nSPAR_TEST_CALLS=%q\nSPAR_TEST_REPLY=%q\nSPAR_TEST_CHILD_PID=%q\n' \
+    "$1" "$2" "${3:-}" "${4:-}" >"$TMP/bin/shim.env"
+}
 
 # Credential-shaped fixtures are assembled here so no literal exists on disk.
 token=$(printf '%s%s' 'sk-' 'UNKNOWNFIXTURE0123456789ABCDEF')
@@ -157,8 +174,7 @@ for header in "${sensitive_headers[@]}"; do
 done
 printf '%s\n' 'diff --git "a/public\040file" "b/public\040file"' 'diff --git a/public file b/public file' \
   'diff --git "a/caf\303\251.txt" b/public file.txt' '--- a/public' $'+++ b/public\tcomment' \
-  'diff --git a/docs/credentials-policy.md b/docs/credentials-policy.md' 'rename to secretary.md' \
-  '+  diff --git a/.env b/.env' >"$TMP/art/safe-headers.md"
+  '+  diff --git a/.env b/.env' 'diff --git a/credentials-policy.md b/credentials-policy.md' >"$TMP/art/safe-headers.md"
 printf 'Review.' | "$SCANNER" outbound "$TMP/art/safe-headers.md" >/dev/null 2>&1 ||
   fail "safe diff headers were rejected"
 
@@ -173,31 +189,43 @@ git -C "$ROOT" diff --binary "$(git -C "$ROOT" hash-object -t tree /dev/null)" -
 repo="$TMP/repo"
 git init -q "$repo"
 printf 'harmless\n' >"$repo/README.md"
+printf 'in-repo artifact\n' >"$repo/notes.md"
+printf 'outside\n' >"$OUTSIDE/outside.md"
 run_bridge() { # bridge mode calls-file [bridge args...]
   local bridge=$1 mode=$2 calls=$3
   shift 3
   BRIDGE_RC=0
-  rm -f -- "$calls" "$calls.pwd" "$calls.stdin"
-  SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=$mode PATH="$TMP/bin:$PATH" \
-    /usr/bin/env -C "$repo" "$bridge" review "$@" >"$calls.out" 2>"$calls.err" || BRIDGE_RC=$?
+  rm -f -- "$calls" "$calls.pwd" "$calls.stdin" "$calls.env"
+  configure_shims "$mode" "$calls" "${SPAR_TEST_REPLY:-}"
+  PATH="$TMP/bin:$PATH" /usr/bin/env -C "$repo" "$bridge" review "$@" >"$calls.out" 2>"$calls.err" || BRIDGE_RC=$?
 }
 
 for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
   name=${bridge##*/}
   calls="$TMP/calls-$name"
 
-  git -C "$repo" config spar.consent false
-  run_bridge "$bridge" ok "$calls" "Review after opt-out."
-  [[ $BRIDGE_RC == 2 && ! -e $calls && $(<"$calls.err") == *'spar.consent'* ]] ||
-    fail "$name ran in a repository that opted out"
+  for value in false maybe True; do
+    git -C "$repo" config spar.consent "$value"
+    run_bridge "$bridge" ok "$calls" "Review after opt-out."
+    [[ $BRIDGE_RC == 2 && ! -e $calls && $(<"$calls.err") == *'spar.consent'* ]] ||
+      fail "$name ran with spar.consent=$value"
+    git -C "$repo" config --unset spar.consent
+  done
+  git -C "$repo" config spar.consent true
+  run_bridge "$bridge" ok "$calls" "Review with explicit consent."
+  [[ $BRIDGE_RC == 0 ]] || fail "$name refused explicit consent"
   git -C "$repo" config --unset spar.consent
 
-  GIT_EDITOR=true run_bridge "$bridge" ok "$calls" "Review ordinary material." "$TMP/art/spar-plan.md"
+  GIT_EDITOR=true OPENAI_BASE_URL=sentinel ANTHROPIC_BASE_URL=sentinel SPAR_TEST_CANARY=leak \
+    run_bridge "$bridge" ok "$calls" "Review ordinary material." "$TMP/art/spar-plan.md" "$repo/notes.md"
   [[ $BRIDGE_RC == 0 && $(<"$calls.out") == 'review ok' ]] || fail "$name failed an ordinary review: $(<"$calls.err")"
   [[ $(<"$calls.err") == *'SPAR-BRIDGE ID: '* ]] || fail "$name did not report the reviewer id"
   [[ $(<"$calls.pwd") == "$repo" ]] || fail "$name did not launch from the repository root"
-  [[ $(<"$calls.stdin") == *'Review ordinary material.'*'===== artifact: spar-plan.md ====='*'plan body'* ]] ||
-    fail "$name did not send the scanned prompt with the inlined artifact on stdin"
+  [[ $(<"$calls.stdin") == *'Review ordinary material.'*'===== artifact: spar-plan.md ====='*'plan body'*'===== artifact: notes.md ====='* ]] ||
+    fail "$name did not send the scanned prompt with the inlined artifacts on stdin"
+  ! grep -qE '^(OPENAI_BASE_URL|ANTHROPIC_BASE_URL|SPAR_TEST_CANARY|GIT_EDITOR)=' "$calls.env" ||
+    fail "$name passed caller environment to the reviewer"
+  grep -qE '^HOME=' "$calls.env" || fail "$name scrubbed HOME from the reviewer"
   args=$(<"$calls")
   if [[ $name == spar-claude ]]; then
     for flag in '--tools Read,Glob,Grep' '--permission-mode dontAsk' '--safe-mode' '--setting-sources=' \
@@ -215,6 +243,22 @@ for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
   fi
   [[ $args != *'/var/tmp/spar-'* ]] || fail "$name still references a handoff directory"
 
+  run_bridge "$bridge" ok "$calls" "Review an outside artifact." "$OUTSIDE/outside.md"
+  [[ $BRIDGE_RC == 2 && ! -e $calls && $(<"$calls.err") == *'temp root'* ]] ||
+    fail "$name accepted an artifact outside the repository and temp root"
+  run_bridge "$bridge" ok "$calls" "Review Git internals." "$repo/.git/HEAD"
+  [[ $BRIDGE_RC == 2 && ! -e $calls ]] || fail "$name accepted an artifact under .git"
+
+  mkdir -p "$repo/bin"
+  cp -- "$TMP/bin/${name#spar-}" "$repo/bin/${name#spar-}"
+  cp -- "$TMP/bin/shim.env" "$repo/bin/shim.env"
+  rm -f -- "$calls"
+  PATH="$repo/bin:$TMP/bin:$PATH" /usr/bin/env -C "$repo" "$bridge" review "Review with a repo runtime." >"$calls.out" 2>"$calls.err" || rc=$?
+  [[ ${rc:-0} == 2 && ! -e $calls && $(<"$calls.err") == *'inside the repository'* ]] ||
+    fail "$name accepted a reviewer runtime inside the repository"
+  rc=0
+  rm -rf -- "${repo:?}/bin"
+
   resume_id="22222222-2222-4222-8222-222222222222"
   run_bridge "$bridge" ok "$calls" --resume "$resume_id" "Follow up."
   [[ $BRIDGE_RC == 0 && $(<"$calls") == *"$resume_id"* ]] || fail "$name did not resume the requested session"
@@ -231,6 +275,10 @@ for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
     fail "$name relayed a credential-shaped reply"
   SPAR_TEST_REPLY='The .env path is denied.' run_bridge "$bridge" reply "$calls" "Review prose."
   [[ $BRIDGE_RC == 0 && $(<"$calls.out") == 'The .env path is denied.' ]] || fail "$name rejected sensitive-path prose"
+  if [[ $name == spar-codex ]]; then
+    run_bridge "$bridge" multi "$calls" "Review in parts."
+    [[ $BRIDGE_RC == 0 && $(<"$calls.out") == *'part one'*'part two'* ]] || fail "$name dropped an earlier reviewer message"
+  fi
 
   run_bridge "$bridge" limit "$calls" "Review limit."
   [[ $BRIDGE_RC == 3 && $(<"$calls.err") == *'SPAR-BRIDGE LIMIT'* ]] || fail "$name did not classify a usage limit"
@@ -241,17 +289,20 @@ for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
     fail "$name did not relay safe reviewer diagnostics"
 
   child_pid_file="$TMP/child-$name"
+  configure_shims hang "$calls" "" "$child_pid_file"
   start=$(date +%s)
-  SPAR_TEST_CHILD_PID=$child_pid_file SPAR_BRIDGE_TIMEOUT=1 run_bridge "$bridge" hang "$calls" "Review timeout."
-  [[ $BRIDGE_RC == 124 && $(<"$calls.err") == *'SPAR-BRIDGE TIMEOUT'* ]] || fail "$name did not classify a timeout"
+  rc=0
+  SPAR_BRIDGE_TIMEOUT=1 PATH="$TMP/bin:$PATH" /usr/bin/env -C "$repo" "$bridge" review "Review timeout." \
+    >"$calls.out" 2>"$calls.err" || rc=$?
+  [[ $rc == 124 && $(<"$calls.err") == *'SPAR-BRIDGE TIMEOUT'* ]] || fail "$name did not classify a timeout"
   (( $(date +%s) - start <= 8 )) || fail "$name timeout was not bounded"
   if [[ -s $child_pid_file ]] && kill -0 "$(<"$child_pid_file")" 2>/dev/null; then
     fail "$name left a descendant after timeout"
   fi
 
   rm -f -- "$child_pid_file" "$calls"
-  SPAR_TEST_CALLS=$calls SPAR_TEST_MODE=hang SPAR_TEST_CHILD_PID=$child_pid_file PATH="$TMP/bin:$PATH" \
-    /usr/bin/env -C "$repo" "$bridge" review "Review signal." >/dev/null 2>"$calls.err" &
+  configure_shims hang "$calls" "" "$child_pid_file"
+  PATH="$TMP/bin:$PATH" /usr/bin/env -C "$repo" "$bridge" review "Review signal." >/dev/null 2>"$calls.err" &
   bridge_pid=$!
   for _ in $(seq 1 50); do [[ -s $child_pid_file ]] && break; sleep 0.1; done
   kill -TERM "$bridge_pid"
@@ -261,6 +312,7 @@ for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
   if [[ -s $child_pid_file ]] && kill -0 "$(<"$child_pid_file")" 2>/dev/null; then
     fail "$name left a descendant after TERM"
   fi
+  rc=0
 done
 
-printf 'ok: spar bridges relay scanned one-pass reviews and honor repository opt-out\n'
+printf 'ok: spar bridges relay scanned one-pass reviews from a scrubbed environment and honor opt-out\n'

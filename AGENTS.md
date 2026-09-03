@@ -25,8 +25,8 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 ## Reviewer Bridges
 
 - Claude Code reviews with Codex through `spar-codex`. Codex reviews with Claude manually outside its strict profile. OpenCode's configured Claude path is `spar-claude`; active availability is recorded in the maintenance ledger.
-- Each bridge runs one read-only, offline, subscription-authenticated, single-turn reviewer from the caller's repository root, and refuses where `git config spar.consent` is false. Flags are hard-coded in the bridge: the reviewer reads the repository except Git internals and credential-shaped paths, has no write, shell, web, MCP, plugin, subagent, or project-instruction surface, and runs under a hard timeout in its own process group.
-- `spar-payload-scan` bounds the request and artifact files, rejects credential-shaped values and sensitive diff paths, inlines the artifacts into the prompt, and rescans the reply. Artifacts live in the session scratch directory; no handoff directory, hook, or plugin grant exists.
+- Each bridge runs one read-only, offline, subscription-authenticated, single-turn reviewer from the caller's repository root, and refuses where `git config spar.consent` is set to anything but true. Flags are hard-coded in the bridge: the reviewer reads the repository except Git internals and credential-shaped paths, has no write, web, MCP, plugin, subagent, or project-instruction surface, starts from a scrubbed environment, and runs under a hard timeout in its own process group. The Codex reviewer works through a read-only, network-off sandboxed shell and receives its charter as prompt text; the Claude reviewer has only Read, Glob, and Grep.
+- `spar-payload-scan` bounds the request and artifact files, rejects credential-shaped values and sensitive diff paths, inlines the artifacts into the prompt, and rescans the reply. Artifacts must live under the repository or the temp root, and the reviewer runtime may not resolve inside the repository; no handoff directory, hook, or plugin grant exists.
 
 ## State and Deployment
 
