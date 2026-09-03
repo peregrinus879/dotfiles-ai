@@ -227,14 +227,4 @@ for path in ("/tmp*", "/tmp/*", "/tmp/**"):
 require("agent" not in opencode, "OpenCode agent overrides bypass global policy")
 load_json("opencode/.config/opencode/tui.json")
 
-# Project placeholders stay inert.
-require(
-    load_json(".claude/settings.json") == {"$schema": "https://json.schemastore.org/claude-code-settings.json"},
-    "Claude project config grants something",
-)
-require(
-    load_json("opencode.json") == {"$schema": "https://opencode.ai/config.json"},
-    "OpenCode project config grants something",
-)
-
 print("ok: configuration authority boundaries")

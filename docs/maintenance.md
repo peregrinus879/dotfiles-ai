@@ -15,8 +15,8 @@ This ledger contains unresolved decisions, deferred work, active limitations, an
 ## Open Decisions
 
 - Decide whether an Omarchy-only Claude Code sandbox trial justifies tracked promotion. The untracked trial denies `~/.ssh`, `~/.aws`, and `~/.gnupg`, asks before `dangerouslyDisableSandbox`, checks command classification and repository writes, and requires a separate WSL behavior test. Relevant upstream issues: anthropics/claude-code#43713, #26722, and #54215.
-- Decide ownership of host-created `diagnose-crash` and `omarchy` links under `~/.agents/skills` before managing or removing them.
 - Decide whether Claude settings should define `fallbackModel`; the current judgment is no, because a silent downgrade conflicts with the durable Fable alias.
+- `features.js_repl = false` in the Codex template has no recorded reason; revisit when a task would benefit from the REPL.
 
 ## Deferred Work
 

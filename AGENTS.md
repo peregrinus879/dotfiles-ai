@@ -4,10 +4,10 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 
 ## Loading and Ownership
 
-- Claude Code loads the stowed `~/.claude/CLAUDE.md` and rules, then this file through the root `CLAUDE.md` import. Codex loads `~/.codex/AGENTS.md`, a tracked symlink to shared guidance, and this file. OpenCode loads shared guidance through its global `instructions` entry and this file.
+- Claude Code loads the stowed rules, then this file through the root `CLAUDE.md` import. Codex loads `~/.codex/AGENTS.md`, a tracked symlink to shared guidance, and this file. OpenCode loads shared guidance through its global `instructions` entry and this file.
 - `claude-code/.claude/rules/shared-guidance.md` is the canonical cross-tool policy. `claude-code/.claude/skills/*/SKILL.md` are the canonical skills; the Codex and OpenCode skill files are tracked symlinks to them. Order tools as Claude Code, Codex, OpenCode.
 - This file owns repository invariants. `README.md` owns public scope, setup, and usage. Script headers own local constraints. `docs/maintenance.md` owns unresolved decisions, deferred work, active limitations, and dated revalidation evidence. Prose describes current behavior; Git history owns provenance.
-- Root `.claude/settings.json` and `opencode.json` are inert project placeholders. Root wrappers and documentation are source-only; Stow deploys package contents.
+- Root wrappers and documentation are source-only; Stow deploys package contents. Because the packages are live configuration on a stowed host, an edit to a settings file, skill, or bridge here is active for the next session of that tool before any commit; work on this repository only in a session H is watching.
 
 ## Security Boundaries
 
@@ -15,7 +15,7 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 - Credential stores are neither readable nor writable by agents, and the list stays aligned across Claude Code, Codex, OpenCode, the reviewer bridges, and the payload scanner: `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.kube`, provider auth files, the GNOME keyring, browser profiles, shell history, `.env` and `.env.*`, `secrets/`, `credentials` and `credentials.*`, `auth.json`, OpenSSH `id_*` keys, and `*.key`, `*.pem`, `*.p12`, `*.pfx`. Names that merely contain those words, such as `credentials-policy.md`, stay readable. `tests/config-contracts.py` enforces the alignment and the read-write mirror.
 - Git internals change only through Git: file tools cannot write `.git/**` in any tool, Codex keeps `.git/config` and `.git/hooks` read-only, and Git configuration, remote, hook, and alias changes need H's explicit instruction, because they run code on H's next Git command and never appear in a diff.
 - Trusted-repository defaults are not an isolation boundary against hostile project configuration. Use the project-disabled launches in `README.md` for untrusted checkouts.
-- Primary web research follows each tool's managed policy. Reviewer web tools and command network remain disabled.
+- Primary web research follows each tool's managed policy: Claude Code and OpenCode keep web fetch and search, and Codex keeps live web search plus its desktop-app apps, browser, hooks, and plugins. These are egress and authority surfaces for a prompt-injected session, kept by H's choice. Reviewer web tools and command network remain disabled.
 
 ## Tool Configuration
 
@@ -40,4 +40,4 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 - `commit`: stage, review, and commit one exact atomic change with H's approval.
 - `publish`: review the exact commits a push, release, or pull request would expose before presenting it as ready.
 - `spar`: value-based cross-model review through a read-only reviewer bridge.
-- `omarchy`: required for end-user Linux desktop, Hyprland, Omarchy, terminal, theme, and display configuration.
+- `omarchy`: required for end-user Linux desktop, Hyprland, Omarchy, terminal, theme, and display configuration. Omarchy installs it and `diagnose-crash` as links under `~/.claude/skills` and `~/.agents/skills`; they resolve outside the packages, and `make clean` never touches them.
