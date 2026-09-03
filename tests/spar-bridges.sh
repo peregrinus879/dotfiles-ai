@@ -168,7 +168,9 @@ printf 'Review.' | "${SCAN_OUT[@]}" "$TMP/art/placeholders.md" >/dev/null 2>&1 |
 for content in "$(printf 'AWS_SECRET_ACCESS_%s=%s' 'KEY' 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYRUNTIMEVALUE1')" \
   "$(printf 'DATABASE_URL=postgres:%s//app:%s@db.internal/app' '' 'Hunter2Runtime')" \
   "$(printf 'GITHUB_%s: %s' 'TOKEN' 'literal-runtime-value-9f8e7d')" \
-  "$(printf '%s = "%s"' 'passphrase' 'literal runtime words')"; do
+  "$(printf '%s = "%s"' 'passphrase' 'literal runtime words')" \
+  "$(printf 'API_%s=SecretStr("%s")' 'TOKEN' 'literal-runtime-value-9f8e7d')" \
+  "$(printf 'API_%s=os.getenv("API_TOKEN", "%s")' 'TOKEN' 'literal-runtime-value-9f8e7d')"; do
   printf '%s\n' "$content" >"$TMP/art/shape.md"
   if printf 'Review.' | "${SCAN_OUT[@]}" "$TMP/art/shape.md" >/dev/null 2>&1; then
     fail "credential shape passed scanner: ${content%%[=:]*}"
@@ -184,6 +186,8 @@ done
   printf 'DATABASE_URL=postgres:%s//app:%s@db.internal/app\n' '' "\${DB_PASSWORD}"
   printf '%s: null\n' 'passphrase'
   printf '%s: {{ secrets.aws }}\n' 'AWS_SECRET_ACCESS_KEY'
+  printf '%s = vault.read("secret/data/app")\n' 'password'
+  printf '%s = SecretStr(os.environ["DB_PASSWORD"])\n' 'password'
 } >"$TMP/art/code.md"
 printf 'Review.' | "${SCAN_OUT[@]}" "$TMP/art/code.md" >/dev/null 2>&1 ||
   fail "scanner rejected credential-handling code without a literal secret"

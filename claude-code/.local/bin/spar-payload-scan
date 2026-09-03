@@ -58,6 +58,11 @@ PATTERN_CODE_VALUE = re.compile(
     r"allow|deny|ask|read|write|on|off|yes|no|enabled|disabled|required|optional)$"
 )
 PATTERN_URL_CREDENTIAL = re.compile(r"(?i)\b[a-z][a-z0-9+.-]*://[^\s/:@]+:([^\s@/]+)@")
+# String literals inside a code value: a call or lookup is safe only when every
+# quoted literal it carries is a name (an upper-case identifier), a documented
+# placeholder, or a short digit-free word such as a path or key name.
+PATTERN_QUOTED_LITERAL = re.compile(r"""(["'])((?:(?!\1).)*)\1""")
+PATTERN_HARMLESS_LITERAL = re.compile(r"(?:[A-Z][A-Z0-9_]*|[^\d]{0,23})")
 PATTERN_PACKAGE_AUTH = re.compile(r"(?im)^[ \t+\-]*//[^\r\n]*:_authToken\s*=\s*([^\s#]+)")
 PATTERN_NETRC_VALUE = re.compile(r"(?im)^[ \t+\-]*password\s+(\S+)")
 PATTERN_NETRC_HOST = re.compile(r"(?im)^[ \t+\-]*machine\s+\S+")
@@ -91,17 +96,29 @@ def reject(label: str, rule: str) -> None:
     raise SystemExit(2)
 
 
+def safe_code_value(value: str) -> bool:
+    if not PATTERN_CODE_VALUE.fullmatch(value):
+        return False
+    return all(
+        PATTERN_SAFE_VALUE.fullmatch(literal) or PATTERN_HARMLESS_LITERAL.fullmatch(literal)
+        for _, literal in PATTERN_QUOTED_LITERAL.findall(value)
+    )
+
+
 def safe_assignment_value(value: str) -> bool:
     stripped = value.strip().rstrip(",;")
-    if PATTERN_CODE_VALUE.fullmatch(stripped):
+    if safe_code_value(stripped):
+        return True
+    # One layer of surrounding quotes around code is still code; deeper quote
+    # stripping would hide the literals the code check inspects.
+    if len(stripped) >= 2 and stripped[0] in "\"'" and stripped[-1] == stripped[0] and safe_code_value(stripped[1:-1]):
         return True
     try:
         tokens = shlex.split(stripped, comments=False, posix=True)
     except ValueError:
         return False
     return not tokens or (
-        len(tokens) == 1
-        and (tokens[0] == "" or PATTERN_SAFE_VALUE.fullmatch(tokens[0]) is not None or PATTERN_CODE_VALUE.fullmatch(tokens[0]) is not None)
+        len(tokens) == 1 and (tokens[0] == "" or PATTERN_SAFE_VALUE.fullmatch(tokens[0]) is not None)
     )
 
 
