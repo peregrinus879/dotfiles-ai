@@ -121,6 +121,11 @@ settings=$(jq -cn --arg repo "$repo" --arg home "$account_home" '
         "Read(/" + $home + "/.local/share/opencode/auth.json)",
         "Read(/" + $home + "/.netrc)", "Read(/" + $home + "/.npmrc)", "Read(/" + $home + "/.pypirc)",
         "Read(/" + $home + "/.ssh)", "Read(/" + $home + "/.ssh/**)",
+        "Read(/" + $home + "/.bash_history)", "Read(/" + $home + "/.zsh_history)",
+        "Read(/" + $home + "/.config/BraveSoftware)", "Read(/" + $home + "/.config/BraveSoftware/**)",
+        "Read(/" + $home + "/.config/chromium)", "Read(/" + $home + "/.config/chromium/**)",
+        "Read(/" + $home + "/.local/share/keyrings)", "Read(/" + $home + "/.local/share/keyrings/**)",
+        "Read(/" + $home + "/.mozilla)", "Read(/" + $home + "/.mozilla/**)",
         "Read(/" + $repo + "/.git)", "Read(/" + $repo + "/.git/**)"
       ]
     }

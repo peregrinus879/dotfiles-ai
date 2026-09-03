@@ -25,7 +25,7 @@ eyragents/
 
 ## Safety Model
 
-Trusted-repository work is autonomous until the commit boundary: a clear implementation request authorizes edits and verification, every commit requires approval of one exact staged candidate, and the user performs pushes manually after the `publish` skill reviews the delta. Pushes, repository-host mutations, privilege escalation, destructive Git operations, and credential-path reads are denied deterministically in every tool; OpenCode also blocks direct nested-agent launches from its autonomous Bash surface.
+Trusted-repository work is autonomous until the commit boundary: a clear implementation request authorizes edits and verification, every commit requires approval of one exact staged candidate, and the user performs pushes manually after the `publish` skill reviews the delta. Pushes, repository-host mutations, privilege escalation, and credential-path reads and writes are denied in every tool; destructive Git operations and Git configuration changes need the user's explicit instruction; OpenCode also blocks direct nested-agent launches from its autonomous Bash surface.
 
 User-directed reads of relevant non-secret external context use each tool's native permission mechanism. Broad working-root grants remain prohibited.
 

@@ -3,9 +3,10 @@
 
 These checks parse the deployed configuration files and assert the boundaries
 that AGENTS.md promises: automatic modes stay bounded, pushes and privilege
-escalation stay denied, credential stores stay unreadable, and permission
-ordering keeps later denies effective. Wording, key order, and implementation
-shape are deliberately not pinned.
+escalation stay denied, credential stores are neither readable nor writable,
+Git internals are not writable by file tools, destructive Git operations need
+an explicit instruction, and permission ordering keeps later denies effective.
+Wording, key order, and implementation shape are deliberately not pinned.
 """
 
 from __future__ import annotations
@@ -17,25 +18,48 @@ from pathlib import Path
 
 ROOT = Path(os.environ.get("CONFIG_CONTRACT_ROOT", Path(__file__).resolve().parent.parent))
 
-CREDENTIAL_STORES = (
+# Directory stores end with /** in Claude and OpenCode rules; file stores do not.
+CREDENTIAL_DIRECTORIES = (
     "~/.aws",
+    "~/.config/BraveSoftware",
+    "~/.config/chromium",
+    "~/.gnupg",
+    "~/.kube",
+    "~/.local/share/keyrings",
+    "~/.mozilla",
+    "~/.ssh",
+)
+CREDENTIAL_FILES = (
+    "~/.bash_history",
     "~/.claude/.credentials.json",
     "~/.codex/auth.json",
     "~/.config/gh/hosts.yml",
     "~/.docker/config.json",
-    "~/.gnupg",
-    "~/.kube",
     "~/.local/share/opencode/auth.json",
     "~/.netrc",
     "~/.npmrc",
     "~/.pypirc",
-    "~/.ssh",
+    "~/.zsh_history",
 )
-DESTRUCTIVE_GIT = (
+CREDENTIAL_SHAPES = (
+    ".env",
+    ".env.*",
+    "*.key",
+    "*.p12",
+    "*.pem",
+    "*.pfx",
+    "auth.json",
+    "credentials",
+    "credentials.*",
+    "id_dsa",
+    "id_ecdsa",
+    "id_ed25519",
+    "id_rsa",
+    "secrets/**",
+)
+HARD_DENIED_GIT = ("git clean *", "git push", "git push *")
+APPROVAL_GIT = (
     "git checkout -- *",
-    "git clean *",
-    "git push",
-    "git push *",
     "git reset *",
     "git restore *",
     "git stash clear *",
@@ -43,11 +67,22 @@ DESTRUCTIVE_GIT = (
 )
 PRIVILEGE = ("doas *", "pkexec *", "su *", "sudo *")
 REPOSITORY_HOST = (
-    "gh api *",
+    "gh gist create*",
     "gh issue create*",
     "gh pr create*",
     "gh pr merge*",
     "gh release create*",
+)
+REPOSITORY_HOST_EXTENDED = (
+    "gh api *",
+    "gh auth *",
+    "gh gpg-key *",
+    "gh repo create*",
+    "gh repo delete*",
+    "gh run cancel*",
+    "gh secret *",
+    "gh ssh-key *",
+    "gh workflow run*",
 )
 
 
@@ -79,6 +114,15 @@ def allows_precede_denies(rules: dict, label: str) -> None:
         require(max(allows) < min(denies), f"OpenCode {label}: an allow follows a deny and reopens it")
 
 
+def covered(rules: set[str], tool: str, path: str) -> bool:
+    """A store path is covered by an exact rule or by a /** rule on an ancestor."""
+    candidates = {f"{tool}({path})", f"{tool}({path}/**)"}
+    parts = path.split("/")
+    for index in range(1, len(parts)):
+        candidates.add(f"{tool}({'/'.join(parts[:index])}/**)")
+    return bool(rules & candidates)
+
+
 # Claude Code
 claude = load_json("claude-code/.claude/settings.json")
 permissions = claude["permissions"]
@@ -87,15 +131,24 @@ require(permissions["disableBypassPermissionsMode"] == "disable", "Claude bypass
 require("sandbox" not in claude, "Claude tracked settings enable sandboxing")
 require("$defaults" in claude["autoMode"]["hard_deny"], "Claude auto mode dropped the built-in hard denies")
 claude_deny = set(permissions["deny"])
-for command in (*DESTRUCTIVE_GIT, *PRIVILEGE, *REPOSITORY_HOST):
+for command in (*HARD_DENIED_GIT, *PRIVILEGE, *REPOSITORY_HOST):
     require(f"Bash({command})" in claude_deny, f"Claude deny missing: {command}")
-for path in CREDENTIAL_STORES:
-    require(
-        f"Read({path})" in claude_deny or f"Read({path}/**)" in claude_deny,
-        f"Claude credential store readable: {path}",
-    )
-for rule in ("Read(//**/.env)", "Read(//**/.env.*)", "Read(//**/secrets/**)", "Read(//**/*.key)", "Read(//**/*.pem)"):
-    require(rule in claude_deny, f"Claude credential-shaped read deny missing: {rule}")
+for command in APPROVAL_GIT:
+    require(f"Bash({command})" not in claude_deny, f"Claude denies an approval-based Git command outright: {command}")
+soft_denies = " ".join(claude["autoMode"]["soft_deny"])
+for phrase in ("git reset", "git remote", "gh auth", "startup files"):
+    require(phrase in soft_denies, f"Claude classifier rule missing for: {phrase}")
+for path in (*CREDENTIAL_DIRECTORIES, *CREDENTIAL_FILES):
+    require(covered(claude_deny, "Read", path), f"Claude credential store readable: {path}")
+    require(covered(claude_deny, "Edit", path), f"Claude credential store writable: {path}")
+for shape in CREDENTIAL_SHAPES:
+    require(f"Read(//**/{shape})" in claude_deny, f"Claude credential-shaped read deny missing: {shape}")
+    require(f"Edit(//**/{shape})" in claude_deny, f"Claude credential-shaped edit deny missing: {shape}")
+for rule in claude_deny:
+    if rule.startswith("Read(") and (rule.startswith("Read(~/") or rule.startswith("Read(//")):
+        require(rule.replace("Read(", "Edit(", 1) in claude_deny or covered(claude_deny, "Edit", rule[5:-1]),
+                f"Claude read deny has no write mirror: {rule}")
+require("Edit(//**/.git/**)" in claude_deny and "Edit(~/.config/git/**)" in claude_deny, "Claude Git internals are writable")
 for rule in permissions["allow"]:
     require(
         not rule.startswith(("Bash(git push", "Bash(gh ", "Bash(sudo")),
@@ -115,14 +168,18 @@ def check_codex(config: dict, label: str) -> None:
     require(filesystem[":root"] == "deny", f"{label} filesystem root is not denied")
     require(profile["network"]["enabled"] is False, f"{label} command network is enabled")
     require(filesystem.get("~/.local/share/mise") == "read", f"{label} cannot execute mise-managed runtimes")
-    for path in CREDENTIAL_STORES:
-        require(filesystem.get(path) == "deny", f"{label} credential store readable: {path}")
-    for path in ("~/**/.env", "~/**/.env.*", "~/**/secrets", "~/**/*.key", "~/**/*.pem"):
-        require(filesystem.get(path) == "deny", f"{label} credential-shaped deny missing: {path}")
+    for path in (*CREDENTIAL_DIRECTORIES, *CREDENTIAL_FILES):
+        require(filesystem.get(path) == "deny", f"{label} credential store reachable: {path}")
+    for shape in CREDENTIAL_SHAPES:
+        require(filesystem.get(f"~/**/{shape.removesuffix('/**')}") == "deny", f"{label} home deny missing: {shape}")
     workspace = filesystem[":workspace_roots"]
     require(workspace["."] == "write", f"{label} workspace is not writable")
-    for path in (".env", ".env.*", "secrets", "**/*.key", "**/*.pem"):
-        require(workspace.get(path) == "deny", f"{label} workspace credential deny missing: {path}")
+    require(workspace.get(".git/config") == "read" and workspace.get(".git/hooks") == "read",
+            f"{label} Git configuration or hooks are writable in the workspace")
+    for shape in CREDENTIAL_SHAPES:
+        name = shape.removesuffix("/**")
+        require(workspace.get(f"**/{name}") == "deny" or workspace.get(name) == "deny",
+                f"{label} workspace deny missing: {shape}")
     policy = config["auto_review"]["policy"]
     require("explicitly approves the exact candidate" in policy, f"{label} auto review no longer gates commits")
 
@@ -137,9 +194,10 @@ require(opencode["share"] == "disabled", "OpenCode sharing is enabled")
 require(opencode["autoupdate"] is False, "OpenCode autoupdate competes with the wrapper")
 bash = opencode["permission"]["bash"]
 require(next(iter(bash.items())) == ("*", "allow"), "OpenCode Bash autonomy catch-all is not first")
-require("ask" not in bash.values(), "OpenCode Bash reintroduced prompts")
-for command in (*DESTRUCTIVE_GIT, *PRIVILEGE, *REPOSITORY_HOST, "claude *", "codex *", "opencode *"):
+for command in (*HARD_DENIED_GIT, *PRIVILEGE, *REPOSITORY_HOST, *REPOSITORY_HOST_EXTENDED, "claude *", "codex *", "opencode *"):
     require(bash.get(command) == "deny", f"OpenCode Bash deny missing: {command}")
+for command in (*APPROVAL_GIT, "git remote set-url *", "git config core.hooksPath*", "git config credential*"):
+    require(bash.get(command) == "ask", f"OpenCode Bash approval missing: {command}")
 read_rules = opencode["permission"]["read"]
 edit_rules = opencode["permission"]["edit"]
 external_rules = opencode["permission"]["external_directory"]
@@ -148,36 +206,14 @@ require(external_rules["*"] == "ask", "OpenCode external directories no longer a
 # Read and edit subjects are worktree-relative; external subjects are parent
 # directories. Credential stores under $HOME therefore rely on the external
 # directory globs and the ask default, and worktree denies use **/ globs.
-for path in (
-    "**/.aws/**",
-    "**/.config/gh/**",
-    "**/.docker/**",
-    "**/.gnupg/**",
-    "**/.kube/**",
-    "**/.local/share/opencode/**",
-    "**/.ssh/**",
-    "**/secrets/**",
-):
-    require(external_rules.get(path) == "deny", f"OpenCode external credential store deny missing: {path}")
-for path in (
-    "**/.env",
-    "**/.env.*",
-    "**/secrets/**",
-    "**/*.key",
-    "**/*.pem",
-    "**/auth.json",
-    "**/.netrc",
-    "**/.npmrc",
-    "**/.pypirc",
-    "**/credentials",
-    "**/.ssh/**",
-    "**/.aws/**",
-    "**/.gnupg/**",
-    "**/.kube/**",
-):
-    require(read_rules.get(path) == "deny", f"OpenCode credential-shaped read deny missing: {path}")
-for path in ("**/*.key", "**/*.pem", "**/.env", "**/.env.*", "**/secrets/**"):
-    require(edit_rules.get(path) == "deny", f"OpenCode credential-shaped edit deny missing: {path}")
+for path in CREDENTIAL_DIRECTORIES:
+    glob = "**/" + path.removeprefix("~/") + "/**"
+    require(external_rules.get(glob) == "deny", f"OpenCode external credential store deny missing: {glob}")
+require(external_rules.get("**/.config/git/**") == "deny", "OpenCode Git configuration directory is reachable")
+for shape in CREDENTIAL_SHAPES:
+    require(read_rules.get(f"**/{shape}") == "deny", f"OpenCode credential-shaped read deny missing: {shape}")
+    require(edit_rules.get(f"**/{shape}") == "deny", f"OpenCode credential-shaped edit deny missing: {shape}")
+require(edit_rules.get("**/.git/**") == "deny", "OpenCode Git internals are writable by file tools")
 for label, rules in (("read", read_rules), ("edit", edit_rules), ("external_directory", external_rules)):
     allows_precede_denies(rules, label)
 for path in ("/tmp*", "/tmp/*", "/tmp/**"):
