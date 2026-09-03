@@ -34,7 +34,7 @@ PATTERN_PROVIDER_C = re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b")
 PATTERN_CLOUD_ID = re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")
 PATTERN_ASSIGNMENT = re.compile(
     r"""(?im)^[ \t+\-]*(?:export\s+)?["']?"""
-    r"[A-Z0-9_]*(?:API_KEY|AUTH_TOKEN|ACCESS_TOKEN|CLIENT_SECRET|PASSWORD|PASSWD|PRIVATE_KEY)"
+    r"[A-Z0-9_]*(?:API_KEY|ACCESS_KEY|SECRET|TOKEN|PASSWORD|PASSWD|PASSPHRASE|PRIVATE_KEY)"
     r"""[A-Z0-9_]*["']?\s*[:=]\s*(.*?)\s*$"""
 )
 PATTERN_SAFE_VALUE = re.compile(
@@ -43,6 +43,13 @@ PATTERN_SAFE_VALUE = re.compile(
     r"fake(?:[-_ ][a-z0-9]+)*|test(?:[-_ ][a-z0-9]+)*|your[-_ ][a-z0-9_-]+|"
     r"\$\{[A-Z_][A-Z0-9_]*\}|\{env:[^}\r\n]+\}|<[^>\r\n]{1,80}>)"
 )
+# A value that is code rather than a literal: a call, a command substitution,
+# an environment lookup, a shell or template variable, or a language constant.
+PATTERN_CODE_VALUE = re.compile(
+    r"(?i)^(?:[A-Za-z_][\w.]*\(.*|\$\(.*|`.*|os\.(?:environ|getenv)\b.*|process\.env\b.*|"
+    r"System\.getenv\b.*|ENV\[.*|\$\{?[A-Za-z_]\w*.*|\{\{.*|none|null|nil|true|false|\d+)$"
+)
+PATTERN_URL_CREDENTIAL = re.compile(r"(?i)\b[a-z][a-z0-9+.-]*://[^\s/:@]+:([^\s@/]+)@")
 PATTERN_PACKAGE_AUTH = re.compile(r"(?im)^[ \t+\-]*//[^\r\n]*:_authToken\s*=\s*([^\s#]+)")
 PATTERN_NETRC_VALUE = re.compile(r"(?im)^[ \t+\-]*password\s+(\S+)")
 PATTERN_NETRC_HOST = re.compile(r"(?im)^[ \t+\-]*machine\s+\S+")
@@ -77,12 +84,16 @@ def reject(label: str, rule: str) -> None:
 
 
 def safe_assignment_value(value: str) -> bool:
+    stripped = value.strip().rstrip(",;")
+    if PATTERN_CODE_VALUE.fullmatch(stripped):
+        return True
     try:
-        tokens = shlex.split(value, comments=False, posix=True)
+        tokens = shlex.split(stripped, comments=False, posix=True)
     except ValueError:
         return False
     return not tokens or (
-        len(tokens) == 1 and (tokens[0] == "" or PATTERN_SAFE_VALUE.fullmatch(tokens[0]) is not None)
+        len(tokens) == 1
+        and (tokens[0] == "" or PATTERN_SAFE_VALUE.fullmatch(tokens[0]) is not None or PATTERN_CODE_VALUE.fullmatch(tokens[0]) is not None)
     )
 
 
@@ -197,6 +208,9 @@ def content_findings(label: str, text: str, check_paths: bool) -> list[Finding]:
     for match in PATTERN_ASSIGNMENT.finditer(text):
         if not safe_assignment_value(match.group(1)):
             findings.append(Finding(label, line_number(match.start()), "credential-assignment-v1"))
+    for match in PATTERN_URL_CREDENTIAL.finditer(text):
+        if not safe_assignment_value(match.group(1)):
+            findings.append(Finding(label, line_number(match.start()), "url-credential-v1"))
     for match in PATTERN_PACKAGE_AUTH.finditer(text):
         if PATTERN_SAFE_VALUE.fullmatch(match.group(1)) is None:
             findings.append(Finding(label, line_number(match.start()), "package-auth-value-v1"))

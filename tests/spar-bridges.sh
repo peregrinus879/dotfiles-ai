@@ -144,6 +144,29 @@ printf '%s=placeholder-token\n//registry.example.invalid/:_%s=example-token\n%s=
   "$key_name" 'authToken' 'PASSWORD' "\${PASSWORD}" >"$TMP/art/placeholders.md"
 printf 'Review.' | "$SCANNER" outbound "$TMP/art/placeholders.md" >/dev/null 2>&1 ||
   fail "scanner rejected documented placeholder values"
+# Secrets in shapes the assignment rule used to miss are rejected.
+for content in "$(printf 'AWS_SECRET_ACCESS_%s=%s' 'KEY' 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYRUNTIMEVALUE1')" \
+  "$(printf 'DATABASE_URL=postgres:%s//app:%s@db.internal/app' '' 'Hunter2Runtime')" \
+  "$(printf 'GITHUB_%s: %s' 'TOKEN' 'literal-runtime-value-9f8e7d')" \
+  "$(printf '%s = "%s"' 'passphrase' 'literal runtime words')"; do
+  printf '%s\n' "$content" >"$TMP/art/shape.md"
+  if printf 'Review.' | "$SCANNER" outbound "$TMP/art/shape.md" >/dev/null 2>&1; then
+    fail "credential shape passed scanner: ${content%%[=:]*}"
+  fi
+done
+# Code that handles credentials without containing one is accepted.
+{
+  printf '%s = get_password()\n' 'password'
+  printf '%s: os.environ["CLIENT_SECRET"]\n' 'client_secret'
+  printf 'export %s="%s"\n' 'CLIENT_SECRET' "\$SECRET"
+  printf '%s=%s\n' 'token' "\$(vault read -field=token secret/app)"
+  printf '%s: process.env.API_KEY\n' 'api_key'
+  printf 'DATABASE_URL=postgres:%s//app:%s@db.internal/app\n' '' "\${DB_PASSWORD}"
+  printf '%s: null\n' 'passphrase'
+  printf '%s: {{ secrets.aws }}\n' 'AWS_SECRET_ACCESS_KEY'
+} >"$TMP/art/code.md"
+printf 'Review.' | "$SCANNER" outbound "$TMP/art/code.md" >/dev/null 2>&1 ||
+  fail "scanner rejected credential-handling code without a literal secret"
 for _ in $(seq 1 10); do printf '%s=%s\n' "$key_name" "$token"; done >"$TMP/art/many.md"
 rc=0
 diagnostic=$(printf 'Review.' | "$SCANNER" outbound "$TMP/art/many.md" 2>&1 >/dev/null) || rc=$?
