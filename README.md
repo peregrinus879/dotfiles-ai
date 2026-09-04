@@ -131,6 +131,7 @@ make stow      # clean, then link every package file (directories stay real; eac
 make dry-run   # preview Stow actions
 make restow    # clean, then refresh links after repo content changes
 make unstow    # remove package links
+make canary    # run each tool once and assert the inventory, the gate, the read grant, and a secret refusal (model calls)
 ```
 
 Stow runs without directory folding, so `~/.claude`, `~/.config/opencode`, and the other managed parents stay real directories that tools may write into. The one exception is each `~/.agents/skills/<name>`, linked whole by `make stow`, because Codex's skill loader follows directory links and skips file links. Stow reports any conflicting regular file without changing it; reconcile it explicitly.

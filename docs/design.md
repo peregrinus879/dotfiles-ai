@@ -28,7 +28,7 @@ Skills read a target contract instead of per-repository prose: `lint` and `check
 
 ## Two hosts
 
-The harness deploys with GNU Stow without directory folding, so managed parents stay real directories that tools may write into and only leaf files are links; each skill directory under `~/.agents/skills` is the one exception, linked whole, because Codex's loader follows directory links and skips file links. A change that alters deployed state is applied on the host where it is made, and the same commit adds a host pass item to the ledger with the exact steps for the other host; the agent runs the item in the next session there and deletes it.
+The harness deploys with GNU Stow without directory folding, so managed parents stay real directories that tools may write into and only leaf files are links; each skill directory under `~/.agents/skills` is the one exception, linked whole, because Codex's loader follows directory links and skips file links. A change that alters deployed state is applied on the host where it is made, and the same commit adds a host pass item to the ledger with the exact steps for the other host; the agent runs the item in the next session there and deletes it. The fixtures prove the hook command, the payload, and the plugin call; only a real tool proves its own dispatch, so `make canary` runs each tool once after a deploy and asserts what the harness promises.
 
 ## The repository is the record
 

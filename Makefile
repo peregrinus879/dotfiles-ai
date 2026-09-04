@@ -16,7 +16,7 @@ SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
   $(filter-out %/spar-payload-scan,$(wildcard agents/.agents/skills/*/scripts/*)) \
   $(wildcard scripts/*.sh tests/*.sh)
 
-.PHONY: help stow unstow dry-run restow require-clone install-gate migrate-codex-config lint test check verify-deploy verify clean
+.PHONY: help stow unstow dry-run restow require-clone install-gate migrate-codex-config lint test check verify-deploy verify canary clean
 
 help:
 	@echo "Targets:"
@@ -31,6 +31,7 @@ help:
 	@echo "  check          Repository checks: package and project symlinks resolve, owned JSON and TOML parse, then test (runs in CI)"
 	@echo "  verify-deploy  Check every package file resolves to its deployed target"
 	@echo "  verify         lint, check, and verify-deploy"
+	@echo "  canary         Run each tool once, non-interactively, and assert the inventory, the gate, the read grant, and a secret refusal (model calls; not a gate)"
 	@echo "  clean          Remove dangling links that point into this repository's packages"
 
 stow: clean
@@ -101,6 +102,7 @@ test:
 	bash tests/prepare-stow.sh
 	bash tests/spar-bridges.sh
 	bash tests/commit-gate.sh
+	bash tests/canary.sh
 	@echo "ok:   test"
 
 check:
@@ -186,6 +188,11 @@ verify-deploy:
 
 verify: lint check verify-deploy
 	@echo "ok:   verify"
+
+# Live behavior of the deployed tools: four model calls per tool from a
+# throwaway repository. Run from a plain terminal after make restow.
+canary:
+	bash scripts/canary.sh
 
 clean:
 	bash scripts/prepare-stow.sh
