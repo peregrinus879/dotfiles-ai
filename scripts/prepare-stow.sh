@@ -18,6 +18,14 @@
 # marketplaces, plugins, mcp_servers, shell_environment_policy, desktop). A
 # missing file or a managed symlink is replaced by the template; a regular file
 # that already matches the template is left untouched.
+#
+# --link-skills: make each ~/.agents/skills/<name> one link to the skill's
+# directory in the agents package, the shape Codex's skill loader follows
+# (it skips symlinks that are not directories, so the leaf links a no-folding
+# deploy would leave hide the skill). A directory left by an earlier deploy is
+# emptied of the links that resolve into that skill's source and removed; any
+# other entry, or a link that resolves elsewhere, stops the script and stays.
+# --unlink-skills removes the links that resolve into this clone's package.
 set -euo pipefail
 
 abort() {
@@ -92,10 +100,64 @@ migrate_codex_config() {
   fi
 }
 
+package_skills() {
+  local dir
+  for dir in "$repository_root"/agents/.agents/skills/*/; do
+    [[ -d $dir ]] || continue
+    basename -- "$dir"
+  done
+}
+
+link_skills() {
+  local root="$HOME/.agents/skills" name source target text entry
+  [[ -n ${HOME:-} && $HOME != / ]] || abort 'HOME must name a non-root directory'
+  [[ ! -L $root ]] || abort "the skills root must be a real directory, not a link: $root"
+  mkdir -p -- "$root"
+  while IFS= read -r name; do
+    source="$repository_root/agents/.agents/skills/$name"
+    target="$root/$name"
+    text=$(realpath --relative-to="$root" -- "$source")
+    if [[ -L $target ]]; then
+      [[ $(realpath -m -- "$target") == "$source" ]] && continue
+      abort "refusing to repoint a skill link that resolves elsewhere: $target"
+    elif [[ -d $target ]]; then
+      while IFS= read -r -d '' entry; do
+        case $(realpath -m -- "$entry") in
+          "$source"/*) rm -- "$entry" ;;
+          *) abort "foreign entry inside a managed skill directory: $entry" ;;
+        esac
+      done < <(find "$target" -type l -print0)
+      find "$target" -depth -type d -exec rmdir -- {} + 2>/dev/null || true
+      [[ ! -e $target ]] || abort "skill directory still holds entries that are not its own links: $target"
+    elif [[ -e $target ]]; then
+      abort "skill endpoint is neither a link nor a directory: $target"
+    fi
+    ln -s -- "$text" "$target"
+    printf 'linked skill directory: %s -> %s\n' "$target" "$text"
+  done < <(package_skills)
+}
+
+unlink_skills() {
+  local root="$HOME/.agents/skills" name target
+  while IFS= read -r name; do
+    target="$root/$name"
+    [[ -L $target ]] || continue
+    [[ $(realpath -m -- "$target") == "$repository_root/agents/.agents/skills/$name" ]] || continue
+    rm -- "$target"
+    printf 'removed skill directory link: %s\n' "$target"
+  done < <(package_skills)
+}
+
 case ${1:-} in
   '') clean_links ;;
   --migrate-codex-config)
     [[ $# == 1 ]] || abort "unsupported arguments: $*"
     migrate_codex_config ;;
+  --link-skills)
+    [[ $# == 1 ]] || abort "unsupported arguments: $*"
+    link_skills ;;
+  --unlink-skills)
+    [[ $# == 1 ]] || abort "unsupported arguments: $*"
+    unlink_skills ;;
   *) abort "unsupported arguments: $*" ;;
 esac

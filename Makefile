@@ -6,6 +6,11 @@
 SHELL := /bin/bash
 PACKAGES := agents claude-code codex opencode
 STOW := stow --no-folding --ignore='__pycache__' -t ~
+TOOL_PACKAGES := claude-code codex opencode
+# Each skill under ~/.agents/skills deploys as one directory link, which Codex's
+# loader follows where it skips file links; Stow leaves that directory to
+# scripts/prepare-stow.sh --link-skills.
+AGENTS_STOW := $(STOW) --ignore='\.agents/skills'
 SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
   templates/hooks/commit-gate \
   $(filter-out %/spar-payload-scan,$(wildcard agents/.agents/skills/*/scripts/*)) \
@@ -15,8 +20,8 @@ SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
 
 help:
 	@echo "Targets:"
-	@echo "  stow           Clean dangling links, stow all packages into ~, install the commit gate, reconcile the Codex config"
-	@echo "  unstow         Remove all package links"
+	@echo "  stow           Clean dangling links, stow all packages into ~, link each skill directory, install the commit gate, reconcile the Codex config"
+	@echo "  unstow         Remove all package links and the skill directory links"
 	@echo "  dry-run        Preview Stow actions"
 	@echo "  restow         Clean, refresh links, install the commit gate, and reconcile the Codex config (refuses from a non-deployed clone)"
 	@echo "  install-gate   Install templates/hooks/commit-gate as a real file under ~/.agents/hooks"
@@ -29,18 +34,25 @@ help:
 	@echo "  clean          Remove dangling links that point into this repository's packages"
 
 stow: clean
-	$(STOW) -v $(PACKAGES)
+	$(STOW) -v $(TOOL_PACKAGES)
+	$(AGENTS_STOW) -v agents
+	bash scripts/prepare-stow.sh --link-skills
 	$(MAKE) --no-print-directory install-gate
 	bash scripts/prepare-stow.sh --migrate-codex-config
 
 unstow:
-	$(STOW) -D -v $(PACKAGES)
+	$(STOW) -D -v $(TOOL_PACKAGES)
+	$(AGENTS_STOW) -D -v agents
+	bash scripts/prepare-stow.sh --unlink-skills
 
 dry-run:
-	$(STOW) -n -v $(PACKAGES)
+	$(STOW) -n -v $(TOOL_PACKAGES)
+	$(AGENTS_STOW) -n -v agents
 
 restow: require-clone clean
-	$(STOW) -R -v $(PACKAGES)
+	$(STOW) -R -v $(TOOL_PACKAGES)
+	$(AGENTS_STOW) -R -v agents
+	bash scripts/prepare-stow.sh --link-skills
 	$(MAKE) --no-print-directory install-gate
 	bash scripts/prepare-stow.sh --migrate-codex-config
 
@@ -63,6 +75,14 @@ require-clone:
 	    *) echo "FAIL: $$target is linked from another clone; run make stow from the deployed clone"; fail=1 ;; \
 	  esac; \
 	done < <(git ls-files -z --cached --others --exclude-standard -- $(PACKAGES)); \
+	for src in agents/.agents/skills/*/; do \
+	  name=$${src%/}; name=$${name##*/}; target="$$HOME/.agents/skills/$$name"; \
+	  [[ -L $$target ]] || continue; \
+	  case $$(readlink -f -- "$$target") in \
+	    "$(CURDIR)"/*) ;; \
+	    *) echo "FAIL: $$target is linked from another clone; run make stow from the deployed clone"; fail=1 ;; \
+	  esac; \
+	done; \
 	exit $$fail
 
 migrate-codex-config:
@@ -130,8 +150,14 @@ verify-deploy:
 	done < <(git ls-files -z --cached --others --exclude-standard -- $(PACKAGES)); \
 	while IFS= read -r dir; do \
 	  target="$$HOME/$${dir#*/}"; \
-	  if [[ -d $$target && ! -L $$target ]]; then :; \
-	  else echo "FAIL: managed directory is folded or missing: $$target"; fail=1; fi; \
+	  case $$dir in \
+	    agents/.agents/skills/*/*) continue ;; \
+	    agents/.agents/skills/*) \
+	      if [[ -L $$target && $$(readlink -f -- "$$target") == "$(CURDIR)/$$dir" ]]; then echo "ok:   skill directory link resolves into the repo: $$target"; \
+	      else echo "FAIL: skill directory is not one link into the repo (run make restow): $$target"; fail=1; fi ;; \
+	    *) if [[ -d $$target && ! -L $$target ]]; then :; \
+	       else echo "FAIL: managed directory is folded or missing: $$target"; fail=1; fi ;; \
+	  esac; \
 	done < <(git ls-files --cached --others --exclude-standard -- $(PACKAGES) | \
 	  while IFS= read -r src; do [[ -e $$src || -L $$src ]] || continue; dir=$${src%/*}; \
 	  while [[ $$dir == */* ]]; do echo "$$dir"; dir=$${dir%/*}; done; done | sort -u); \

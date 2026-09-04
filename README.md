@@ -127,13 +127,13 @@ Run from the repository root:
 
 ```bash
 make clean     # remove dangling links that point into this repository's packages
-make stow      # clean, then link every package file (directories stay real)
+make stow      # clean, then link every package file (directories stay real; each skill directory is one link)
 make dry-run   # preview Stow actions
 make restow    # clean, then refresh links after repo content changes
 make unstow    # remove package links
 ```
 
-Stow runs without directory folding, so `~/.claude`, `~/.config/opencode`, and the other managed parents stay real directories that tools may write into. Stow reports any conflicting regular file without changing it; reconcile it explicitly.
+Stow runs without directory folding, so `~/.claude`, `~/.config/opencode`, and the other managed parents stay real directories that tools may write into. The one exception is each `~/.agents/skills/<name>`, linked whole by `make stow`, because Codex's skill loader follows directory links and skips file links. Stow reports any conflicting regular file without changing it; reconcile it explicitly.
 
 `make stow` and `make restow` also install `templates/hooks/commit-gate` as a real file under `~/.agents/hooks`, outside every workspace because the hooks run it outside the Codex sandbox, and install `~/.codex/config.toml` from `templates/codex/config.toml` as a host-local file. The template owns the model, review, feature, and permission settings; tables that Codex or the desktop app add (projects, plugins, MCP servers, desktop state) are preserved across reconciliations.
 

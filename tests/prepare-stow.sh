@@ -53,7 +53,16 @@ print(data)' "$1" "$2"
 
 prepare() { HOME=$1 bash "$2/scripts/prepare-stow.sh"; }
 migrate() { HOME=$1 bash "$2/scripts/prepare-stow.sh" --migrate-codex-config; }
-deploy() { HOME=$1 stow --no-folding -R -d "$2" -t "$1" agents claude-code codex opencode; }
+deploy() {
+  HOME=$1 stow --no-folding -R -d "$2" -t "$1" claude-code codex opencode &&
+    HOME=$1 stow --no-folding --ignore='\.agents/skills' -R -d "$2" -t "$1" agents &&
+    HOME=$1 bash "$2/scripts/prepare-stow.sh" --link-skills
+}
+undeploy() {
+  HOME=$1 stow --no-folding -D -d "$2" -t "$1" claude-code codex opencode &&
+    HOME=$1 stow --no-folding --ignore='\.agents/skills' -D -d "$2" -t "$1" agents &&
+    HOME=$1 bash "$2/scripts/prepare-stow.sh" --unlink-skills
+}
 
 case_clean_links() {
   local home="$TMP/clean/home" repo="$TMP/clean/eyragents" old="$TMP/clean/old/eyragents"
@@ -88,8 +97,12 @@ case_no_folding() {
   ln -s ../../eyragents/opencode/.config/opencode "$home/.config/opencode"
   prepare "$home" "$repo"
   deploy "$home" "$repo" >/dev/null 2>&1 || fail "restow could not replace folded links"
-  for path in .claude .claude/skills/commit .claude/skills/commit/scripts .codex .agents/skills/commit .agents/skills/commit/scripts .agents/skills/spar/scripts .claude/skills/spar/scripts .config/opencode; do
+  for path in .claude .claude/skills/commit .claude/skills/commit/scripts .codex .agents .agents/skills .claude/skills/spar/scripts .config/opencode; do
     [[ -d $home/$path && ! -L $home/$path ]] || fail "$path is not a real directory after no-folding stow"
+  done
+  for name in commit spar; do
+    [[ -L $home/.agents/skills/$name && $(readlink -f -- "$home/.agents/skills/$name") == "$repo/agents/.agents/skills/$name" ]] ||
+      fail "skill directory $name is not one link into the clone"
   done
   [[ $(readlink -f -- "$home/.agents/shared-guidance.md") == "$repo/agents/.agents/shared-guidance.md" ]] ||
     fail "leaf link does not resolve into the clone"
@@ -114,9 +127,38 @@ case_no_folding() {
   [[ ! -L $root/package.json && $(<"$root/package.json") == "host-local" && -d $root/node_modules ]] ||
     fail "restow changed host-local generated state"
   [[ ! -e $repo/opencode/.config/opencode/package.json ]] || fail "generated state reached the package source"
-  HOME=$home stow --no-folding -D -d "$repo" -t "$home" agents claude-code codex opencode >/dev/null 2>&1 ||
-    fail "unstow failed"
-  [[ ! -e $home/.claude/CLAUDE.md && -f $root/package.json ]] || fail "unstow removed the wrong things"
+  undeploy "$home" "$repo" >/dev/null 2>&1 || fail "unstow failed"
+  [[ ! -e $home/.claude/CLAUDE.md && ! -e $home/.agents/skills/commit && -d $home/.agents/skills && -f $root/package.json ]] ||
+    fail "unstow removed the wrong things"
+}
+
+case_skill_links() {
+  local home="$TMP/links/home" repo="$TMP/links/eyragents"
+  mkdir -p "$home/.agents/skills/commit/scripts"
+  make_clone "$repo"
+  # The leaf-link layout an earlier no-folding deploy left behind becomes one link.
+  ln -s "$repo/agents/.agents/skills/commit/SKILL.md" "$home/.agents/skills/commit/SKILL.md"
+  ln -s "$repo/agents/.agents/skills/commit/scripts/commit-apply" "$home/.agents/skills/commit/scripts/commit-apply"
+  HOME=$home bash "$repo/scripts/prepare-stow.sh" --link-skills >/dev/null || fail "link-skills failed on the leaf-link layout"
+  [[ -L $home/.agents/skills/commit && $(readlink -f -- "$home/.agents/skills/commit") == "$repo/agents/.agents/skills/commit" ]] ||
+    fail "the leaf-link skill directory was not replaced by one link"
+  [[ -L $home/.agents/skills/spar ]] || fail "a missing skill directory was not linked"
+  HOME=$home bash "$repo/scripts/prepare-stow.sh" --link-skills >/dev/null || fail "link-skills is not idempotent"
+  # A foreign entry stops the conversion and stays.
+  rm "$home/.agents/skills/spar"
+  mkdir -p "$home/.agents/skills/spar"
+  printf 'mine\n' >"$home/.agents/skills/spar/notes.md"
+  if HOME=$home bash "$repo/scripts/prepare-stow.sh" --link-skills >/dev/null 2>&1; then fail "link-skills replaced a directory holding a foreign entry"; fi
+  [[ -f $home/.agents/skills/spar/notes.md ]] || fail "link-skills removed a foreign entry"
+  rm -r "$home/.agents/skills/spar"
+  # A link that resolves elsewhere is refused, not repointed.
+  mkdir -p "$TMP/links/elsewhere"
+  ln -s "$TMP/links/elsewhere" "$home/.agents/skills/spar"
+  if HOME=$home bash "$repo/scripts/prepare-stow.sh" --link-skills >/dev/null 2>&1; then fail "link-skills repointed a foreign link"; fi
+  [[ $(readlink -- "$home/.agents/skills/spar") == "$TMP/links/elsewhere" ]] || fail "link-skills changed a foreign link"
+  rm "$home/.agents/skills/spar"
+  HOME=$home bash "$repo/scripts/prepare-stow.sh" --unlink-skills >/dev/null || fail "unlink-skills failed"
+  [[ ! -e $home/.agents/skills/commit && -d $home/.agents/skills ]] || fail "unlink-skills left the link or removed the root"
 }
 
 case_migration() {
@@ -178,5 +220,6 @@ case_migration() {
 
 case_clean_links
 case_no_folding
+case_skill_links
 case_migration
-printf 'ok: prepare-stow removes only dangling managed links and migrates Codex config safely\n'
+printf 'ok: prepare-stow removes only dangling managed links, links skill directories, and migrates Codex config safely\n'
