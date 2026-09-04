@@ -1,16 +1,29 @@
 # EyrAgents
 
-Portable global configuration for [Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://learn.chatgpt.com/codex), and [OpenCode](https://opencode.ai/docs), managed with [GNU Stow](https://www.gnu.org/software/stow/).
+One policy, one workflow, three coding agents. EyrAgents is a personal harness that makes [Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://learn.chatgpt.com/codex), and [OpenCode](https://opencode.ai/docs) read the same guidance, follow the same commit and publication procedure, and hold the same safety posture, on an [Omarchy](https://omarchy.org) desktop and a WSL Arch machine. It is a [GNU Stow](https://www.gnu.org/software/stow/) repository: each package mirrors `$HOME`, and `make stow` links the configuration into place.
 
-## Scope
+## What You Get
 
-EyrAgents provides shared cross-tool guidance, runtime configuration, commit and publication workflows, and read-only cross-vendor reviewer bridges. Authentication, session state, and generated host state remain local; the Codex config is installed from a portable template as a host-local file.
+- **Shared guidance.** One markdown policy that every tool loads at session start: how to work, what needs approval, and what never happens without an explicit instruction. It lives once under `~/.agents`, and each tool reads it through its own mechanism.
+- **Two interventions per change.** The `commit` skill runs the repository's gates and asks for approval of one exact staged candidate; the `publish` skill reviews what a push would expose, hands over the push command, and verifies the result afterwards. Everything in between is automatic.
+- **Skills in the open format.** The workflows are [Agent Skills](https://agentskills.io) `SKILL.md` files, written once and linked into every tool's skill directory.
+- **A safety posture per tool.** Deterministic denies plus an auto-mode classifier for Claude Code, a root-denied sandbox for Codex, and guardrail rules for OpenCode, all aligned on one list of credential stores and Git internals.
+- **Cross-vendor review.** Read-only, offline reviewer bridges let Claude Code ask Codex, and OpenCode ask Claude, for a second opinion with no write, web, or network surface.
+- **Deployment you can verify.** `make stow` deploys, `make verify` proves that every link resolves and that the host Codex config carries the template's boundaries, and CI runs the repository checks on every push.
 
-[`AGENTS.md`](AGENTS.md) contains repository invariants. Managed skills contain workflow procedure. [`docs/maintenance.md`](docs/maintenance.md) contains active limitations, open decisions, deferred work, and revalidation triggers.
+## The Tools
+
+| Tool | More | What it reads from this repository |
+|---|---|---|
+| [Claude Code](https://code.claude.com/docs/en/overview) | [skills](https://code.claude.com/docs/en/skills), [memory and rules](https://code.claude.com/docs/en/memory) | `~/.claude/settings.json`, `~/.claude/rules/`, `~/.claude/skills/`, and the status line script |
+| [Codex](https://learn.chatgpt.com/codex) | [github.com/openai/codex](https://github.com/openai/codex) | `~/.codex/AGENTS.md`, `~/.agents/skills/`, and a host-local `~/.codex/config.toml` installed from the tracked template |
+| [OpenCode](https://opencode.ai/docs) | [github.com/anomalyco/opencode](https://github.com/anomalyco/opencode) | `~/.config/opencode/opencode.json` with its `instructions` entry, `tui.json`, the slash commands, and `~/.config/opencode/skills/` |
+
+The tools themselves are installed outside this repository: through [mise](https://mise.jdx.dev) on Omarchy, and through the Arch packages plus the Claude Code installer on WSL.
 
 ## Repo Family
 
-Derivation model for this repo family:
+EyrAgents is one of three repositories that together define the author's machines. Local clones live side by side under `~/Projects/eyrie/`.
 
 ```text
 AI agent harness                → EyrAgents
@@ -18,11 +31,15 @@ Omarchy + personal deviations   → EyrArcHy
 Omarchy + WSL deviations        → EyrWSL
 ```
 
-- [`eyragents`](https://github.com/peregrinus879/eyragents) - AI agent harness: Claude Code, Codex, and OpenCode settings, shared guidance, and commit workflow
-- [`eyrarchy`](https://github.com/peregrinus879/eyrarchy) - Personal Omarchy customizations: Bash overrides, Hyprland bindings, Neovim plugins, and Yazi
-- [`eyrwsl`](https://github.com/peregrinus879/eyrwsl) - Self-contained WSL Arch environment: terminal baseline plus Windows Terminal and clipboard integration
+- [eyragents](https://github.com/peregrinus879/eyragents), this repository: the agent harness shared by both machines.
+- [eyrarchy](https://github.com/peregrinus879/eyrarchy): personal Omarchy customizations, Bash overrides, Hyprland bindings, Neovim plugins, and Yazi, deployed on the Omarchy desktop.
+- [eyrwsl](https://github.com/peregrinus879/eyrwsl): a self-contained WSL Arch environment, the terminal baseline plus Windows Terminal and clipboard integration.
 
-Local clones live side by side under `~/Projects/eyrie/`.
+The siblings carry an `AGENTS.md` and one project skill each and otherwise rely on the guidance and skills deployed from here.
+
+## Where Things Live
+
+[`AGENTS.md`](AGENTS.md) holds the repository invariants. The skills hold workflow procedure. [`docs/maintenance.md`](docs/maintenance.md) holds active limitations, open decisions, deferred work, and revalidation triggers.
 
 ## Layout
 
@@ -82,7 +99,7 @@ The `spar` workflow uses subscription-authenticated, read-only cross-vendor revi
 - jq and Python
 - ShellCheck
 - GNU coreutils and util-linux (`setsid`)
-- Claude Code, Codex, and OpenCode installed where the Codex sandbox can execute them: through mise on Omarchy (`~/.local/share/mise`), and through the official Arch packages plus the Claude Code installer under `~/.claude/bin` on WSL
+- Claude Code, Codex, and OpenCode installed where the Codex sandbox can execute them: through [mise](https://mise.jdx.dev) on Omarchy (`~/.local/share/mise`), and through the official Arch packages plus the Claude Code installer under `~/.claude/bin` on WSL
 
 On Arch Linux:
 
