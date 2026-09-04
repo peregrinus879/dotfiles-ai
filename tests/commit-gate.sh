@@ -138,6 +138,16 @@ grep -q '^hash: ' <<<"$out" || fail 'commit-apply printed no hash'
 [[ -z $(find "$EYRAGENTS_RECORD_ROOT" -name record) ]] || fail 'the record survived commit-apply'
 if commit-apply >/dev/null 2>&1; then fail 'commit-apply committed without a record'; fi
 
+# A deletion can be recorded twice: the second run finds the path gone from the
+# worktree and the index, with HEAD still holding it.
+rm b.txt
+printf 'feat: drop b\n\n%s\n' "$trailer" | commit-candidate -- b.txt >/dev/null || fail 'candidate refused a deletion'
+printf 'feat: drop b again\n\n%s\n' "$trailer" | commit-candidate -- b.txt >/dev/null || fail 'candidate could not re-record a staged deletion'
+[[ $(git diff --cached --name-status) == $'D\tb.txt' ]] || fail 'the staged deletion changed on re-record'
+commit-candidate --clear >/dev/null
+git restore --staged b.txt
+git restore b.txt
+
 # A hook that changes the commit: the branch moves back and nothing is amended.
 printf 'hooked\n' >hooked.txt
 printf 'four\n' >d.txt

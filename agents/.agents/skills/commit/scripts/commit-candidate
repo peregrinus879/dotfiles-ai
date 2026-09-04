@@ -94,7 +94,18 @@ while IFS= read -r staged; do
   covered "$staged" || fail "index already holds an unrelated staged change: $staged"
 done < <(git diff --cached --name-only)
 
-git add -- "$@"
+# A path that HEAD holds but neither the index nor the worktree does is a
+# deletion an earlier run already staged; git add would match nothing for it.
+to_add=()
+for path in "$@"; do
+  rel=$(realpath -m -s --relative-to="$toplevel" -- "$path")
+  if [[ ! -e $path && ! -L $path ]] && ! git ls-files --error-unmatch -- "$path" >/dev/null 2>&1 &&
+     git cat-file -e "HEAD:$rel" 2>/dev/null; then
+    continue
+  fi
+  to_add+=("$path")
+done
+((${#to_add[@]} == 0)) || git add -- "${to_add[@]}"
 if git diff --cached --quiet; then fail 'nothing is staged for the given paths'; fi
 
 tree=$(git write-tree)
