@@ -42,6 +42,11 @@ CREDENTIAL_FILES = (
     "~/.pypirc",
     "~/.zsh_history",
 )
+# Credential stores that may be copied into a repository; every copy stays unreadable.
+PROJECT_STORE_DIRECTORIES = (".aws", ".gnupg", ".kube", ".ssh", ".config/BraveSoftware", ".config/chromium", ".local/share/keyrings", ".mozilla")
+PROJECT_STORE_FILES = (".claude/.credentials.json", ".codex/auth.json", ".config/gh/hosts.yml", ".docker/config.json", ".local/share/opencode/auth.json", ".bash_history", ".zsh_history")
+PROJECT_STORES = (*PROJECT_STORE_DIRECTORIES, *PROJECT_STORE_FILES)
+
 CREDENTIAL_SHAPES = (
     ".env",
     ".env.*",
@@ -110,12 +115,25 @@ def require(condition: bool, message: str) -> None:
         raise SystemExit(f"FAIL: {message}")
 
 
-def allows_precede_denies(rules: dict, label: str) -> None:
+def denies_come_last(rules: dict, label: str) -> None:
+    """Last match wins, so every allow or ask precedes every deny or it reopens one."""
     actions = list(rules.values())
-    allows = [index for index, action in enumerate(actions) if action == "allow"]
+    opens = [index for index, action in enumerate(actions) if action != "deny"]
     denies = [index for index, action in enumerate(actions) if action == "deny"]
-    if allows and denies:
-        require(max(allows) < min(denies), f"OpenCode {label}: an allow follows a deny and reopens it")
+    if opens and denies:
+        require(max(opens) < min(denies), f"OpenCode {label}: an allow or ask follows a deny and reopens it")
+
+
+def relative_deny(rules: dict, path: str) -> bool:
+    """A worktree-relative subject is denied at depth by a **/ rule on the path, its basename,
+    or an ancestor, and at the worktree root by the bare form, since **/ needs a slash."""
+    parts = path.split("/")
+    deep = {f"**/{path}", f"**/{parts[-1]}"}
+    bare = {path}
+    for index in range(1, len(parts)):
+        deep.add(f"**/{'/'.join(parts[:index])}/**")
+        bare.add(f"{'/'.join(parts[:index])}/**")
+    return any(rules.get(c) == "deny" for c in deep) and any(rules.get(c) == "deny" for c in bare)
 
 
 def covered(rules: set[str], tool: str, path: str) -> bool:
@@ -174,6 +192,11 @@ def check_codex(config: dict, label: str) -> None:
     require(filesystem.get("~/.local/share/mise") == "read", f"{label} cannot execute mise-managed runtimes")
     for path in (*CREDENTIAL_DIRECTORIES, *CREDENTIAL_FILES):
         require(filesystem.get(path) == "deny", f"{label} credential store reachable: {path}")
+    require(filesystem.get("~/Projects") == "read", f"{label} cannot read H's repositories under ~/Projects")
+    for shape in CREDENTIAL_SHAPES:
+        require(shape == ".npmrc" or filesystem.get(f"~/**/{shape}") == "deny" or filesystem.get(f"~/Projects/**/{shape}") == "deny", f"{label} credential shape reachable under ~/Projects: {shape}")
+    for store in PROJECT_STORES:
+        require(filesystem.get(f"~/Projects/**/{store}") == "deny", f"{label} credential store copy reachable under ~/Projects: {store}")
     # OpenSSH keys live under ~/.ssh and the rc files are denied as literal
     # home paths; home-wide globs for them match files inside already denied
     # or runtime trees and break or slow sandbox startup.
@@ -214,19 +237,25 @@ edit_rules = opencode["permission"]["edit"]
 external_rules = opencode["permission"]["external_directory"]
 require(read_rules["*"] == "allow" and edit_rules["*"] == "allow", "OpenCode workspace autonomy drifted")
 require(external_rules["*"] == "ask", "OpenCode external directories no longer ask")
-# Read and edit subjects are worktree-relative; external subjects are parent
-# directories. Credential stores under $HOME therefore rely on the external
-# directory globs and the ask default, and worktree denies use **/ globs.
+# Read and edit subjects are worktree-relative; external subjects are the parent
+# directory plus /*, so an external rule that names a file can never match and
+# file stores are denied by **/ rules in read and edit, while directory stores
+# under $HOME rely on the external directory globs and the ask default.
+for rule in external_rules:
+    require(rule == "*" or rule.endswith("/*") or rule.endswith("/**"), f"OpenCode external rule can never match a parent-directory subject: {rule}")
+require(edit_rules.get("../*") == "ask", "OpenCode edits outside the worktree without asking")
+require(edit_rules.get("../*/tmp/opencode/*") == "allow", "OpenCode asks before writing its own temp root")
 for path in CREDENTIAL_DIRECTORIES:
     glob = "**/" + path.removeprefix("~/") + "/**"
     require(external_rules.get(glob) == "deny", f"OpenCode external credential store deny missing: {glob}")
 require(external_rules.get("**/.config/git/**") == "deny", "OpenCode Git configuration directory is reachable")
 for shape in CREDENTIAL_SHAPES:
-    require(read_rules.get(f"**/{shape}") == "deny", f"OpenCode credential-shaped read deny missing: {shape}")
-    require(edit_rules.get(f"**/{shape}") == "deny", f"OpenCode credential-shaped edit deny missing: {shape}")
+    for label, rules in (("read", read_rules), ("edit", edit_rules)):
+        require(rules.get(f"**/{shape}") == "deny", f"OpenCode credential-shaped {label} deny missing: {shape}")
+        require(rules.get(shape) == "deny", f"OpenCode credential-shaped {label} deny missing at the worktree root: {shape}")
 require(edit_rules.get("**/.git/**") == "deny", "OpenCode Git internals are writable by file tools")
 for label, rules in (("read", read_rules), ("edit", edit_rules), ("external_directory", external_rules)):
-    allows_precede_denies(rules, label)
+    denies_come_last(rules, label)
 for path in ("/tmp*", "/tmp/*", "/tmp/**"):
     require(external_rules.get(path) != "allow", f"OpenCode broad temporary-directory allow: {path}")
 claude = load_json("claude-code/.claude/settings.json")
@@ -276,6 +305,20 @@ for name, agent in opencode_agents.items():
 require(not (ROOT / "opencode/.config/opencode/agents").exists(), "OpenCode markdown agents exist beside the config agents")
 require(not (ROOT / "codex/.codex/agents").exists(), "a Codex agent role exists without a verified read-only authority profile")
 require(claude.get("attribution", {}).get("sessionUrl") is False, "Claude Code would add a session URL trailer to commits")
+require("classifyAllShell" not in claude.get("autoMode", {}), "Claude Code re-classifies its allow-listed commands for no gain")
+for store in PROJECT_STORES:
+    glob = f"//**/{store}/**" if store in PROJECT_STORE_DIRECTORIES else f"//**/{store}"
+    for tool in ("Read", "Edit"):
+        require(f"{tool}({glob})" in claude["permissions"]["deny"], f"Claude Code file tools reach a credential store copy: {tool}({glob})")
+    for label, rules in (("read", read_rules), ("edit", edit_rules)):
+        if store in PROJECT_STORE_DIRECTORIES:
+            require(rules.get(f"**/{store}/**") == "deny" and rules.get(f"{store}/**") == "deny", f"OpenCode {label} rules reach a credential store copy: {store}")
+        else:
+            require(relative_deny(rules, store), f"OpenCode {label} rules reach a credential store copy: {store}")
+    if store in PROJECT_STORE_DIRECTORIES:
+        require(external_rules.get(f"**/{store}/**") == "deny", f"OpenCode external directory rule reaches a credential store copy: {store}")
+require("Read(~/Projects/**)" in claude["permissions"]["allow"], "Claude Code lacks the standing read allow under ~/Projects")
+require(external_rules.get("~/Projects/**") == "allow", "OpenCode lacks the standing access under ~/Projects")
 require(codex_template.get("personality") == "none", "Codex personality filler is not disabled")
 require(re.fullmatch(r"openai/[a-z0-9][a-z0-9.-]*", opencode.get("small_model", "")), "OpenCode small_model is not a concrete OpenAI model id")
 require(opencode.get("skills", {}).get("paths") == ["~/.agents/skills"], "OpenCode skill paths are not exactly the neutral source")

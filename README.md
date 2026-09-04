@@ -86,11 +86,11 @@ eyragents/
 
 Trusted-repository work is autonomous until the commit boundary: a clear implementation request authorizes edits and the repository's gates, every commit requires approval of one exact staged candidate, and the user performs pushes manually after the `publish` skill reviews the delta; the same skill verifies the push and the published state afterwards.
 
-What each tool actually enforces differs, and the configuration says so:
+Every tool may read everything under `~/Projects`, the author's repositories and reference clones, by standing grant; the file tools keep denying credential-shaped paths and copied credential stores there, with the exceptions `AGENTS.md` records. What each tool actually enforces differs, and the configuration says so:
 
 - Claude Code: deterministic allow and deny rules, plus an auto-mode classifier that reviews every other tool call. The named command forms of pushes, `git clean`, `gh` repository mutations, and privilege escalation are denied by rule, as are credential reads and writes through the file tools; everything else, including alternate command spellings, shell access to credential paths, destructive Git operations, Git configuration changes, and persistence surfaces, is the classifier's call and clears only on the user's explicit instruction.
 - Codex: an OS sandbox with the filesystem root denied, credential stores and shapes denied, `.git/config` and `.git/hooks` read-only, and command network off. Permission requests go through an automatic reviewer.
-- OpenCode: lexical Bash rules, worktree-relative read and edit rules, and an ask default outside the workspace and the app temp root. It has no sandbox or classifier, so its rules are guardrails against mistakes, not containment against a prompt-injected session.
+- OpenCode: lexical Bash rules, worktree-relative read and edit rules, native access under `~/Projects` that spares reads a prompt and leaves the shell's file commands unprompted there, and an ask default for file-tool edits outside the worktree and for access elsewhere outside the app temp root. It has no sandbox or classifier, so its rules are guardrails against mistakes, not containment against a prompt-injected session.
 
 This repository is itself live configuration on a stowed host: an edit here is active for the next session of the tool it belongs to before anything is committed. Work on it only in a session you are watching.
 

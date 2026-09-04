@@ -12,7 +12,7 @@ Rules live at the lowest layer that can hold them. Permission rules and sandboxe
 
 ## One trust model, three enforcement points
 
-The three tools enforce different things, and the configuration says so instead of pretending otherwise. Claude Code has deterministic allow and deny rules plus an auto-mode classifier that judges everything else against written rules. Codex has an OS sandbox with the filesystem root denied and command network off, so its boundary holds even when the model is wrong. OpenCode has lexical rules and no sandbox, so its rules are guardrails against mistakes, not containment. The same list of credential stores and Git internals is applied in each, and a test keeps the three lists aligned.
+The three tools enforce different things, and the configuration says so instead of pretending otherwise. Claude Code has deterministic allow and deny rules plus an auto-mode classifier that judges everything else against written rules. Codex has an OS sandbox with the filesystem root denied and command network off, so its boundary holds even when the model is wrong. OpenCode has lexical rules and no sandbox, so its rules are guardrails against mistakes, not containment. The same list of credential stores and Git internals is applied in each, and a test keeps the three lists aligned. Reading is open across the author's own repositories under `~/Projects` in every tool, because a harness that cannot see the sibling repositories cannot keep them consistent; the file tools keep denying the credential shapes and store copies there, and `AGENTS.md` names what each tool cannot enforce.
 
 ## Read-only cross-vendor review
 

@@ -238,9 +238,14 @@ printf '%s\n' 'diff --git a/app.py b/app.py' "-$(printf '%s=%s' "$key_name" "$to
 printf '%s\n' 'diff --git a/config.toml b/config.toml' '+"secrets" = "deny"' '+secrets: allow' | "$SCANNER" diff >/dev/null ||
   fail "diff scanner flagged a permission rule as a secret"
 
-# The repository must stay reviewable by its own scanner.
-git -C "$ROOT" diff --binary "$(git -C "$ROOT" hash-object -t tree /dev/null)" -- . |
-  "$SCANNER" outbound >/dev/null || fail "the repository's own tracked content fails the outbound scan"
+# The repository must stay reviewable by its own scanner, file by file: the whole tree
+# exceeds one review request, and the bound on a request is deliberate. The index is
+# scanned, since that is what a commit exposes and a working-tree deletion is not.
+empty_tree=$(git -C "$ROOT" hash-object -t tree /dev/null)
+while IFS= read -r -d '' tracked; do
+  git -C "$ROOT" --literal-pathspecs diff --binary --cached "$empty_tree" -- "$tracked" | "$SCANNER" outbound >/dev/null ||
+    fail "the repository's own tracked content fails the outbound scan: $tracked"
+done < <(git -C "$ROOT" ls-files -z)
 
 # --- Bridges ---
 repo="$TMP/repo"
