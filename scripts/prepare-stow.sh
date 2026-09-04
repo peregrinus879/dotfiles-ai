@@ -4,13 +4,14 @@
 # Without arguments: remove dangling symlinks under the managed target
 # directories whose link text names a path inside one of this repository's
 # packages, recognized by the package name followed by a top-level entry that
-# package really has, so retired files and moved or renamed clones are cleaned
-# and unrelated links with a similar spelling are not. The match is not bound
-# to this clone's path, so a dangling link into another clone with the same
-# package layout is removed too; only dangling links are ever removed. Links
-# that resolve, links that point elsewhere, and regular files are never
-# touched; Stow itself reports any remaining conflict without changing the
-# filesystem.
+# package really has or once had (RETIRED_ENTRIES), so retired files and moved
+# or renamed clones are cleaned and unrelated links with a similar spelling are
+# not. The match is not bound to this clone's path, so a dangling link into
+# another clone with the same package layout is removed too; only dangling
+# links are ever removed, and afterwards the retired managed directories those
+# links leave empty are pruned. Links that resolve, links that point elsewhere,
+# and regular files are never touched; Stow itself reports any remaining
+# conflict without changing the filesystem.
 #
 # --migrate-codex-config: make ~/.codex/config.toml a host-local, owner-only
 # regular file that carries the portable template's root keys and tables and
@@ -37,19 +38,24 @@ script_dir=$(dirname -- "${BASH_SOURCE[0]}")
 repository_root=$(realpath -e -- "$script_dir/..") || abort 'cannot resolve repository root'
 PACKAGES=(agents claude-code codex opencode)
 TARGET_ROOTS=("$HOME/.claude" "$HOME/.codex" "$HOME/.agents" "$HOME/.local/bin" "$HOME/.config/opencode")
+# Package entries that once existed: links into them are still ours to clean.
+RETIRED_ENTRIES=(agents/.local codex/.agents claude-code/.claude/rules opencode/.config/opencode/skills)
 
 managed_link_text() { # link text
-  local text=$1 package tail
+  local text=$1 package tail entry
   for package in "${PACKAGES[@]}"; do
     [[ $text == *"/$package/"* ]] || continue
     tail=${text#*"/$package/"}
     [[ -n $tail && -e "$repository_root/$package/${tail%%/*}" ]] && return 0
+    for entry in "${RETIRED_ENTRIES[@]}"; do
+      [[ "$package/$tail" == "$entry" || "$package/$tail" == "$entry"/* ]] && return 0
+    done
   done
   return 1
 }
 
 clean_links() {
-  local root path text
+  local root path text dir
   [[ -n ${HOME:-} && $HOME != / ]] || abort 'HOME must name a non-root directory'
   for root in "${TARGET_ROOTS[@]}"; do
     [[ -d $root && ! -L $root ]] || continue
@@ -59,6 +65,14 @@ clean_links() {
       rm -- "$path"
       printf 'removed dangling managed link: %s\n' "$path"
     done < <(find "$root" -xtype l -print0 2>/dev/null)
+  done
+  # Managed directories the retired links leave behind, pruned only when empty, deepest first.
+  local -a retired=("$HOME"/.config/opencode/skills/*/ "$HOME/.config/opencode/skills" "$HOME/.claude/rules")
+  for dir in "${retired[@]}"; do
+    dir=${dir%/}
+    [[ -d $dir && ! -L $dir ]] || continue
+    rmdir -- "$dir" 2>/dev/null || continue
+    printf 'removed empty retired directory: %s\n' "$dir"
   done
 }
 
@@ -122,6 +136,11 @@ link_skills() {
       abort "refusing to repoint a skill link that resolves elsewhere: $target"
     elif [[ -d $target ]]; then
       while IFS= read -r -d '' entry; do
+        if [[ ! -e $entry ]]; then
+          rm -- "$entry"
+          printf 'removed dangling link inside a managed skill directory: %s\n' "$entry"
+          continue
+        fi
         case $(realpath -m -- "$entry") in
           "$source"/*) rm -- "$entry" ;;
           *) abort "foreign entry inside a managed skill directory: $entry" ;;

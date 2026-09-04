@@ -76,7 +76,15 @@ case_clean_links() {
   ln -s "$old/unrelated/codex/thing" "$home/.local/bin/thing"
   ln -s "$TMP/clean/other/eyragents/codex/tool" "$home/.local/bin/tool"
   printf 'user data\n' >"$home/.config/opencode/opencode.json"
+  # Links into entries the packages once had, and the directories they leave empty.
+  mkdir -p "$home/.claude/rules" "$home/.config/opencode/skills/commit"
+  ln -s "../../Projects/eyrie/eyragents/agents/.local/bin/commit-apply" "$home/.local/bin/commit-apply"
+  ln -s "../../Projects/eyrie/eyragents/claude-code/.claude/rules/shared-guidance.md" "$home/.claude/rules/shared-guidance.md"
+  ln -s "../../../../Projects/eyrie/eyragents/opencode/.config/opencode/skills/commit/SKILL.md" "$home/.config/opencode/skills/commit/SKILL.md"
   prepare "$home" "$repo"
+  [[ ! -L $home/.local/bin/commit-apply ]] || fail "dangling link into a retired package entry remains"
+  [[ ! -e $home/.claude/rules ]] || fail "emptied retired directory ~/.claude/rules remains"
+  [[ ! -e $home/.config/opencode/skills ]] || fail "emptied retired directory ~/.config/opencode/skills remains"
   [[ ! -e $home/.claude/hooks && ! -L $home/.claude/hooks ]] || fail "dangling managed directory link remains"
   [[ ! -L $home/.codex/config.toml ]] || fail "dangling managed leaf link remains"
   [[ ! -L $home/.agents/skills/retired ]] || fail "dangling link from a renamed clone remains"
@@ -136,9 +144,11 @@ case_skill_links() {
   local home="$TMP/links/home" repo="$TMP/links/eyragents"
   mkdir -p "$home/.agents/skills/commit/scripts"
   make_clone "$repo"
-  # The leaf-link layout an earlier no-folding deploy left behind becomes one link.
+  # The leaf-link layout an earlier no-folding deploy left behind becomes one link,
+  # a dangling link from a retired package entry inside it included.
   ln -s "$repo/agents/.agents/skills/commit/SKILL.md" "$home/.agents/skills/commit/SKILL.md"
   ln -s "$repo/agents/.agents/skills/commit/scripts/commit-apply" "$home/.agents/skills/commit/scripts/commit-apply"
+  ln -s "$repo/codex/.agents/skills/commit/scripts/retired" "$home/.agents/skills/commit/scripts/retired"
   HOME=$home bash "$repo/scripts/prepare-stow.sh" --link-skills >/dev/null || fail "link-skills failed on the leaf-link layout"
   [[ -L $home/.agents/skills/commit && $(readlink -f -- "$home/.agents/skills/commit") == "$repo/agents/.agents/skills/commit" ]] ||
     fail "the leaf-link skill directory was not replaced by one link"
