@@ -65,7 +65,8 @@ done
 # shellcheck disable=SC2016
 for allowed in 'git status' 'git log --grep commit' 'commit-apply' 'git st' 'git merge --ff-only origin/main' \
   'git pull --ff-only' 'git fetch' 'git rev-parse HEAD^{commit}' 'git log --oneline' 'git stash list' \
-  'git stash show -p' 'git write-tree' 'git diff --stat' 'echo "$commit"' \
+  'git stash show -p' 'git write-tree' 'git diff --stat' 'echo "$commit"' 'git -C "$ROOT" diff --binary "$empty_tree" -- x' \
+  'git diff --stat $ref' 'git -C "$ROOT" log -1 $sha' \
   $'grep -i -E x file && cat <<\'EOT\' >note\nthe gate denies any git\ncommit that differs\nEOT'; do
   [[ $(gate "$allowed") == 0 ]] || fail "gate denied: $allowed"
 done

@@ -77,21 +77,29 @@ if [[ $text =~ $dashed ]]; then
 fi
 
 # A subcommand that is not a literal word (a variable, a substitution, a brace
-# expansion) cannot be checked, so it is denied. An option argument may span
-# several words, since quotes were stripped above; the match backtracks to the
-# subcommand.
-options="([ \t]+(-[Cc]|--git-dir|--work-tree|--namespace|--exec-path)[ \t]+[^[:space:]]+([ \t]+[^-[:space:]][^[:space:]]*)*|[ \t]+-[^[:space:]]+)*"
-opaque="${boundary}${prefix}git${options}[ \t]+[\$\`{]"
+# expansion) cannot be checked, so it is denied. This check takes option
+# arguments as single words, so a later variable such as `git -C $root diff
+# --binary $tree` cannot be pulled into the subcommand position by backtracking.
+# Global options that take a separate argument, and the bare options that do
+# not; the bare form never matches an argument-taking option alone, so its
+# argument can never be mistaken for the subcommand.
+argopt='(-[Cc]|--git-dir|--work-tree|--namespace|--exec-path|--super-prefix|--config-env)[ \t]+[^[:space:]]+'
+bare='-[^-Cc[:space:]][^[:space:]]*|-[Cc][^[:space:]]+|--[^[:space:]=]+=[^[:space:]]*|--(no-pager|paginate|bare|literal-pathspecs|glob-pathspecs|noglob-pathspecs|icase-pathspecs|no-replace-objects|no-optional-locks|no-lazy-fetch|no-advice|version|help)'
+single="([ \t]+${argopt}|[ \t]+(${bare}))*"
+opaque="${boundary}${prefix}git${single}[ \t]+[\$\`{]"
 if [[ $text =~ $opaque ]]; then
   deny "a Git subcommand that is not a literal word is never run by a tool: $reason"
 fi
 
+# The producer match lets an option argument span several words, since quotes
+# were stripped above; the match backtracks to a literal subcommand.
+options="([ \t]+${argopt}([ \t]+[^-[:space:]][^[:space:]]*)*|[ \t]+(${bare}))*"
 pattern="${boundary}${prefix}git(${options})[ \t]+(${subcommands})([^[:alnum:]_-]|$)(${segment})"
 rest=$text
 while [[ $rest =~ $pattern ]]; do
   match=${BASH_REMATCH[0]}
-  sub=${BASH_REMATCH[7]}
-  tail=${BASH_REMATCH[9]}
+  sub=${BASH_REMATCH[9]}
+  tail=${BASH_REMATCH[11]}
   if [[ ($sub == merge || $sub == pull) && $tail =~ (^|[[:space:]])--ff-only([[:space:]]|$) ]] ||
      [[ $sub == stash && $tail =~ ^[[:space:]]*(list|show)([[:space:]]|$) ]]; then
     rest=${rest#*"$match"}
