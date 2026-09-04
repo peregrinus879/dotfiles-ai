@@ -69,7 +69,7 @@ eyragents/
 │   ├── tui.json
 │   ├── commands/{commit,publish,spar}.md # slash commands that load the skills
 │   └── plugins/commit-gate.js            # runs commit-gate before every bash tool call
-├── .agents/skills/eyrsync/SKILL.md       # this repository's own skill, with .claude and .opencode symlinks
+├── .agents/skills/eyrsync/SKILL.md       # this repository's own skill, with a .claude symlink; Codex and OpenCode read .agents natively
 ├── templates/codex/config.toml           # portable Codex profile, installed host-locally by make stow
 ├── templates/hooks/commit-gate           # the commit gate, installed as a real file at ~/.agents/hooks by make stow
 ├── references.txt                        # reference clone the ledger's source checks read; the siblings' make refs keeps it

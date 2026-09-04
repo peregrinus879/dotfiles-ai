@@ -109,7 +109,7 @@ check:
 	@fail=0; \
 	while IFS= read -r -d '' link; do \
 	  echo "FAIL: package symlink does not resolve: $$link"; fail=1; \
-	done < <(find $(PACKAGES) .agents .claude .opencode -type l -xtype l -print0); \
+	done < <(find $(PACKAGES) .agents .claude -type l -xtype l -print0); \
 	[[ $$fail -eq 0 ]] && echo "ok:   package and project symlinks resolve"; \
 	while IFS= read -r -d '' f; do \
 	  case $$f in \
