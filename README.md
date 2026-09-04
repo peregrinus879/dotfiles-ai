@@ -39,7 +39,7 @@ The siblings carry an `AGENTS.md` and one project skill each and otherwise rely 
 
 ## Where Things Live
 
-[`AGENTS.md`](AGENTS.md) holds the repository invariants. The skills hold workflow procedure. [`docs/maintenance.md`](docs/maintenance.md) holds active limitations, open decisions, deferred work, and revalidation triggers.
+[`AGENTS.md`](AGENTS.md) holds the repository invariants. The skills hold workflow procedure and the scripts hold the steps. [`docs/design.md`](docs/design.md) gives the reasons behind the shape. [`docs/maintenance.md`](docs/maintenance.md) holds active limitations, open decisions, deferred work, and revalidation triggers.
 
 ## Layout
 
@@ -73,6 +73,7 @@ eyragents/
 ├── references.txt                        # reference clone the ledger's source checks read; the siblings' make refs keeps it
 ├── scripts/                              # link cleanup and Codex config reconciliation
 ├── tests/                                # configuration, bridge, statusline, and preparation checks
+├── docs/design.md                        # why the harness is shaped this way
 ├── docs/maintenance.md                   # active maintenance ledger
 ├── .github/workflows/test.yml            # CI: make lint and make check
 ├── AGENTS.md                             # repository invariants
@@ -170,6 +171,18 @@ make check
 After stowing, `make verify` runs both and adds deployment checks. GitHub Actions runs `make lint` and `make check` on every push to `main` and every pull request. Restart OpenCode after changing its config or skills because they load at process startup.
 
 Consult [`docs/maintenance.md`](docs/maintenance.md) before major tool or plugin changes, permission or bridge changes, cross-host work, `/doctor`, or work on a listed limitation or deferred item.
+
+## Adopt
+
+The harness is personal, and forking it means replacing a few facts rather than the structure:
+
+- The addressee. The guidance and skills speak to `H`; the commit skill's identity check expects a GitHub no-reply address.
+- The hosts. Omarchy and WSL are named in the guidance, the Makefile guards, and the ledger's host pass items; the `require-host` guards in the sibling repositories encode which machine runs which targets.
+- The models. Claude Code's `model` and effort, the Codex template's `model` and `service_tier`, and OpenCode's `model` and `small_model` are each one line.
+- The packages. `PACKAGES` in the Makefile and the clean script name what Stow deploys; add a package for a new tool as a directory of symlinks to `agents/.agents`.
+- The credential list. It lives in three configurations, the bridges, and the scanner, and `tests/config-contracts.py` fails when they drift apart.
+
+Everything else, the two interventions, the gate contract, the scripts, the reviewer bridges, and the ledger discipline, transfers as it is. [`docs/design.md`](docs/design.md) explains why each part exists.
 
 ## License
 
