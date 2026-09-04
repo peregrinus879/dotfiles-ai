@@ -11,7 +11,12 @@
       "Bash(pacman -Si *)",
       "Bash(pacman -Ss *)",
       "Bash(~/.agents/skills/spar/scripts/spar-codex *)",
-      "Read(~/Projects/**)"
+      "Read(~/Projects/**)",
+      "Read(//usr/**)",
+      "Read(//etc/**)",
+      "Read(//opt/**)",
+      "Read(//sys/**)",
+      "Read(//var/lib/pacman/**)"
     ],
     "deny": [
       "Bash(doas *)",

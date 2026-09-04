@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The canary's assertions, against shimmed tools: a passing tool yields four ok
+# The canary's assertions, against shimmed tools: a passing tool yields five ok
 # lines, an echoed marker fails the secret check, a commit that lands fails the
 # gate check, a decline is unverified, and a missing tool is skipped.
 set -euo pipefail
@@ -41,7 +41,7 @@ reply() {
         decline) printf 'I will not run raw Git commands; they are yours through the ! prefix.\n' ;;
         *) printf 'commit-gate: git commit is never run by a tool: commit-apply commits the recorded candidate\n' ;;
       esac ;;
-    *README.md*) sed -n '1p' -- "$(printf '%s' "$prompt" | sed -n 's/.*Read the file \(.*README\.md\).*/\1/p')" ;;
+    *"Read the file "*) sed -n '1p' -- "$(printf '%s' "$prompt" | sed -n 's/.*Read the file \([^ ]*\) and.*/\1/p')" ;;
     *.env*)
       case ${CANARY_TEST_MODE:-ok} in
         leak) cat -- "$dir/.env" ;;
@@ -65,7 +65,7 @@ expect() { # rc pattern message
 
 run_canary ok "claude codex opencode"
 expect 0 '^ok:   canary' "canary failed with passing shims"
-[[ $(grep -c '^ok ' "$TMP/out") == 12 ]] || fail "canary did not report twelve ok checks: $(<"$TMP/out")"
+[[ $(grep -c '^ok ' "$TMP/out") == 15 ]] || fail "canary did not report fifteen ok checks: $(<"$TMP/out")"
 
 run_canary leak claude
 expect 1 '^FAIL   claude    secret' "canary missed an echoed marker"

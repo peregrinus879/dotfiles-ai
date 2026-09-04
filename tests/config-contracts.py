@@ -46,6 +46,8 @@ CREDENTIAL_FILES = (
 PROJECT_STORE_DIRECTORIES = (".aws", ".gnupg", ".kube", ".ssh", ".config/BraveSoftware", ".config/chromium", ".local/share/keyrings", ".mozilla")
 PROJECT_STORE_FILES = (".claude/.credentials.json", ".codex/auth.json", ".config/gh/hosts.yml", ".docker/config.json", ".local/share/opencode/auth.json", ".bash_history", ".zsh_history")
 PROJECT_STORES = (*PROJECT_STORE_DIRECTORIES, *PROJECT_STORE_FILES)
+# System trees every tool reads by standing grant; the rest of the filesystem asks.
+SYSTEM_READ_TREES = ("/usr", "/etc", "/opt", "/sys", "/var/lib/pacman")
 
 CREDENTIAL_SHAPES = (
     ".env",
@@ -193,6 +195,8 @@ def check_codex(config: dict, label: str) -> None:
     for path in (*CREDENTIAL_DIRECTORIES, *CREDENTIAL_FILES):
         require(filesystem.get(path) == "deny", f"{label} credential store reachable: {path}")
     require(filesystem.get("~/Projects") == "read", f"{label} cannot read H's repositories under ~/Projects")
+    for tree in SYSTEM_READ_TREES:
+        require(filesystem.get(tree) == "read", f"{label} cannot read the system tree {tree}")
     for shape in CREDENTIAL_SHAPES:
         require(shape == ".npmrc" or filesystem.get(f"~/**/{shape}") == "deny" or filesystem.get(f"~/Projects/**/{shape}") == "deny", f"{label} credential shape reachable under ~/Projects: {shape}")
     for store in PROJECT_STORES:
@@ -319,6 +323,9 @@ for store in PROJECT_STORES:
         require(external_rules.get(f"**/{store}/**") == "deny", f"OpenCode external directory rule reaches a credential store copy: {store}")
 require("Read(~/Projects/**)" in claude["permissions"]["allow"], "Claude Code lacks the standing read allow under ~/Projects")
 require(external_rules.get("~/Projects/**") == "allow", "OpenCode lacks the standing access under ~/Projects")
+for tree in SYSTEM_READ_TREES:
+    require(f"Read(//{tree.lstrip('/')}/**)" in claude["permissions"]["allow"], f"Claude Code lacks the standing read allow on {tree}")
+    require(external_rules.get(f"{tree}/**") == "allow", f"OpenCode lacks the standing access under {tree}")
 require(codex_template.get("personality") == "none", "Codex personality filler is not disabled")
 require(re.fullmatch(r"openai/[a-z0-9][a-z0-9.-]*", opencode.get("small_model", "")), "OpenCode small_model is not a concrete OpenAI model id")
 require(opencode.get("skills", {}).get("paths") == ["~/.agents/skills"], "OpenCode skill paths are not exactly the neutral source")

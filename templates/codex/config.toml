@@ -55,6 +55,14 @@ extends = ":workspace"
 "~/.local/bin" = "read"
 "~/.local/share/mise" = "read"
 "~/Projects" = "read"
+# System trees, as literal paths: a glob outside the workspace can stall the
+# sandbox (see the ledger). /var/log, /proc beyond :minimal, /run, /mnt, and
+# /media stay closed.
+"/usr" = "read"
+"/etc" = "read"
+"/opt" = "read"
+"/sys" = "read"
+"/var/lib/pacman" = "read"
 # Shapes whose home-wide globs stall the sandbox (see the ledger) are denied under
 # ~/Projects only; .npmrc cannot be, because that glob matches inside node_modules
 # trees and stalls startup too, so a project .npmrc stays readable (ledger, 2026-09-04).
