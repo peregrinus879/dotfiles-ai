@@ -33,11 +33,11 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 
 - Stow runs with `--no-folding`, so every managed parent under `$HOME` is a real directory and only leaf files are links; generated host state therefore never reaches a package source. `make clean` removes only dangling links whose text names a package entry this repository has. `make stow` and `make restow` reconcile `~/.codex/config.toml`: the template owns root keys and its tables, host-only tables are preserved verbatim, and `make verify` attests that the host file carries the template's boundaries.
 - Empty package directories are not tracked; a directory appears in a package only when it holds a managed file.
-- `make lint` and `make test` run after every managed change and in CI on every push to `main` and every pull request; `make verify` adds deployment checks after stowing. Restart OpenCode after changing its config or skills. Record only unresolved failures or live revalidation needs in `docs/maintenance.md`.
+- The gates follow the `commit` skill's contract: `make lint` and `make check` are the repository checks, which CI also runs on every push to `main` and every pull request, and `make restow` and `make verify` are the host verification; `make restow` refuses when the managed links resolve into another clone. Restart OpenCode after changing its config or skills. Record only unresolved failures or live revalidation needs in `docs/maintenance.md`.
 
 ## Skills
 
-- `commit`: stage, review, and commit one exact atomic change with H's approval.
-- `publish`: review the exact commits a push, release, or pull request would expose before presenting it as ready.
+- `commit`: run the repository's gates, then stage, review, and commit one exact atomic change with H's approval.
+- `publish`: review the exact commits a push, release, or pull request would expose, then verify the push and the published state after H runs it.
 - `spar`: value-based cross-model review through a read-only reviewer bridge.
 - `omarchy`: required for end-user Linux desktop, Hyprland, Omarchy, terminal, theme, and display configuration. Omarchy installs it and `diagnose-crash` as links under `~/.claude/skills` and `~/.agents/skills`; they resolve outside the packages, and `make clean` never touches them.

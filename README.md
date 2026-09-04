@@ -51,14 +51,14 @@ eyragents/
 ├── scripts/                              # link cleanup and Codex config reconciliation
 ├── tests/                                # configuration, bridge, statusline, and preparation checks
 ├── docs/maintenance.md                   # active maintenance ledger
-├── .github/workflows/test.yml            # CI: make lint and make test
+├── .github/workflows/test.yml            # CI: make lint and make check
 ├── AGENTS.md                             # repository invariants
 └── Makefile                              # setup, verification, and cleanup targets
 ```
 
 ## Safety Model
 
-Trusted-repository work is autonomous until the commit boundary: a clear implementation request authorizes edits and verification, every commit requires approval of one exact staged candidate, and the user performs pushes manually after the `publish` skill reviews the delta.
+Trusted-repository work is autonomous until the commit boundary: a clear implementation request authorizes edits and the repository's gates, every commit requires approval of one exact staged candidate, and the user performs pushes manually after the `publish` skill reviews the delta; the same skill verifies the push and the published state afterwards.
 
 What each tool actually enforces differs, and the configuration says so:
 
@@ -129,9 +129,11 @@ OpenCode has no untrusted mode: `OPENCODE_DISABLE_PROJECT_CONFIG=1 OPENCODE_DISA
 
 ## Workflows
 
-- `commit` stages the intended paths, presents the staged candidate with its tree id, and commits only after approval.
-- `publish` reviews the commits between the destination's tracking ref and the reviewed commit, scans them, and binds the push to both ends with a lease before a push, release, or pull request is presented as ready.
+- `commit` runs the repository's gates, stages the intended paths, presents the staged candidate with its tree id and gate report, and commits only after approval; when the request is done it hands off to `publish`.
+- `publish` reviews the commits between the destination's tracking ref and the reviewed commit, scans them, binds the push to both ends with a lease before a push, release, or pull request is presented as ready, and after the user's push confirms the destination and, where the repository defines `verify-published`, the published state.
 - `spar` runs an optional read-only cross-model review of a plan, diff, or decision: `spar-<reviewer> review "<request>" <artifact>...` from the repository. Claude Code reviews with `spar-codex`, OpenCode with `spar-claude`, and a Codex session hands the request to the user because its profile cannot launch the bridge. Consult the maintenance ledger for active bridge availability.
+
+The skills read a target contract instead of per-repository rules. `lint` and `check` are the repository checks, safe anywhere and run by CI; `restow` and `verify` are the host verification, refusing on the wrong host or clone; `verify-published` runs after a push, waits for the deployment, and compares the published commit with the pushed one. Make targets and npm scripts of the same names are equivalent, and a repository declares a gate by defining it.
 
 ## Verify
 
@@ -139,10 +141,10 @@ After changing managed payloads:
 
 ```bash
 make lint
-make test
+make check
 ```
 
-After stowing, `make verify` adds deployment checks. GitHub Actions runs `make lint` and `make test` on every push to `main` and every pull request. Restart OpenCode after changing its config or skills because they load at process startup.
+After stowing, `make verify` runs both and adds deployment checks. GitHub Actions runs `make lint` and `make check` on every push to `main` and every pull request. Restart OpenCode after changing its config or skills because they load at process startup.
 
 Consult [`docs/maintenance.md`](docs/maintenance.md) before major tool or plugin changes, permission or bridge changes, cross-host work, `/doctor`, or work on a listed limitation or deferred item.
 

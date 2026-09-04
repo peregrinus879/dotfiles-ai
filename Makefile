@@ -11,19 +11,20 @@ SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
   codex/.local/bin/spar-codex \
   $(wildcard scripts/*.sh tests/*.sh)
 
-.PHONY: help stow unstow dry-run restow migrate-codex-config lint test verify-deploy verify clean
+.PHONY: help stow unstow dry-run restow require-clone migrate-codex-config lint test check verify-deploy verify clean
 
 help:
 	@echo "Targets:"
 	@echo "  stow           Clean dangling links, stow all packages into ~, reconcile the Codex config"
 	@echo "  unstow         Remove all package links"
 	@echo "  dry-run        Preview Stow actions"
-	@echo "  restow         Clean, refresh links, and reconcile the Codex config"
+	@echo "  restow         Clean, refresh links, and reconcile the Codex config (refuses from a non-deployed clone)"
 	@echo "  migrate-codex-config  Reconcile ~/.codex/config.toml with the template, keeping host tables"
 	@echo "  lint           ShellCheck and syntax checks over managed scripts"
 	@echo "  test           Fast tests: configuration boundaries, bridges, statusline, preparation"
+	@echo "  check          Repository checks: every owned JSON and TOML file parses, then test (runs in CI)"
 	@echo "  verify-deploy  Check every package file resolves to its deployed target"
-	@echo "  verify         lint, test, and verify-deploy"
+	@echo "  verify         lint, check, and verify-deploy"
 	@echo "  clean          Remove dangling links that point into this repository's packages"
 
 stow: clean
@@ -36,9 +37,23 @@ unstow:
 dry-run:
 	$(STOW) -n -v $(PACKAGES)
 
-restow: clean
+restow: require-clone clean
 	$(STOW) -R -v $(PACKAGES)
 	bash scripts/prepare-stow.sh --migrate-codex-config
+
+# A managed endpoint that is a link must resolve into this clone; a reference
+# clone of the same repository must never redeploy the packages from itself.
+require-clone:
+	@fail=0; \
+	while IFS= read -r -d '' src; do \
+	  target="$$HOME/$${src#*/}"; \
+	  [[ -L $$target ]] || continue; \
+	  case $$(readlink -f -- "$$target") in \
+	    "$(CURDIR)"/*) ;; \
+	    *) echo "FAIL: $$target is linked from another clone; run make stow from the deployed clone"; fail=1 ;; \
+	  esac; \
+	done < <(git ls-files -z --cached --others --exclude-standard -- $(PACKAGES)); \
+	exit $$fail
 
 migrate-codex-config:
 	bash scripts/prepare-stow.sh --migrate-codex-config
@@ -55,6 +70,18 @@ test:
 	bash tests/prepare-stow.sh
 	bash tests/spar-bridges.sh
 	@echo "ok:   test"
+
+check:
+	@fail=0; \
+	while IFS= read -r -d '' f; do \
+	  case $$f in \
+	    *.toml) python3 -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$$f" ;; \
+	    *) python3 -c 'import sys, json; json.load(open(sys.argv[1], encoding="utf-8"))' "$$f" ;; \
+	  esac && echo "ok:   $$f parses" || { echo "FAIL: $$f does not parse"; fail=1; }; \
+	done < <(git ls-files -z -- '*.json' '*.toml'); \
+	exit $$fail
+	@$(MAKE) --no-print-directory test
+	@echo "ok:   check"
 
 # Every non-ignored package file must resolve to the same inode as its
 # deployed target, every package directory must be a real directory in $HOME,
@@ -111,7 +138,7 @@ verify-deploy:
 	else echo "ok:   no stray opencode.jsonc"; fi; \
 	exit $$fail
 
-verify: lint test verify-deploy
+verify: lint check verify-deploy
 	@echo "ok:   verify"
 
 clean:
