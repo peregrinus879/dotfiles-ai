@@ -16,20 +16,21 @@ fail() {
 # A clone named like the real repository, with the package shape that matters.
 make_clone() {
   local repo=$1
-  mkdir -p "$repo/claude-code/.claude/rules" "$repo/claude-code/.claude/skills/commit" \
-    "$repo/claude-code/.local/bin" "$repo/codex/.codex" "$repo/codex/.agents/skills/commit" \
+  mkdir -p "$repo/agents/.agents/skills/commit" "$repo/claude-code/.claude/rules" \
+    "$repo/claude-code/.claude/skills/commit" "$repo/claude-code/.local/bin" "$repo/codex/.codex" \
     "$repo/codex/.local/bin" "$repo/opencode/.config/opencode/skills/commit" \
     "$repo/scripts" "$repo/templates/codex"
   printf 'tracked\n' >"$repo/claude-code/.claude/settings.json"
-  printf 'guidance\n' >"$repo/claude-code/.claude/rules/shared-guidance.md"
-  printf 'skill\n' >"$repo/claude-code/.claude/skills/commit/SKILL.md"
+  printf 'guidance\n' >"$repo/agents/.agents/shared-guidance.md"
+  printf 'skill\n' >"$repo/agents/.agents/skills/commit/SKILL.md"
+  ln -s ../../../agents/.agents/shared-guidance.md "$repo/claude-code/.claude/rules/shared-guidance.md"
+  ln -s ../../../../agents/.agents/skills/commit/SKILL.md "$repo/claude-code/.claude/skills/commit/SKILL.md"
   printf 'tracked\n' >"$repo/claude-code/.local/bin/spar-claude"
   printf 'tracked\n' >"$repo/codex/.codex/config.toml"
-  ln -s ../../claude-code/.claude/rules/shared-guidance.md "$repo/codex/.codex/AGENTS.md"
-  ln -s ../../../../claude-code/.claude/skills/commit/SKILL.md "$repo/codex/.agents/skills/commit/SKILL.md"
+  ln -s ../../agents/.agents/shared-guidance.md "$repo/codex/.codex/AGENTS.md"
   printf 'tracked\n' >"$repo/codex/.local/bin/spar-codex"
   printf '{}\n' >"$repo/opencode/.config/opencode/opencode.json"
-  ln -s ../../../../../claude-code/.claude/skills/commit/SKILL.md "$repo/opencode/.config/opencode/skills/commit/SKILL.md"
+  ln -s ../../../../../agents/.agents/skills/commit/SKILL.md "$repo/opencode/.config/opencode/skills/commit/SKILL.md"
   cp -- "$ROOT/scripts/prepare-stow.sh" "$repo/scripts/prepare-stow.sh"
   cp -- "$ROOT/scripts/reconcile-codex-config.py" "$repo/scripts/reconcile-codex-config.py"
   cp -- "$ROOT/templates/codex/config.toml" "$repo/templates/codex/config.toml"
@@ -45,7 +46,7 @@ print(data)' "$1" "$2"
 
 prepare() { HOME=$1 bash "$2/scripts/prepare-stow.sh"; }
 migrate() { HOME=$1 bash "$2/scripts/prepare-stow.sh" --migrate-codex-config; }
-deploy() { HOME=$1 stow --no-folding -R -d "$2" -t "$1" claude-code codex opencode; }
+deploy() { HOME=$1 stow --no-folding -R -d "$2" -t "$1" agents claude-code codex opencode; }
 
 case_clean_links() {
   local home="$TMP/clean/home" repo="$TMP/clean/eyragents" old="$TMP/clean/old/eyragents"
@@ -53,7 +54,7 @@ case_clean_links() {
   make_clone "$repo"
   ln -s "$old/claude-code/.claude/hooks" "$home/.claude/hooks"
   ln -s "$old/codex/.codex/config.toml" "$home/.codex/config.toml"
-  ln -s "../../Projects/renamed-clone/codex/.agents/skills/retired" "$home/.agents/skills/retired"
+  ln -s "../../Projects/renamed-clone/agents/.agents/skills/retired" "$home/.agents/skills/retired"
   ln -s "$repo/claude-code/.claude/settings.json" "$home/.claude/settings.json"
   ln -s /usr/share/nothing/here "$home/.claude/skills/vendor"
   ln -s "$old/unrelated/codex/thing" "$home/.local/bin/thing"
@@ -83,12 +84,16 @@ case_no_folding() {
   for path in .claude .claude/rules .claude/skills/commit .codex .agents/skills/commit .local/bin .config/opencode .config/opencode/skills/commit; do
     [[ -d $home/$path && ! -L $home/$path ]] || fail "$path is not a real directory after no-folding stow"
   done
-  [[ $(readlink -f -- "$home/.claude/rules/shared-guidance.md") == "$repo/claude-code/.claude/rules/shared-guidance.md" ]] ||
+  [[ $(readlink -f -- "$home/.agents/shared-guidance.md") == "$repo/agents/.agents/shared-guidance.md" ]] ||
     fail "leaf link does not resolve into the clone"
-  [[ $(readlink -f -- "$home/.codex/AGENTS.md") == "$repo/claude-code/.claude/rules/shared-guidance.md" ]] ||
+  [[ $(readlink -f -- "$home/.claude/rules/shared-guidance.md") == "$repo/agents/.agents/shared-guidance.md" ]] ||
+    fail "Claude rules symlink did not deploy"
+  [[ $(readlink -f -- "$home/.codex/AGENTS.md") == "$repo/agents/.agents/shared-guidance.md" ]] ||
     fail "package symlink did not deploy"
-  [[ $(readlink -f -- "$home/.agents/skills/commit/SKILL.md") == "$repo/claude-code/.claude/skills/commit/SKILL.md" ]] ||
-    fail "skill symlink did not deploy"
+  [[ $(readlink -f -- "$home/.claude/skills/commit/SKILL.md") == "$repo/agents/.agents/skills/commit/SKILL.md" ]] ||
+    fail "Claude skill symlink did not deploy"
+  [[ $(readlink -f -- "$home/.agents/skills/commit/SKILL.md") == "$repo/agents/.agents/skills/commit/SKILL.md" ]] ||
+    fail "skill leaf link does not resolve into the clone"
   printf 'host-local\n' >"$root/package.json"
   mkdir "$root/node_modules"
   prepare "$home" "$repo"
@@ -96,7 +101,7 @@ case_no_folding() {
   [[ ! -L $root/package.json && $(<"$root/package.json") == "host-local" && -d $root/node_modules ]] ||
     fail "restow changed host-local generated state"
   [[ ! -e $repo/opencode/.config/opencode/package.json ]] || fail "generated state reached the package source"
-  HOME=$home stow --no-folding -D -d "$repo" -t "$home" claude-code codex opencode >/dev/null 2>&1 ||
+  HOME=$home stow --no-folding -D -d "$repo" -t "$home" agents claude-code codex opencode >/dev/null 2>&1 ||
     fail "unstow failed"
   [[ ! -e $home/.claude/rules/shared-guidance.md && -f $root/package.json ]] || fail "unstow removed the wrong things"
 }

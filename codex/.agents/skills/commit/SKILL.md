@@ -1,1 +1,0 @@
-../../../../claude-code/.claude/skills/commit/SKILL.md

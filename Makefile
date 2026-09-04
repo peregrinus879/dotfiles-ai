@@ -4,7 +4,7 @@
 # a real directory and only leaf files are links.
 
 SHELL := /bin/bash
-PACKAGES := claude-code codex opencode
+PACKAGES := agents claude-code codex opencode
 STOW := stow --no-folding --ignore='__pycache__' -t ~
 SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
   claude-code/.local/bin/spar-claude \

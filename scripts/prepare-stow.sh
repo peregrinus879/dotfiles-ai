@@ -27,7 +27,7 @@ abort() {
 
 script_dir=$(dirname -- "${BASH_SOURCE[0]}")
 repository_root=$(realpath -e -- "$script_dir/..") || abort 'cannot resolve repository root'
-PACKAGES=(claude-code codex opencode)
+PACKAGES=(agents claude-code codex opencode)
 TARGET_ROOTS=("$HOME/.claude" "$HOME/.codex" "$HOME/.agents" "$HOME/.local/bin" "$HOME/.config/opencode")
 
 managed_link_text() { # link text

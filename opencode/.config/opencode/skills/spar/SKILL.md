@@ -1,1 +1,1 @@
-../../../../../claude-code/.claude/skills/spar/SKILL.md
+../../../../../agents/.agents/skills/spar/SKILL.md

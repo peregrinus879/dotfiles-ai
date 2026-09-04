@@ -5,7 +5,7 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 ## Loading and Ownership
 
 - Claude Code loads the stowed rules, then this file through the root `CLAUDE.md` import. Codex loads `~/.codex/AGENTS.md`, a tracked symlink to shared guidance, and this file. OpenCode loads shared guidance through its global `instructions` entry and this file.
-- `claude-code/.claude/rules/shared-guidance.md` is the canonical cross-tool policy. `claude-code/.claude/skills/*/SKILL.md` are the canonical skills; the Codex and OpenCode skill files are tracked symlinks to them. Order tools as Claude Code, Codex, OpenCode.
+- `agents/.agents/shared-guidance.md` is the canonical cross-tool policy and `agents/.agents/skills/*/SKILL.md` are the canonical skills, in the tool-neutral package that deploys `~/.agents`, the Agent Skills standard's home, which Codex reads natively. The Claude Code, Codex, and OpenCode copies are tracked symlinks to them, and OpenCode's `instructions` entry names the deployed guidance. Order tools as Claude Code, Codex, OpenCode.
 - This file owns repository invariants. `README.md` owns public scope, setup, and usage. Script headers own local constraints. `docs/maintenance.md` owns unresolved decisions, deferred work, active limitations, and dated revalidation evidence. Prose describes current behavior; Git history owns provenance.
 - Root wrappers and documentation are source-only; Stow deploys package contents. Because the packages are live configuration on a stowed host, an edit to a settings file, skill, or bridge here is active for the next session of that tool before any commit; work on this repository only in a session H is watching.
 
@@ -33,6 +33,7 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 
 - Stow runs with `--no-folding`, so every managed parent under `$HOME` is a real directory and only leaf files are links; generated host state therefore never reaches a package source. `make clean` removes only dangling links whose text names a package entry this repository has. `make stow` and `make restow` reconcile `~/.codex/config.toml`: the template owns root keys and its tables, host-only tables are preserved verbatim, and `make verify` attests that the host file carries the template's boundaries.
 - Empty package directories are not tracked; a directory appears in a package only when it holds a managed file.
+- A change that alters deployed state, such as the package layout, link targets, or the host Codex config, is deployed on the host where it is made, and the same commit adds a host pass item to `docs/maintenance.md` with the exact steps for the other host; the agent runs that item in the next session on that host, after H pulls, and removes it when done.
 - The gates follow the `commit` skill's contract: `make lint` and `make check` are the repository checks, which CI also runs on every push to `main` and every pull request, and `make restow` and `make verify` are the host verification; `make restow` refuses when the managed links resolve into another clone. Restart OpenCode after changing its config or skills. Record only unresolved failures or live revalidation needs in `docs/maintenance.md`.
 
 ## Skills

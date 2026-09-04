@@ -1,1 +1,1 @@
-../../claude-code/.claude/rules/shared-guidance.md
+../../agents/.agents/shared-guidance.md

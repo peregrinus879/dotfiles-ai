@@ -30,19 +30,21 @@ Each path inside a package mirrors its path under `~`; Stow links every leaf fil
 
 ```text
 eyragents/
+├── agents/.agents/                       # tool-neutral source package, deployed to ~/.agents
+│   ├── shared-guidance.md                # canonical cross-tool policy
+│   └── skills/{commit,publish,spar}/SKILL.md   # canonical skills; Codex reads them here
 ├── claude-code/                          # Claude Code package
 │   ├── .claude/
-│   │   ├── rules/shared-guidance.md      # canonical cross-tool policy
-│   │   ├── skills/{commit,publish,spar}/SKILL.md   # canonical skills
+│   │   ├── rules/shared-guidance.md      # symlink to the shared guidance
+│   │   ├── skills/{commit,publish,spar}/SKILL.md   # symlinks to the canonical skills
 │   │   ├── settings.json                 # permissions and auto-mode rules
 │   │   └── statusline.sh
 │   └── .local/bin/{spar-claude,spar-payload-scan}   # Claude reviewer bridge and payload scanner
 ├── codex/                                # Codex package
-│   ├── .codex/AGENTS.md                  # symlink to shared guidance
-│   ├── .agents/skills/{commit,publish,spar}/SKILL.md   # symlinks to the canonical skills
+│   ├── .codex/AGENTS.md                  # symlink to the shared guidance
 │   └── .local/bin/spar-codex             # Codex reviewer bridge
 ├── opencode/.config/opencode/            # OpenCode package
-│   ├── opencode.json                     # permissions and model
+│   ├── opencode.json                     # permissions, model, and the shared guidance path
 │   ├── tui.json
 │   ├── commands/{commit,publish,spar}.md # slash commands that load the skills
 │   └── skills/{commit,publish,spar}/SKILL.md   # symlinks to the canonical skills

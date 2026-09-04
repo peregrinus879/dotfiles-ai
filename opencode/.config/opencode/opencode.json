@@ -183,6 +183,6 @@
     }
   },
   "instructions": [
-    "{env:HOME}/.claude/rules/shared-guidance.md"
+    "{env:HOME}/.agents/shared-guidance.md"
   ]
 }
