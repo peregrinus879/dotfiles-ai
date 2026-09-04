@@ -1,15 +1,15 @@
 ---
 name: eyrsync
-description: Sync this harness against the official documentation, changelogs, and announcements of Claude Code, Codex, and OpenCode, and the Agent Skills specification. Use when a tool releases a change to its configuration, hooks, agents, skills, or permissions, when OpenCode moves to a new major version, when Claude Code starts reading AGENTS.md or ~/.agents natively, or on a periodic pass.
+description: Sync this harness against the official documentation, changelogs, and announcements of Claude Code, Codex, and OpenCode, and the Agent Skills specification. Use when a tool releases a change to its configuration, hooks, agents, skills, or permissions, when OpenCode moves to a new major version, when Claude Code starts reading AGENTS.md or ~/.agents natively, or on a periodic pass. Also sync the sibling repositories eyrarchy and eyrwsl where they depend on the harness: the gate contract, the project-skill layout, and their statements about the harness.
 ---
 
 # Eyrsync
 
-Compare the repository's structure, names, configuration keys, and instructions against what the three tools and the Agent Skills specification currently document, and apply changes only where they belong. The omasync skill in the sibling repositories is the model; this one covers the harness.
+Compare the repository's structure, names, configuration keys, and instructions against what the three tools and the Agent Skills specification currently document, and apply changes only where they belong. The omasync skill in the sibling repositories is the model; this one covers the harness, and the sibling repositories where they meet it.
 
 ## Sources
 
-Official documentation, read live: Claude Code (`https://code.claude.com/docs/llms.txt` indexes it; the `.claude` directory, memory, skills, sub-agents, hooks, settings reference, model configuration, and changelog pages own the conventions this repository uses); Codex (`https://learn.chatgpt.com/docs`: the configuration reference, hooks, subagents, skills, and sandbox pages); OpenCode (`https://opencode.ai/docs`: config, agents, skills, plugins, permissions, and the source clone under `~/Projects/quarry/opencode` that `references.txt` names, including its changelog and the permission, skill, and tool sources the ledger cites); the Agent Skills specification (`https://agentskills.io/specification`); the AGENTS.md convention (`https://agents.md`). Announcements: the Anthropic and OpenAI engineering posts and the OpenCode releases page. Dated evidence already gathered lives in `docs/maintenance.md`; start from its newest entries.
+Official documentation, read live: Claude Code (`https://code.claude.com/docs/llms.txt` indexes it; the `.claude` directory, memory, skills, sub-agents, hooks, settings reference, model configuration, and changelog pages own the conventions this repository uses); Codex (`https://learn.chatgpt.com/docs`: the configuration reference, hooks, subagents, skills, and sandbox pages); OpenCode (`https://opencode.ai/docs`: config, agents, skills, plugins, permissions, and the source clone under `~/Projects/quarry/opencode` that `references.txt` names, including its changelog and the permission, skill, and tool sources the ledger cites); the Agent Skills specification (`https://agentskills.io/specification`); the AGENTS.md convention (`https://agents.md`). Announcements: the Anthropic and OpenAI engineering posts and the OpenCode releases page. Dated evidence already gathered lives in `docs/maintenance.md`; start from its newest entries. The sibling pass reads the clones under `~/Projects/eyrie/eyrarchy` and `~/Projects/eyrie/eyrwsl` by standing grant.
 
 ## When To Use
 
@@ -17,6 +17,7 @@ Official documentation, read live: Claude Code (`https://code.claude.com/docs/ll
 - OpenCode moves to a new major version, or Claude Code starts reading `AGENTS.md` or `~/.agents/skills` natively.
 - Before a structural change to the packages, so the change lands on current conventions.
 - Periodically, when no trigger has fired for a while.
+- The harness changed something a sibling depends on, or H names a sibling: run the sibling pass.
 
 ## Workflow
 
@@ -26,9 +27,24 @@ Official documentation, read live: Claude Code (`https://code.claude.com/docs/ll
 4. Classify each difference: an intentional choice recorded in `AGENTS.md` or `docs/design.md`, an upstream change the harness must follow, or a new capability worth adopting. Name the source and date for each.
 5. Apply upstream changes and adopted capabilities through the commit skill, package by package, running the gates as it defines them. Update `AGENTS.md`, `README.md`, and `docs/design.md` when ownership, layout, or reasoning changes, and record new dated evidence and revalidation triggers in `docs/maintenance.md`.
 6. Summarize what was adopted, rejected, or kept different, with the sources.
+7. Run the sibling pass below when the harness's contract surface changed, when a sibling's clone moved past the last pass, or when H asks for it.
+
+## Sibling Pass
+
+`eyrarchy` and `eyrwsl` are synced only where they and the harness depend on each other:
+
+- The gate contract: each `Makefile` defines `lint`, `check`, `test`, `restow`, and `verify`, with `require-host` and `require-clone` guarding the host targets, and `verify-published` where the repository publishes; GitHub Actions runs `make check` and `make lint` on every push to `main` and every pull request. The commit skill owns the contract; a sibling only defines the targets.
+- The project-skill layout: `omasync` lives at `.agents/skills/omasync/SKILL.md` with `.claude/skills` and `.opencode/skills` symlinks, and its frontmatter names the directory and carries the specification's fields, the layout `eyrsync` uses here.
+- The statements about the harness in their `AGENTS.md` and `README.md`: EyrAgents owns the tool configuration, the AI tools run as it configures them, the family links and the EyrAgents install steps are current, and no rule the shared guidance or a skill owns is restated.
+- The OpenCode environment their Bash exports, `OPENCODE_DISABLE_EXTERNAL_SKILLS` and `OPENCODE_ENABLE_EXA`, checked against the source clone's runtime flags and skill discovery: the first disables discovery through `~/.claude`, `~/.agents`, and a project's `.claude` and `.agents` directories, so the harness reaches its skills through `skills.paths` and a project through `.opencode/skills`; when either side changes, the other follows.
+- The mise wrappers the harness resolves through, `~/.local/bin/{claude,codex,opencode}` from `eyrwsl` and Omarchy's own on `eyrarchy`, against the Codex template's mise grant and `make verify` here.
+- `references.txt`: the family union defines `~/Projects/quarry` and the siblings' `make refs` keeps it, so every clone this skill reads is declared in this repository's file.
+
+Report each difference with its owner. Apply a change in a sibling only when H names that repository in the request: edit there, run its gates, and commit through the commit skill from that repository's root, one candidate per repository, then present every push together at the end. Otherwise report the drift with the exact steps for a session in that repository.
 
 ## Completion Checks
 
 - Every tool-side file still carries the name and fields its tool documents, and every shared file still lives under `~/.agents`.
 - `make lint`, `make check`, `make restow`, and `make verify` pass on this host, and the ledger carries a host pass item for the other host when deployed state changed.
 - The ledger's dated evidence names the versions checked and the trigger for the next check.
+- When the sibling pass ran: each sibling's `make lint` and `make check` pass, and its statements about the harness match what the packages deploy.

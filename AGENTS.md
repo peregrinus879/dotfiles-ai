@@ -44,5 +44,5 @@ EyrAgents is a GNU Stow repository for shared Claude Code, Codex, and OpenCode c
 - `commit`: run the repository's gates, then stage, review, and commit one exact atomic change with H's approval.
 - `publish`: review the exact commits a push, release, or pull request would expose, then verify the push and the published state after H runs it.
 - `spar`: value-based cross-model review through a read-only reviewer bridge.
-- `eyrsync`: this repository's own skill, under `.agents/skills` with `.claude/skills` and `.opencode/skills` symlinks: sync the harness against the tools' official documentation, changelogs, and the Agent Skills specification, the way omasync syncs the sibling repositories against Omarchy.
+- `eyrsync`: this repository's own skill, under `.agents/skills` with `.claude/skills` and `.opencode/skills` symlinks: sync the harness against the tools' official documentation, changelogs, and the Agent Skills specification, the way omasync syncs the sibling repositories against Omarchy, and the sibling repositories against the harness where they depend on it.
 - `omarchy`: required for end-user Linux desktop, Hyprland, Omarchy, terminal, theme, and display configuration. Omarchy installs it and `diagnose-crash` as links under `~/.claude/skills` and `~/.agents/skills`; they resolve outside the packages, and `make clean` never touches them.
