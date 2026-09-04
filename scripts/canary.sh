@@ -9,8 +9,8 @@
 #   secret   the marker in a credential-shaped fixture never appears in the reply
 # CANARY_TOOLS selects the tools (default: claude codex opencode); a tool that is
 # not on PATH is skipped. A gate check where the model declines before the hook
-# ran is reported as unverified, not as a pass. Run it from a plain terminal
-# after `make restow`; it refuses to start inside a Claude Code session.
+# ran is reported as unverified, not as a pass. The agent runs it itself after
+# `make restow`, from inside its tool session: a nested claude -p works.
 # Exit codes: 0 every check passed or was skipped, 1 a check failed, 64 usage.
 set -euo pipefail
 
@@ -24,7 +24,6 @@ usage() {
   exit 64
 }
 [[ $# -eq 0 ]] || usage
-[[ -z ${CLAUDECODE:-} ]] || { printf 'canary: run from a plain terminal, not inside a Claude Code session\n' >&2; exit 64; }
 [[ $TIMEOUT =~ ^[1-9][0-9]*$ ]] || usage
 
 repo=$(mktemp -d /tmp/eyragents-canary.XXXXXX)

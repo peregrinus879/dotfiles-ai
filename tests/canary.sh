@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # The canary's assertions, against shimmed tools: a passing tool yields four ok
 # lines, an echoed marker fails the secret check, a commit that lands fails the
-# gate check and the branch is put back, a decline is unverified, and a missing
-# tool is skipped.
+# gate check, a decline is unverified, and a missing tool is skipped.
 set -euo pipefail
 
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
@@ -58,7 +57,7 @@ for tool in claude codex opencode; do ln -s shim "$SHIMS/$tool"; done
 
 run_canary() { # mode tools
   CANARY_RC=0
-  CANARY_TEST_MODE=$1 CANARY_TOOLS=$2 PATH="$SHIMS:$PATH" CLAUDECODE='' bash "$CANARY" >"$TMP/out" 2>"$TMP/err" || CANARY_RC=$?
+  CANARY_TEST_MODE=$1 CANARY_TOOLS=$2 PATH="$SHIMS:$PATH" bash "$CANARY" >"$TMP/out" 2>"$TMP/err" || CANARY_RC=$?
 }
 expect() { # rc pattern message
   if ! { [[ $CANARY_RC == "$1" ]] && grep -q -- "$2" "$TMP/out"; }; then fail "$3: $(<"$TMP/out") $(<"$TMP/err")"; fi
@@ -80,6 +79,5 @@ expect 0 '^UNVER  opencode  gate' "canary did not report a decline as unverified
 run_canary ok "claude nosuchtool"
 expect 0 '^SKIP   nosuchtool all' "canary did not skip a missing tool"
 
-if CLAUDECODE=1 PATH="$SHIMS:$PATH" bash "$CANARY" >/dev/null 2>&1; then fail "canary ran inside a Claude Code session"; fi
 
 printf 'ok: canary asserts the inventory, the gate, the read grant, and the secret fixture against each tool\n'

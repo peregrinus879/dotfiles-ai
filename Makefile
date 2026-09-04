@@ -190,7 +190,7 @@ verify: lint check verify-deploy
 	@echo "ok:   verify"
 
 # Live behavior of the deployed tools: four model calls per tool from a
-# throwaway repository. Run from a plain terminal after make restow.
+# throwaway repository. Run after make restow.
 canary:
 	bash scripts/canary.sh
 
