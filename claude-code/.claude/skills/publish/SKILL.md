@@ -15,9 +15,9 @@ Run this before presenting any push, release, pull request, or other publication
 6. Present the binding, the commit list with ids, the review result, and the exact command bound to both ends of the review:
 
    ```
-   git push <remote> <reviewed-id>:refs/heads/<branch> --force-with-lease=refs/heads/<branch>:<base-id>
+   git -C <repository root> push <remote> <reviewed-id>:refs/heads/<branch> --force-with-lease=refs/heads/<branch>:<base-id>
    ```
 
-   The lease makes the destination reject the push whenever its branch is not exactly the reviewed base, including a branch someone deleted or moved after the review, and it forces nothing when the base matches; it is the guard the review depends on, not a bypass. Any change to the bound values invalidates the result. H runs the command; the remaining steps start on H's next message.
+   The `-C` argument names the repository root, so the command runs unchanged from whatever directory H's terminal is in. The lease makes the destination reject the push whenever its branch is not exactly the reviewed base, including a branch someone deleted or moved after the review, and it forces nothing when the base matches; it is the guard the review depends on, not a bypass. Any change to the bound values invalidates the result. H runs the command; the remaining steps start on H's next message.
 7. After the push, confirm `git rev-parse refs/remotes/<remote>/<branch>` equals the reviewed id and `git status -sb` reports neither ahead nor behind, then report the pushed id. Any other state is reported exactly and stops for H's decision.
 8. Run the repository's published verification when it defines one, `make verify-published REV=<reviewed-id>` or `npm run verify-published -- <reviewed-id>`: the target waits for the deployment behind the destination and confirms the published state carries the reviewed commit. Report its result; a repository without the target is reported as pushed without published verification. Then report completion.
