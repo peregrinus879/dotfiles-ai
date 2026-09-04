@@ -21,4 +21,4 @@ Read the changed files themselves, not only the diff. Trace every claim to a fil
 
 ## Output
 
-Report findings by severity, most severe first: for each, one sentence of claim, the evidence as `path:line`, the impact, and the practical failure path. Separate a test assessment: what the tests prove, what they miss. State what you could not verify. Close with one line, exactly `VERDICT: CONVERGED` when nothing blocks and nothing remains, or `VERDICT: OPEN <blocking> BLOCKING / <non-blocking> NON-BLOCKING`.
+Report findings by severity, most severe first: for each, one sentence of claim, the evidence as `path:line`, the impact, and the practical failure path. Separate a test assessment: what the tests prove, what they miss. State what you could not verify. Close with one line, exactly `VERDICT: CONVERGED` when nothing blocks and nothing remains, or `VERDICT: OPEN <blocking> BLOCKING / <non-blocking> NON-BLOCKING`; no other word follows `VERDICT:`.
