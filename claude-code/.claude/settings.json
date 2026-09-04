@@ -16,7 +16,9 @@
       "Read(//etc/**)",
       "Read(//opt/**)",
       "Read(//sys/**)",
-      "Read(//var/lib/pacman/**)"
+      "Read(//var/lib/pacman/**)",
+      "Read(//tmp/**)",
+      "Read(//var/tmp/**)"
     ],
     "deny": [
       "Bash(doas *)",
@@ -85,6 +87,7 @@
       "Edit(//**/id_ed25519)",
       "Edit(//**/id_rsa)",
       "Edit(//**/secrets/**)",
+      "Edit(//tmp/opencode/**)",
       "Edit(~/.agents/hooks/**)",
       "Edit(~/.aws/**)",
       "Edit(~/.bash_history)",
@@ -144,6 +147,7 @@
       "Read(//**/id_ed25519)",
       "Read(//**/id_rsa)",
       "Read(//**/secrets/**)",
+      "Read(//tmp/opencode/**)",
       "Read(~/.aws/**)",
       "Read(~/.bash_history)",
       "Read(~/.claude/.credentials.json)",

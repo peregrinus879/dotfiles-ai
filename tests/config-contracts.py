@@ -48,6 +48,8 @@ PROJECT_STORE_FILES = (".claude/.credentials.json", ".codex/auth.json", ".config
 PROJECT_STORES = (*PROJECT_STORE_DIRECTORIES, *PROJECT_STORE_FILES)
 # System trees every tool reads by standing grant; the rest of the filesystem asks.
 SYSTEM_READ_TREES = ("/usr", "/etc", "/opt", "/sys", "/var/lib/pacman")
+# Temp roots every tool reads; each tool is denied the other tools' session roots there.
+TEMP_READ_TREES = ("/tmp", "/var/tmp")
 
 CREDENTIAL_SHAPES = (
     ".env",
@@ -197,6 +199,11 @@ def check_codex(config: dict, label: str) -> None:
     require(filesystem.get("~/Projects") == "read", f"{label} cannot read H's repositories under ~/Projects")
     for tree in SYSTEM_READ_TREES:
         require(filesystem.get(tree) == "read", f"{label} cannot read the system tree {tree}")
+    require(filesystem.get("/var/tmp") == "read" and filesystem.get(":slash_tmp") in ("read", "write"), f"{label} cannot read the temp roots")
+    for other in ("/tmp/opencode", "/tmp/claude-1000"):
+        require(filesystem.get(other) == "deny", f"{label} reads another tool's session root: {other}")
+    for key in filesystem:
+        require(not (key.startswith(("/tmp/", "/var/tmp/")) and any(c in key for c in "*?")), f"{label} carries a glob under a temp root, which stalls the sandbox: {key}")
     for shape in CREDENTIAL_SHAPES:
         require(shape == ".npmrc" or filesystem.get(f"~/**/{shape}") == "deny" or filesystem.get(f"~/Projects/**/{shape}") == "deny", f"{label} credential shape reachable under ~/Projects: {shape}")
     for store in PROJECT_STORES:
@@ -260,8 +267,11 @@ for shape in CREDENTIAL_SHAPES:
 require(edit_rules.get("**/.git/**") == "deny", "OpenCode Git internals are writable by file tools")
 for label, rules in (("read", read_rules), ("edit", edit_rules), ("external_directory", external_rules)):
     denies_come_last(rules, label)
-for path in ("/tmp*", "/tmp/*", "/tmp/**"):
-    require(external_rules.get(path) != "allow", f"OpenCode broad temporary-directory allow: {path}")
+for tree in TEMP_READ_TREES:
+    require(external_rules.get(f"{tree}/**") == "allow", f"OpenCode lacks the standing access under {tree}")
+    require(f"Read(//{tree.lstrip('/')}/**)" in claude["permissions"]["allow"], f"Claude Code lacks the standing read allow on {tree}")
+require(external_rules.get("/tmp/claude-*/**") == "deny", "OpenCode reads Claude Code's session root under /tmp")
+require("Read(//tmp/opencode/**)" in claude["permissions"]["deny"], "Claude Code reads OpenCode's session root under /tmp")
 claude = load_json("claude-code/.claude/settings.json")
 def frontmatter(path):
     """Parse the YAML subset the agent files use: top-level `key: value` and one nested block of `  key: value`."""

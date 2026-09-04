@@ -63,6 +63,13 @@ extends = ":workspace"
 "/opt" = "read"
 "/sys" = "read"
 "/var/lib/pacman" = "read"
+# Temp roots: /tmp comes from :slash_tmp above; the other tools' session roots
+# are denied by literal path (the Claude Code root carries the uid), and no
+# shape deny can live under a temp root: the sandbox's glob scan dies on the
+# root-owned entries there (see the ledger).
+"/var/tmp" = "read"
+"/tmp/opencode" = "deny"
+"/tmp/claude-1000" = "deny"
 # Shapes whose home-wide globs stall the sandbox (see the ledger) are denied under
 # ~/Projects only; .npmrc cannot be, because that glob matches inside node_modules
 # trees and stalls startup too, so a project .npmrc stays readable (ledger, 2026-09-04).

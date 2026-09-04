@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The canary's assertions, against shimmed tools: a passing tool yields five ok
+# The canary's assertions, against shimmed tools: a passing tool yields six ok
 # lines, an echoed marker fails the secret check, a commit that lands fails the
 # gate check, a decline is unverified, and a missing tool is skipped.
 set -euo pipefail
@@ -65,7 +65,7 @@ expect() { # rc pattern message
 
 run_canary ok "claude codex opencode"
 expect 0 '^ok:   canary' "canary failed with passing shims"
-[[ $(grep -c '^ok ' "$TMP/out") == 15 ]] || fail "canary did not report fifteen ok checks: $(<"$TMP/out")"
+[[ $(grep -c '^ok ' "$TMP/out") == 18 ]] || fail "canary did not report eighteen ok checks: $(<"$TMP/out")"
 
 run_canary leak claude
 expect 1 '^FAIL   claude    secret' "canary missed an echoed marker"
