@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+# review-brief - assemble the artifact a reviewer reads, from evidence, not claims.
+#
+# Usage: review-brief --intent FILE --out FILE [--staged | --worktree | --range BASE..TIP]
+#                     [--gate TARGET]... [--no-gates]
+#
+# Runs inside a repository and writes one Markdown artifact that both the spar
+# bridges and the auditor agent take as their input: the intent file verbatim,
+# which must carry lines starting `Outcome:`, `Non-goals:`, `Constraints:`, and
+# `Acceptance:`; the repository state (branch, head, upstream, status); the gate
+# results as actually run, `make lint` and `make check` unless --gate names
+# other targets or --no-gates skips them, with a missing Makefile or target
+# reported as such and a failure's last lines quoted; and the change under
+# review with its stat: the index against HEAD by default, the working tree
+# against HEAD with --worktree, or the commits and diff of a range. The gates
+# run on the working tree, and the brief says whether that tree equals the
+# index or the tip under review. The artifact is scanned before it is kept: a
+# credential-shaped value anywhere in it, a sensitive path in the diff, or a
+# size, binary, or encoding limit of the scanner deletes it and fails. The
+# output must be a new file under the repository or under /tmp or /var/tmp,
+# the roots the bridges accept, never under a Git-internal or sensitive
+# component; it is written whole or not at all.
+#
+# Exit codes: 0 written, 2 scanner rejected (nothing kept), 3 repository state
+# refused, 64 usage.
+set -euo pipefail
+
+usage() {
+  printf 'usage: review-brief --intent FILE --out FILE [--staged | --worktree | --range BASE..TIP] [--gate TARGET]... [--no-gates]\n' >&2
+  exit 64
+}
+fail() {
+  printf 'review-brief: %s\n' "$1" >&2
+  exit "${2:-3}"
+}
+
+intent="" out="" mode=staged range="" no_gates=0
+gates=()
+while (($#)); do
+  case $1 in
+    --intent) [[ $# -ge 2 ]] || usage; intent=$2; shift 2 ;;
+    --out) [[ $# -ge 2 ]] || usage; out=$2; shift 2 ;;
+    --staged) mode=staged; shift ;;
+    --worktree) mode=worktree; shift ;;
+    --range) [[ $# -ge 2 ]] || usage; mode=range; range=$2; shift 2 ;;
+    --gate) [[ $# -ge 2 ]] || usage; gates+=("$2"); shift 2 ;;
+    --no-gates) no_gates=1; shift ;;
+    *) usage ;;
+  esac
+done
+[[ -n $intent && -n $out ]] || usage
+intent=$(realpath -m -- "$intent")
+out=$(realpath -m -- "$out")
+fence=$'\x60\x60\x60'
+
+root=$(git rev-parse --show-toplevel 2>/dev/null) || fail 'not inside a Git repository'
+cd -- "$root"
+scanner=$(dirname -- "$(realpath -e -- "${BASH_SOURCE[0]}")")/spar-payload-scan
+[[ -x $scanner ]] || fail "the payload scanner is missing beside this script: $scanner"
+
+# The intent is the drafter's contract with the reviewer; its four fields are
+# what every review is judged against, so they are required, not suggested.
+[[ -f $intent && -s $intent ]] || fail "intent file missing or empty: $intent" 64
+missing=()
+for field in Outcome Non-goals Constraints Acceptance; do
+  grep -q -E "^${field}:" -- "$intent" || missing+=("$field")
+done
+((${#missing[@]} == 0)) || fail "the intent lacks a line starting with: ${missing[*]} (each as 'Field: ...')" 64
+
+# The artifact must sit where a bridge may read it, as a new file, and never
+# under a component the scanner or the Git-internals rule keeps closed.
+out_dir=$(realpath -m -- "$(dirname -- "$out")")
+case $out_dir/ in
+  "$root"/ | "$root"/*/ | /tmp/ | /tmp/*/ | /var/tmp/ | /var/tmp/*/) ;;
+  *) fail "the output must live under the repository, /tmp, or /var/tmp: $out" 64 ;;
+esac
+[[ -d $out_dir ]] || fail "output directory missing: $out_dir" 64
+[[ ! -e $out && ! -L $out ]] || fail "output exists; the brief is written as a new file only: $out" 64
+case /$out/ in
+  */.git/* | */secrets/* | */.env/ | */.env.*/) fail "the output may not sit under a Git-internal or sensitive component: $out" 64 ;;
+esac
+[[ $out != "$intent" ]] || fail 'the output and the intent are the same file' 64
+
+# Repository state, as evidence for the reviewer.
+git rev-parse --verify --quiet HEAD >/dev/null || fail 'the repository has no commit yet'
+branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || printf 'detached')
+head_line=$(git log -1 --format='%h %s')
+upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || printf 'none')
+status=$(git status --short)
+
+# The change under review.
+log=""
+case $mode in
+  staged)
+    title='staged index against HEAD'
+    stat=$(git diff --cached --stat)
+    diff=$(git diff --cached --no-ext-diff --no-color)
+    [[ -n $diff ]] || fail 'nothing is staged; use --worktree or --range for another change'
+    ;;
+  worktree)
+    title='working tree against HEAD'
+    stat=$(git diff --stat HEAD)
+    diff=$(git diff --no-ext-diff --no-color HEAD)
+    [[ -n $diff ]] || fail 'the working tree equals HEAD; nothing to review'
+    ;;
+  range)
+    [[ $range == *..* ]] || fail '--range takes BASE..TIP' 64
+    base=${range%%..*}
+    tip=${range#*..}
+    git rev-parse --verify --quiet "$base^{commit}" >/dev/null || fail "unknown base: $base"
+    git rev-parse --verify --quiet "$tip^{commit}" >/dev/null || fail "unknown tip: $tip"
+    git merge-base --is-ancestor "$base" "$tip" || fail "$base is not an ancestor of $tip"
+    title="commits $range"
+    log=$(git log --format='%h %s' "$base..$tip")
+    [[ -n $log ]] || fail "no commits in $range"
+    stat=$(git diff --stat "$base" "$tip")
+    diff=$(git diff --no-ext-diff --no-color "$base" "$tip")
+    ;;
+esac
+
+# The gates, run rather than reported. They run on the working tree, so the
+# brief says how that tree relates to the change under review.
+case $mode in
+  staged)
+    if git diff --quiet; then tree_note='the working tree, which equals the index'
+    else tree_note='the working tree, which differs from the index: the results cover a superset of the change'; fi
+    ;;
+  worktree) tree_note='the working tree, the change under review' ;;
+  range)
+    if [[ $(git rev-parse "$tip^{commit}") == "$(git rev-parse HEAD)" ]] && git diff --quiet && git diff --cached --quiet; then
+      tree_note="the working tree, which equals the tip $tip"
+    else tree_note="the working tree, not the tip $tip"; fi
+    ;;
+esac
+if ((no_gates)); then
+  gate_report='- gates: skipped by --no-gates'
+elif [[ ! -f $root/Makefile ]]; then
+  gate_report='- gates: no Makefile at the repository root, none run'
+else
+  gate_report="- ran on: $tree_note"$'\n'
+  ((${#gates[@]})) || gates=(lint check)
+  for target in "${gates[@]}"; do
+    output=$(mktemp)
+    probe=0
+    make --no-print-directory -C "$root" -q "$target" >"$output" 2>&1 || probe=$?
+    if ((probe == 2)) && grep -q -F "No rule to make target '$target'" -- "$output"; then
+      gate_report+="- $target: absent (no such target)"$'\n'
+    elif make --no-print-directory -C "$root" "$target" >"$output" 2>&1; then
+      gate_report+="- $target: ok"$'\n'
+    else
+      code=$?
+      gate_report+="- $target: FAIL (make exit $code)"$'\n'"$fence"$'\n'"$(tail -n 20 -- "$output")"$'\n'"$fence"$'\n'
+    fi
+    rm -f -- "$output"
+  done
+fi
+
+# Assemble whole, scan, then keep.
+draft=$(mktemp -p "$out_dir" .review-brief.XXXXXX)
+trap 'rm -f -- "$draft"' EXIT
+{
+  printf '# Review brief\n\n'
+  printf 'Assembled by review-brief on %s in %s, branch %s. The reviewer reads the repository from its root; paths are relative to it.\n\n' \
+    "$(date -u +%Y-%m-%dT%H:%MZ)" "$(basename -- "$root")" "$branch"
+  printf '## Intent\n\n'
+  cat -- "$intent"
+  printf '\n## Repository state\n\n- head: %s\n- upstream: %s\n' "$head_line" "$upstream"
+  if [[ -n $status ]]; then printf -- '- status:\n%s\n%s\n%s\n' "$fence" "$status" "$fence"; else printf -- '- status: clean\n'; fi
+  printf '\n## Gates\n\n%s\n' "$gate_report"
+  printf '\n## Change: %s\n\n' "$title"
+  [[ -z $log ]] || printf 'Commits:\n%s\n%s\n%s\n\n' "$fence" "$log" "$fence"
+  printf 'Stat:\n%s\n%s\n%s\n\n%sdiff\n%s\n%s\n' "$fence" "$stat" "$fence" "$fence" "$diff" "$fence"
+} >"$draft"
+"$scanner" reply <"$draft" >/dev/null || fail 'the payload scanner rejected the brief (its diagnostic precedes this line); nothing was kept' 2
+printf '%s\n' "$diff" | "$scanner" diff >/dev/null || fail 'the payload scanner rejected the diff (its diagnostic precedes this line); nothing was kept' 2
+mv -- "$draft" "$out"
+trap - EXIT
+size=$(wc -c <"$out")
+printf 'brief: %s (%s bytes; change: %s)\n' "$out" "$size" "$title"
+((size <= 524288)) || printf 'review-brief: the brief exceeds the bridge artifact limit of 524288 bytes; narrow the change or use the auditor\n' >&2

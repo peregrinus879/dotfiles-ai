@@ -247,6 +247,84 @@ while IFS= read -r -d '' tracked; do
     fail "the repository's own tracked content fails the outbound scan: $tracked"
 done < <(git -C "$ROOT" ls-files -z)
 
+# --- Brief ---
+# review-brief assembles the artifact from evidence: the intent's required
+# lines, the repository state, the gates as run, and the change; it is scanned
+# before it is kept and confined to the repository or the temp root.
+BRIEF="$ROOT/agents/.agents/skills/spar/scripts/review-brief"
+brepo="$TMP/brief-repo"
+git init -q "$brepo"
+git -C "$brepo" config user.name tester
+git -C "$brepo" config user.email tester@example.invalid
+printf 'lint:\n\t@echo lint-ran\ncheck:\n\t@echo check-broke; exit 3\n' >"$brepo/Makefile"
+printf 'one\n' >"$brepo/a.txt"
+git -C "$brepo" add Makefile a.txt
+git -C "$brepo" commit -q -m first
+printf 'two\n' >>"$brepo/a.txt"
+git -C "$brepo" add a.txt
+git -C "$brepo" commit -q -m second
+printf 'three\n' >>"$brepo/a.txt"
+git -C "$brepo" add a.txt
+printf 'Outcome: a.txt gains a line\nNon-goals: none\nConstraints: none\nAcceptance: the line is present\n' >"$TMP/art/intent.md"
+run_brief() {
+  BRIEF_RC=0
+  (cd "$brepo" && "$BRIEF" "$@") >"$TMP/brief.out" 2>"$TMP/brief.err" || BRIEF_RC=$?
+}
+
+run_brief --intent "$TMP/art/intent.md" --out "$TMP/art/brief.md"
+[[ $BRIEF_RC == 0 ]] || fail "review-brief failed on a staged change: $(<"$TMP/brief.err")"
+brief=$(<"$TMP/art/brief.md")
+for part in '## Intent' 'Outcome: a.txt gains a line' '## Repository state' '- head: ' ' second' '## Gates' \
+  '- ran on: the working tree, which equals the index' '- lint: ok' '- check: FAIL (make exit 2)' 'check-broke' \
+  '## Change: staged index against HEAD' '+three'; do
+  [[ $brief == *"$part"* ]] || fail "review-brief omitted: $part"
+done
+[[ $(<"$TMP/brief.out") == 'brief: '*'staged index against HEAD)' ]] || fail "review-brief did not report the artifact"
+
+run_brief --intent "$TMP/art/intent.md" --out "$TMP/art/brief-range.md" --range HEAD~1..HEAD --no-gates
+[[ $BRIEF_RC == 0 ]] || fail "review-brief failed on a range: $(<"$TMP/brief.err")"
+brief=$(<"$TMP/art/brief-range.md")
+[[ $brief == *'## Change: commits HEAD~1..HEAD'*' second'*'+two'* && $brief == *'skipped by --no-gates'* && $brief != *'+three'* ]] ||
+  fail "review-brief range brief is wrong"
+
+run_brief --intent "$TMP/art/intent.md" --out "$TMP/art/brief-wt.md" --worktree --gate lint --gate nosuch
+brief=$(<"$TMP/art/brief-wt.md")
+[[ $BRIEF_RC == 0 && $brief == *'## Change: working tree against HEAD'* && $brief == *'- lint: ok'* && $brief != *'- check:'* ]] ||
+  fail "review-brief worktree brief or --gate selection is wrong"
+[[ $brief == *'- nosuch: absent (no such target)'* ]] || fail "review-brief did not report a missing gate target as absent"
+
+run_brief --intent "$TMP/art/intent.md" --out "$brepo/brief-in-repo.md" --no-gates
+[[ $BRIEF_RC == 0 && -f $brepo/brief-in-repo.md ]] || fail "review-brief refused an output under the repository: $(<"$TMP/brief.err")"
+run_brief --intent "$TMP/art/intent.md" --out "$brepo/brief-in-repo.md" --no-gates
+[[ $BRIEF_RC == 64 && $(<"$TMP/brief.err") == *'written as a new file only'* ]] || fail "review-brief overwrote an existing file"
+run_brief --intent "$TMP/art/intent.md" --out "$brepo/.git/brief.md" --no-gates
+[[ $BRIEF_RC == 64 && ! -e $brepo/.git/brief.md ]] || fail "review-brief wrote under Git internals"
+
+printf 'harmless\n' >"$brepo/.env"
+git -C "$brepo" add .env
+run_brief --intent "$TMP/art/intent.md" --out "$TMP/art/leaky-path.md" --no-gates
+[[ $BRIEF_RC == 2 && ! -e $TMP/art/leaky-path.md ]] || fail "review-brief kept a brief whose diff carries a sensitive path"
+git -C "$brepo" restore --staged .env
+rm -f -- "$brepo/.env"
+
+printf 'Outcome: x\nConstraints: y\n' >"$TMP/art/thin.md"
+run_brief --intent "$TMP/art/thin.md" --out "$TMP/art/thin-brief.md"
+[[ $BRIEF_RC == 64 && ! -e $TMP/art/thin-brief.md && $(<"$TMP/brief.err") == *'Non-goals Acceptance'* ]] ||
+  fail "review-brief accepted an intent without its required lines"
+
+run_brief --intent "$TMP/art/intent.md" --out "$HOMEBOX/outside-brief.md" --no-gates
+[[ $BRIEF_RC == 64 && ! -e $HOMEBOX/outside-brief.md ]] || fail "review-brief wrote outside the repository and temp roots"
+
+printf 'Outcome: x\nNon-goals: y\nConstraints: z\nAcceptance: %s=%s\n' "$key_name" "$token" >"$TMP/art/leaky.md"
+run_brief --intent "$TMP/art/leaky.md" --out "$TMP/art/leaky-brief.md" --no-gates
+[[ $BRIEF_RC == 2 && ! -e $TMP/art/leaky-brief.md ]] || fail "review-brief kept a brief with a credential-shaped value"
+[[ -z $(find "$TMP/art" -name '.review-brief.*') ]] || fail "review-brief left a draft behind"
+
+git -C "$brepo" restore --staged a.txt
+run_brief --intent "$TMP/art/intent.md" --out "$TMP/art/empty-brief.md" --no-gates
+[[ $BRIEF_RC == 3 && ! -e $TMP/art/empty-brief.md && $(<"$TMP/brief.err") == *'nothing is staged'* ]] ||
+  fail "review-brief accepted an empty staged change"
+
 # --- Bridges ---
 repo="$TMP/repo"
 git init -q "$repo"

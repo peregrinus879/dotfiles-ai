@@ -53,7 +53,7 @@ eyragents/
 │   ├── skills/{commit,publish,spar}/SKILL.md   # canonical skills; Codex and OpenCode read them here
 │   ├── skills/commit/scripts/{commit-candidate,commit-apply}   # the procedure behind the commit skill
 │   ├── skills/publish/scripts/{publish-bind,publish-verify}   # the procedure behind the publish skill
-│   └── skills/spar/scripts/{spar-claude,spar-codex,spar-payload-scan}   # reviewer bridges and the payload scanner
+│   └── skills/spar/scripts/{review-brief,spar-claude,spar-codex,spar-payload-scan}   # the review brief, reviewer bridges, and the payload scanner
 ├── claude-code/                          # Claude Code package
 │   ├── .claude/
 │   │   ├── CLAUDE.md                     # user instructions: symlink to the shared guidance
@@ -157,7 +157,7 @@ OpenCode has no untrusted mode: `OPENCODE_DISABLE_PROJECT_CONFIG=1 OPENCODE_DISA
 
 - `commit` runs the repository's gates, records the candidate with `commit-candidate`, presents it with its tree id and gate report, and commits it verbatim with `commit-apply` only after approval; `commit-gate`, a pre-tool hook in all three tools, denies every `git commit` a tool runs, so nothing but the recorded candidate can be committed. When the request is done it hands off to `publish`.
 - `publish` binds the push with `publish-bind`, which reviews the commits between the destination's tracking ref and the reviewed commit, scans them, and prints the command with a lease bound to both ends; after the user's push, `publish-verify` confirms the destination and, where the repository defines `verify-published`, the published state.
-- `spar` runs an optional read-only cross-model review of a plan, diff, or decision: `~/.agents/skills/spar/scripts/spar-<reviewer> review "<request>" <artifact>...` from the repository. Claude Code reviews with `spar-codex`, OpenCode with `spar-claude`, and a Codex session hands the request to the user because its profile cannot launch the bridge. Consult the maintenance ledger for active bridge availability.
+- `spar` runs an optional read-only cross-model review of a plan, diff, or decision: `review-brief` assembles the artifact from the intent, the repository state, the gate results as run, and the change, and `~/.agents/skills/spar/scripts/spar-<reviewer> review "<request>" <artifact>...` from the repository. Claude Code reviews with `spar-codex`, OpenCode with `spar-claude`, and a Codex session hands the request to the user because its profile cannot launch the bridge. Consult the maintenance ledger for active bridge availability.
 - `eyrsync`, this repository's own skill, syncs the harness against the tools' official documentation and changelogs and the Agent Skills specification, and the sibling repositories against the harness where they depend on it; run it when a tool changes an interface or moves to a new major version, or when the harness changes something a sibling depends on.
 
 The skills read a target contract instead of per-repository rules. `lint` and `check` are the repository checks, safe anywhere and run by CI; `restow` and `verify` are the host verification, refusing on the wrong host or clone; `verify-published` runs after a push, waits for the deployment, and compares the published commit with the pushed one. Make targets and npm scripts of the same names are equivalent, and a repository declares a gate by defining it.

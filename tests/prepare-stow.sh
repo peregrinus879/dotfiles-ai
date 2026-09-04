@@ -33,7 +33,8 @@ make_clone() {
   ln -s ../../agents/.agents/shared-guidance.md "$repo/codex/.codex/AGENTS.md"
   printf 'tracked\n' >"$repo/agents/.agents/skills/spar/scripts/spar-codex"
   printf 'tracked\n' >"$repo/agents/.agents/skills/spar/scripts/spar-payload-scan"
-  for tool in spar-claude spar-codex spar-payload-scan; do
+  printf 'tracked\n' >"$repo/agents/.agents/skills/spar/scripts/review-brief"
+  for tool in review-brief spar-claude spar-codex spar-payload-scan; do
     ln -s "../../../../../agents/.agents/skills/spar/scripts/$tool" "$repo/claude-code/.claude/skills/spar/scripts/$tool"
   done
   printf '{}\n' >"$repo/opencode/.config/opencode/opencode.json"
@@ -100,7 +101,7 @@ case_no_folding() {
     fail "Claude skill symlink did not deploy"
   [[ $(readlink -f -- "$home/.claude/skills/commit/scripts/commit-apply") == "$repo/agents/.agents/skills/commit/scripts/commit-apply" ]] ||
     fail "Claude skill scripts symlink did not deploy"
-  for tool in spar-claude spar-codex spar-payload-scan; do
+  for tool in review-brief spar-claude spar-codex spar-payload-scan; do
     [[ $(readlink -f -- "$home/.claude/skills/spar/scripts/$tool") == "$repo/agents/.agents/skills/spar/scripts/$tool" ]] ||
       fail "Claude spar link for $tool does not reach its own source"
   done
