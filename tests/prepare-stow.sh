@@ -180,11 +180,19 @@ case_migration() {
   # App-written host tables survive; template-owned values are restored.
   {
     sed 's/^model_reasoning_effort = .*/model_reasoning_effort = "low"/' "$repo/templates/codex/config.toml"
-    printf '\n[projects."/srv/example"]\ntrust_level = "trusted"\n\n[plugins."sites@openai-bundled"]\nenabled = true\n\n[desktop]\nfollowUpQueueMode = "queue"\n'
+    printf '\n[projects."/srv/example"]\ntrust_level = "trusted"\n\n[plugins."sites@openai-bundled"]\nenabled = true\n\n[hooks.state]\n\n[hooks.state."/srv/example/config.toml:pre_tool_use:0:0"]\ntrusted_hash = "sha256:fixture"\n\n[desktop]\nfollowUpQueueMode = "queue"\n'
   } >"$config"
   chmod 600 "$config"
   migrate "$home" "$repo"
   [[ $(toml_value "$config" model_reasoning_effort) == xhigh ]] || fail "template-owned value was not restored"
+  # Codex records each hook's trusted hash under hooks.state; the record survives
+  # under the template's hooks table and does not count as drift.
+  [[ $(python3 -c 'import sys, tomllib
+data = tomllib.load(open(sys.argv[1], "rb"))
+print(data["hooks"]["state"]["/srv/example/config.toml:pre_tool_use:0:0"]["trusted_hash"])' "$config") == sha256:fixture ]] ||
+    fail "hook trust state was lost"
+  [[ $(python3 -c 'import sys, tomllib
+print(len(tomllib.load(open(sys.argv[1], "rb"))["hooks"]["PreToolUse"]))' "$config") == 1 ]] || fail "template hooks were not restored beside the trust state"
   [[ $(toml_value "$config" 'projects./srv/example.trust_level') == trusted ]] || fail "host project table was lost"
   [[ $(toml_value "$config" 'plugins.sites@openai-bundled.enabled') == True ]] || fail "host plugin table was lost"
   [[ $(toml_value "$config" desktop.followUpQueueMode) == queue ]] || fail "host desktop table was lost"

@@ -5,10 +5,13 @@
     reconcile-codex-config.py check TEMPLATE HOST
 
 The template owns every root-level key and every table it defines (auto_review,
-features, agents, permissions). Everything else in HOST is host-only state that
-Codex and the desktop app write (projects, marketplaces, plugins, mcp_servers,
-shell_environment_policy, desktop, and any table the template does not know)
-and is preserved in its original order, trimmed of surrounding blank lines.
+features, hooks, agents, permissions). Everything else in HOST is host-only
+state that Codex and the desktop app write (projects, marketplaces, plugins,
+mcp_servers, shell_environment_policy, desktop, and any table the template does
+not know) and is preserved in its original order, trimmed of surrounding blank
+lines. One host-written subtable lives under a template-owned table: Codex
+records each hook's trusted hash under `hooks.state` after a session, so that
+subtable is preserved too and ignored when the owned tables are compared.
 
 `merge` prints the reconciled config: the template text followed by the
 host-only tables. `check` exits 0 when HOST already carries the template's
@@ -27,39 +30,66 @@ import tomllib
 from pathlib import Path
 
 HEADER = re.compile(r"^\s*\[\[?(?P<key>.*?)\]\]?\s*(?:#.*)?$")
+# Host-written subtables under template-owned tables: Codex stores each hook's
+# trusted hash under hooks.state, keyed by config path and hook position.
+HOST_SUBTABLES = {"hooks": {"state"}}
 
 
-def first_component(key: str) -> str:
-    """Return the first dotted component of a table key, honoring quotes."""
+def components(key: str) -> list[str]:
+    """Split a dotted table key into its components, honoring quoted parts."""
+    parts: list[str] = []
+    current = ""
+    quote = None
+    index = 0
     key = key.strip()
-    if key[:1] in ('"', "'"):
-        quote = key[0]
-        index = 1
-        while index < len(key):
-            if key[index] == "\\" and quote == '"':
+    while index < len(key):
+        char = key[index]
+        if quote:
+            if char == "\\" and quote == '"' and index + 1 < len(key):
+                current += key[index + 1]
                 index += 2
                 continue
-            if key[index] == quote:
-                return key[1:index]
-            index += 1
-        return key[1:]
-    match = re.match(r"[A-Za-z0-9_-]+", key)
-    return match.group(0) if match else key
+            if char == quote:
+                quote = None
+            else:
+                current += char
+        elif char in ('"', "'"):
+            quote = char
+        elif char == ".":
+            parts.append(current.strip())
+            current = ""
+        elif not char.isspace():
+            current += char
+        index += 1
+    parts.append(current.strip())
+    return parts
 
 
-def split_sections(text: str) -> tuple[str, list[tuple[str, str]]]:
-    """Split TOML text into its root text and top-level (name, text) sections."""
+def host_subtable(parts: list[str]) -> bool:
+    """True for a section a host writes under a template-owned table."""
+    return len(parts) >= 2 and parts[1] in HOST_SUBTABLES.get(parts[0], set())
+
+
+def owned_view(name: str, value):
+    """The template-owned part of a host table, with host subtables removed."""
+    if isinstance(value, dict) and name in HOST_SUBTABLES:
+        return {key: item for key, item in value.items() if key not in HOST_SUBTABLES[name]}
+    return value
+
+
+def split_sections(text: str) -> tuple[str, list[tuple[list[str], str]]]:
+    """Split TOML text into its root text and top-level (key components, text) sections."""
     root: list[str] = []
-    sections: list[tuple[str, list[str]]] = []
+    sections: list[tuple[list[str], list[str]]] = []
     for line in text.splitlines(keepends=True):
         header = HEADER.match(line)
         if header and not line.lstrip().startswith("#"):
-            sections.append((first_component(header.group("key")), [line]))
+            sections.append((components(header.group("key")), [line]))
         elif sections:
             sections[-1][1].append(line)
         else:
             root.append(line)
-    return "".join(root), [(name, "".join(lines)) for name, lines in sections]
+    return "".join(root), [(parts, "".join(lines)) for parts, lines in sections]
 
 
 def load(path: str) -> tuple[str, dict]:
@@ -81,8 +111,8 @@ def merge(template_path: str, host_path: str | None) -> str:
         host_text, _ = load(host_path)
         owned = template_owned(template)
         _, sections = split_sections(host_text)
-        for name, text in sections:
-            if name in owned:
+        for parts, text in sections:
+            if parts[0] in owned and not host_subtable(parts):
                 continue
             output += "\n" + text.strip("\n") + "\n"
     try:
@@ -90,7 +120,7 @@ def merge(template_path: str, host_path: str | None) -> str:
     except tomllib.TOMLDecodeError as error:
         raise SystemExit(f"reconcile-codex-config: reconciled config does not parse: {error}")
     for key, value in template.items():
-        if result.get(key) != value:
+        if owned_view(key, result.get(key)) != value:
             raise SystemExit(f"reconcile-codex-config: host state overrode template key {key}")
     return output
 
@@ -98,7 +128,7 @@ def merge(template_path: str, host_path: str | None) -> str:
 def check(template_path: str, host_path: str) -> int:
     _, template = load(template_path)
     _, host = load(host_path)
-    drifted = [key for key, value in template.items() if host.get(key) != value]
+    drifted = [key for key, value in template.items() if owned_view(key, host.get(key)) != value]
     if drifted:
         print(f"reconcile-codex-config: template-owned keys drifted: {', '.join(drifted)}", file=sys.stderr)
         return 1
