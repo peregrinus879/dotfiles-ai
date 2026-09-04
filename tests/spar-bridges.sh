@@ -7,9 +7,9 @@
 set -euo pipefail
 
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-CLAUDE_BRIDGE="$ROOT/claude-code/.local/bin/spar-claude"
-CODEX_BRIDGE="$ROOT/codex/.local/bin/spar-codex"
-SCANNER="$ROOT/claude-code/.local/bin/spar-payload-scan"
+CLAUDE_BRIDGE="$ROOT/agents/.agents/skills/spar/scripts/spar-claude"
+CODEX_BRIDGE="$ROOT/agents/.agents/skills/spar/scripts/spar-codex"
+SCANNER="$ROOT/agents/.agents/skills/spar/scripts/spar-payload-scan"
 TMP=$(mktemp -d)
 mkdir -p "$HOME/.cache"
 HOMEBOX=$(mktemp -d -p "$HOME/.cache" eyragents-tests.XXXXXX)

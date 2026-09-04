@@ -66,8 +66,7 @@ for dependency in codex git jq realpath timeout; do
   outside_temp "$resolved" || abort "$dependency resolves under a temp root: $resolved"
 done
 script=$(realpath -e -- "${BASH_SOURCE[0]}") || abort "cannot resolve the bridge source"
-scanner=$(realpath -e -- "$(dirname -- "$script")/../../../claude-code/.local/bin/spar-payload-scan") ||
-  abort "cannot resolve spar-payload-scan"
+scanner=$(realpath -e -- "$(dirname -- "$script")/spar-payload-scan") || abort "cannot resolve spar-payload-scan"
 reviewer=$(realpath -e -- "$(command -v codex)") || abort "cannot resolve the codex runtime"
 [[ $reviewer != *'"'* && $reviewer != *\\* && $reviewer != *[[:cntrl:]]* ]] ||
   abort "the codex runtime path cannot be represented safely in the reviewer profile"

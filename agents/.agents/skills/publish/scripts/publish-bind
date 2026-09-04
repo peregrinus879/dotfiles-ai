@@ -21,6 +21,7 @@
 set -euo pipefail
 
 record_root=${EYRAGENTS_RECORD_ROOT:-/tmp/eyragents-$(id -u)}
+scanner=$(dirname -- "$(realpath -e -- "${BASH_SOURCE[0]}")")/../../spar/scripts/spar-payload-scan
 usage() {
   printf 'usage: publish-bind [--remote <remote> --branch <branch>] [<ref>]\n' >&2
   exit 64
@@ -79,8 +80,8 @@ while IFS=' ' read -r id author committer subject; do
 done < <(git log --reverse --format='%H %ae %ce %s' "$base..$reviewed")
 
 printf '== scans\n'
-if git diff "$base" "$reviewed" | spar-payload-scan diff; then printf 'flat diff: accepted\n'; else printf 'flat diff: FINDING\n'; status=2; fi
-if git log -p --format= "$base..$reviewed" | spar-payload-scan diff; then printf 'per-commit patches: accepted\n'; else printf 'per-commit patches: FINDING\n'; status=2; fi
+if git diff "$base" "$reviewed" | "$scanner" diff; then printf 'flat diff: accepted\n'; else printf 'flat diff: FINDING\n'; status=2; fi
+if git log -p --format= "$base..$reviewed" | "$scanner" diff; then printf 'per-commit patches: accepted\n'; else printf 'per-commit patches: FINDING\n'; status=2; fi
 
 printf '== also published\n'
 hooks=$(find "$(git rev-parse --git-path hooks)" -maxdepth 1 -type f ! -name '*.sample' -printf '%f ' 2>/dev/null || true)

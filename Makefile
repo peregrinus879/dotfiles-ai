@@ -7,9 +7,8 @@ SHELL := /bin/bash
 PACKAGES := agents claude-code codex opencode
 STOW := stow --no-folding --ignore='__pycache__' -t ~
 SHELLCHECK_FILES := claude-code/.claude/statusline.sh \
-  templates/hooks/commit-gate $(wildcard agents/.local/bin/*) \
-  claude-code/.local/bin/spar-claude \
-  codex/.local/bin/spar-codex \
+  templates/hooks/commit-gate \
+  $(filter-out %/spar-payload-scan,$(wildcard agents/.agents/skills/*/scripts/*)) \
   $(wildcard scripts/*.sh tests/*.sh)
 
 .PHONY: help stow unstow dry-run restow require-clone install-gate migrate-codex-config lint test check verify-deploy verify clean
@@ -72,7 +71,7 @@ migrate-codex-config:
 lint:
 	shellcheck -s bash $(SHELLCHECK_FILES)
 	python3 -I -c 'import sys; [compile(open(p, "rb").read(), p, "exec") for p in sys.argv[1:]]' \
-	  claude-code/.local/bin/spar-payload-scan scripts/reconcile-codex-config.py tests/config-contracts.py
+	  agents/.agents/skills/spar/scripts/spar-payload-scan scripts/reconcile-codex-config.py tests/config-contracts.py
 	node --check opencode/.config/opencode/plugins/commit-gate.js
 	@echo "ok:   lint"
 
@@ -141,8 +140,9 @@ verify-deploy:
 	  if [[ ! -e $$target && ! -L $$target ]]; then :; \
 	  else echo "FAIL: generated OpenCode state reached the package source: $$target"; fail=1; fi; \
 	done; \
-	for b in spar-claude spar-codex spar-payload-scan; do \
-	  if [[ -x "$$HOME/.local/bin/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
+	for b in spar-claude spar-codex spar-payload-scan commit-candidate commit-apply publish-bind publish-verify; do \
+	  skill=spar; [[ $$b == commit-* ]] && skill=commit; [[ $$b == publish-* ]] && skill=publish; \
+	  if [[ -x "$$HOME/.agents/skills/$$skill/scripts/$$b" ]]; then echo "ok:   $$b executable"; else echo "FAIL: $$b missing or not executable"; fail=1; fi; \
 	done; \
 	if [[ -f "$(GATE)" && ! -L "$(GATE)" && -x "$(GATE)" ]] && cmp -s templates/hooks/commit-gate "$(GATE)"; then \
 	  echo "ok:   installed commit gate matches templates/hooks/commit-gate"; \

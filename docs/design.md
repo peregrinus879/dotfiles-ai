@@ -20,7 +20,7 @@ A second opinion is worth most when it comes from a different model family that 
 
 ## One neutral source
 
-Guidance and skills live once, under `~/.agents`, the home of the Agent Skills format. Each tool reads through its own mechanism: a rules symlink and skill symlinks for Claude Code, a global instructions symlink and native discovery for Codex, a config entry and a skill path for OpenCode. Adding a tool means adding a package of symlinks, and a tool adopting the standard means deleting one.
+Guidance and skills live once, under `~/.agents`, the home of the Agent Skills format. Each tool reads through its own mechanism, and each tool-side file carries the name that tool documents: Claude Code's user instruction file and skill entries hold symlinks, Codex's global instructions file is a symlink and its skill discovery is native, OpenCode's config names the guidance and the skills path. Skill executables live in each skill's `scripts/` directory, where the Agent Skills specification puts them. Adding a tool means adding a package of symlinks, and a tool adopting the standard means deleting one.
 
 ## The gate contract
 

@@ -6,7 +6,7 @@ One policy, one workflow, three coding agents. EyrAgents is a personal harness t
 
 - **Shared guidance.** One markdown policy that every tool loads at session start: how to work, what needs approval, and what never happens without an explicit instruction. It lives once under `~/.agents`, and each tool reads it through its own mechanism.
 - **Two interventions per change.** The `commit` skill runs the repository's gates and asks for approval of one exact staged candidate; the `publish` skill reviews what a push would expose, hands over the push command, and verifies the result afterwards. Everything in between is automatic.
-- **Skills in the open format.** The workflows are [Agent Skills](https://agentskills.io) `SKILL.md` files, written once under `~/.agents`; Codex and OpenCode read them there, and Claude Code through symlinks until it reads the standard's home itself.
+- **Skills in the open format.** The workflows are [Agent Skills](https://agentskills.io) `SKILL.md` files with their executables in `scripts/`, written once under `~/.agents`; Codex and OpenCode read them there, and Claude Code through symlinks until it reads the standard's home itself.
 - **A safety posture per tool.** Deterministic denies plus an auto-mode classifier for Claude Code, a root-denied sandbox for Codex, and guardrail rules for OpenCode, all aligned on one list of credential stores and Git internals.
 - **Cross-vendor review.** Read-only, offline reviewer bridges let Claude Code ask Codex, and OpenCode ask Claude, for a second opinion with no write, web, or network surface.
 - **Deployment you can verify.** `make stow` deploys, `make verify` proves that every link resolves and that the host Codex config carries the template's boundaries, and CI runs the repository checks on every push.
@@ -15,7 +15,7 @@ One policy, one workflow, three coding agents. EyrAgents is a personal harness t
 
 | Tool | More | What it reads from this repository |
 |---|---|---|
-| [Claude Code](https://code.claude.com/docs/en/overview) | [github.com/anthropics/claude-code](https://github.com/anthropics/claude-code) | `~/.claude/settings.json`, `~/.claude/rules/`, `~/.claude/skills/`, and the status line script |
+| [Claude Code](https://code.claude.com/docs/en/overview) | [github.com/anthropics/claude-code](https://github.com/anthropics/claude-code) | `~/.claude/CLAUDE.md`, `~/.claude/settings.json`, `~/.claude/skills/`, `~/.claude/agents/`, and the status line script |
 | [Codex](https://learn.chatgpt.com/codex) | [github.com/openai/codex](https://github.com/openai/codex) | `~/.codex/AGENTS.md`, `~/.agents/skills/`, and a host-local `~/.codex/config.toml` installed from the tracked template |
 | [OpenCode](https://opencode.ai/docs) | [github.com/anomalyco/opencode](https://github.com/anomalyco/opencode) | `~/.config/opencode/opencode.json`, whose `instructions` and `skills.paths` entries point at `~/.agents`, plus `tui.json`, the slash commands, the plugin, and the reviewer agent |
 
@@ -49,19 +49,20 @@ Each path inside a package mirrors its path under `~`; Stow links every leaf fil
 eyragents/
 ├── agents/.agents/                       # tool-neutral source package, deployed to ~/.agents
 │   ├── shared-guidance.md                # canonical cross-tool policy
-│   ├── skills/{commit,publish,spar}/SKILL.md   # canonical skills; Codex reads them here
-│   └── ../.local/bin/{commit-candidate,commit-apply,publish-bind,publish-verify}   # the procedure behind the skills
+│   ├── skills/{commit,publish,spar}/SKILL.md   # canonical skills; Codex and OpenCode read them here
+│   ├── skills/commit/scripts/{commit-candidate,commit-apply}   # the procedure behind the commit skill
+│   ├── skills/publish/scripts/{publish-bind,publish-verify}   # the procedure behind the publish skill
+│   └── skills/spar/scripts/{spar-claude,spar-codex,spar-payload-scan}   # reviewer bridges and the payload scanner
 ├── claude-code/                          # Claude Code package
 │   ├── .claude/
-│   │   ├── rules/shared-guidance.md      # symlink to the shared guidance
+│   │   ├── CLAUDE.md                     # user instructions: symlink to the shared guidance
 │   │   ├── skills/{commit,publish,spar}/SKILL.md   # symlinks to the canonical skills
+│   │   ├── skills/{commit,publish,spar}/scripts/*   # symlinks to the skill scripts
 │   │   ├── agents/reviewer.md            # read-only same-vendor reviewer
 │   │   ├── settings.json                 # permissions, auto-mode rules, attribution, and the commit-gate hook
 │   │   └── statusline.sh
-│   └── .local/bin/{spar-claude,spar-payload-scan}   # Claude reviewer bridge and payload scanner
 ├── codex/                                # Codex package
-│   ├── .codex/AGENTS.md                  # symlink to the shared guidance
-│   └── .local/bin/spar-codex             # Codex reviewer bridge
+│   └── .codex/AGENTS.md                  # global instructions: symlink to the shared guidance
 ├── opencode/.config/opencode/            # OpenCode package
 │   ├── opencode.json                     # permissions, models, the shared guidance path, and the skills path
 │   ├── tui.json
@@ -155,7 +156,7 @@ OpenCode has no untrusted mode: `OPENCODE_DISABLE_PROJECT_CONFIG=1 OPENCODE_DISA
 
 - `commit` runs the repository's gates, records the candidate with `commit-candidate`, presents it with its tree id and gate report, and commits it verbatim with `commit-apply` only after approval; `commit-gate`, a pre-tool hook in all three tools, denies every `git commit` a tool runs, so nothing but the recorded candidate can be committed. When the request is done it hands off to `publish`.
 - `publish` binds the push with `publish-bind`, which reviews the commits between the destination's tracking ref and the reviewed commit, scans them, and prints the command with a lease bound to both ends; after the user's push, `publish-verify` confirms the destination and, where the repository defines `verify-published`, the published state.
-- `spar` runs an optional read-only cross-model review of a plan, diff, or decision: `spar-<reviewer> review "<request>" <artifact>...` from the repository. Claude Code reviews with `spar-codex`, OpenCode with `spar-claude`, and a Codex session hands the request to the user because its profile cannot launch the bridge. Consult the maintenance ledger for active bridge availability.
+- `spar` runs an optional read-only cross-model review of a plan, diff, or decision: `~/.agents/skills/spar/scripts/spar-<reviewer> review "<request>" <artifact>...` from the repository. Claude Code reviews with `spar-codex`, OpenCode with `spar-claude`, and a Codex session hands the request to the user because its profile cannot launch the bridge. Consult the maintenance ledger for active bridge availability.
 
 The skills read a target contract instead of per-repository rules. `lint` and `check` are the repository checks, safe anywhere and run by CI; `restow` and `verify` are the host verification, refusing on the wrong host or clone; `verify-published` runs after a push, waits for the deployment, and compares the published commit with the pushed one. Make targets and npm scripts of the same names are equivalent, and a repository declares a gate by defining it.
 

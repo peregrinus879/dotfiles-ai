@@ -22,6 +22,7 @@
 set -euo pipefail
 
 record_root=${EYRAGENTS_RECORD_ROOT:-/tmp/eyragents-$(id -u)}
+scanner=$(dirname -- "$(realpath -e -- "${BASH_SOURCE[0]}")")/../../spar/scripts/spar-payload-scan
 
 usage() {
   printf 'usage: commit-candidate [--message-file FILE] -- <path>... | --show | --clear\n' >&2
@@ -103,7 +104,7 @@ printf '%s\n' "$message" >"$record_dir/message"
 printf 'toplevel=%s\nbranch=%s\nparent=%s\ntree=%s\nemail=%s\nrecorded=%s\n' \
   "$toplevel" "$branch" "$parent" "$tree" "$email" "$(date -u +%FT%TZ)" >"$record_dir/record"
 
-if ! git diff --cached | spar-payload-scan diff; then
+if ! git diff --cached | "$scanner" diff; then
   rm -f -- "$record_dir/record" "$record_dir/message"
   fail 'the payload scanner rejected the staged diff; resolve the finding, never stage around it' 2
 fi

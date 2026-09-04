@@ -12,7 +12,7 @@ set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT
-export PATH="$ROOT/templates/hooks:$ROOT/agents/.local/bin:$ROOT/claude-code/.local/bin:$PATH"
+export PATH="$ROOT/templates/hooks:$ROOT/agents/.agents/skills/commit/scripts:$ROOT/agents/.agents/skills/publish/scripts:$PATH"
 export EYRAGENTS_RECORD_ROOT="$TMP/records"
 export GIT_CONFIG_GLOBAL="$TMP/gitconfig" GIT_CONFIG_NOSYSTEM=1
 git config --file "$GIT_CONFIG_GLOBAL" alias.ci commit
