@@ -43,6 +43,7 @@ Unresolved decisions, deferred work, active limitations, and the dated evidence 
 - Run `/fewer-permission-prompts` against accumulated host transcripts and promote only durable read-only rules; keep `gh api` excluded.
 - Revisit native cross-model review when a managed tool offers a read-only cross-vendor path under subscription authentication.
 - Keep Codex-to-Claude review manual outside the strict Codex profile until its root-denied permissions can grant the Claude runtime and state without weakening the primary sandbox.
+- File the two Codex sandbox limits upstream at openai/codex when H decides: a glob under a temp root fails the sandbox with "ripgrep unreadable glob scan failed for /tmp" on the root-owned `systemd-private-*` entries, and `~/Projects/**/.npmrc` stalls startup by matching inside `node_modules` trees. The reproductions are in the Codex sandbox item under Active Limitations; the agent drafts the reports on request and H posts them, since filing is externally visible.
 
 ## Revalidation Triggers
 
