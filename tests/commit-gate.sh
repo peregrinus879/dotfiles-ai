@@ -105,6 +105,13 @@ if printf 'feat: session\n\nClaude-Session: https://claude.ai/code/session_x\n\n
   fail 'candidate accepted session metadata'
 fi
 [[ -z $(git diff --cached --name-only) ]] || fail 'a rejected message staged files'
+# A symlink is its own index entry and is named by its own path, not its target's.
+ln -s b.txt link.txt
+printf 'feat: add link\n\n%s\n' "$trailer" | commit-candidate -- link.txt >/dev/null || fail 'candidate refused a symlink named by its own path'
+[[ $(git diff --cached --name-only) == link.txt ]] || fail 'candidate staged something other than the link'
+commit-candidate --clear >/dev/null
+git reset -q link.txt
+rm link.txt
 message=$(printf 'feat: add b\n\n# A line that looks like a comment stays.\nBody line.\n\n%s' "$trailer")
 out=$(printf '%s\n' "$message" | commit-candidate -- b.txt) || fail 'candidate failed'
 grep -q '^tree=' <<<"$out" || fail 'candidate printed no tree'

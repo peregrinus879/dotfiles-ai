@@ -9,9 +9,10 @@
 # second line, a Co-Authored-By trailer with a vendor no-reply address, and no
 # session metadata. The script then confirms the Git identity is a GitHub
 # no-reply address, refuses an index that already holds changes outside the
-# named paths, stages exactly those paths, runs the payload scanner over the
-# staged diff, screens added lines for machine and user identifiers, and
-# records the candidate (tree, parent, branch, message) under the record root.
+# named paths, stages exactly those paths, named as Git names them so a symlink
+# is its own entry, runs the payload scanner over the staged diff, screens added
+# lines for machine and user identifiers, and records the candidate (tree,
+# parent, branch, message) under the record root.
 # commit-apply commits it verbatim, and commit-gate denies every other `git
 # commit`. The output carries the packet inputs.
 #
@@ -80,7 +81,7 @@ branch=$(git branch --show-current)
 git rev-parse --verify -q HEAD >/dev/null || fail 'the repository has no commits yet'
 
 intended=()
-for path in "$@"; do intended+=("$(realpath -m --relative-to="$toplevel" -- "$path")"); done
+for path in "$@"; do intended+=("$(realpath -m -s --relative-to="$toplevel" -- "$path")"); done
 covered() {
   local staged=$1 path
   for path in "${intended[@]}"; do
