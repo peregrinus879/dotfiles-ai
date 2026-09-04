@@ -293,6 +293,11 @@ brief=$(<"$TMP/art/brief-wt.md")
   fail "review-brief worktree brief or --gate selection is wrong"
 [[ $brief == *'- nosuch: absent (no such target)'* ]] || fail "review-brief did not report a missing gate target as absent"
 
+run_brief --intent "$TMP/art/intent.md" --out "$TMP/art/brief-plan.md" --plan --gate lint
+brief=$(<"$TMP/art/brief-plan.md")
+[[ $BRIEF_RC == 0 && $brief == *'## Change: none, plan review'* && $brief == *'- lint: ok'* && $brief == *'carries changes beyond HEAD'* && $brief != *'Stat:'* ]] ||
+  fail "review-brief plan mode is wrong: $(<"$TMP/brief.err")"
+
 run_brief --intent "$TMP/art/intent.md" --out "$brepo/brief-in-repo.md" --no-gates
 [[ $BRIEF_RC == 0 && -f $brepo/brief-in-repo.md ]] || fail "review-brief refused an output under the repository: $(<"$TMP/brief.err")"
 run_brief --intent "$TMP/art/intent.md" --out "$brepo/brief-in-repo.md" --no-gates

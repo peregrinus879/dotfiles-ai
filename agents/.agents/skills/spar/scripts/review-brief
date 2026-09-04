@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # review-brief - assemble the artifact a reviewer reads, from evidence, not claims.
 #
-# Usage: review-brief --intent FILE --out FILE [--staged | --worktree | --range BASE..TIP]
+# Usage: review-brief --intent FILE --out FILE [--staged | --worktree | --range BASE..TIP | --plan]
 #                     [--gate TARGET]... [--no-gates]
 #
 # Runs inside a repository and writes one Markdown artifact that both the spar
@@ -12,9 +12,10 @@
 # other targets or --no-gates skips them, with a missing Makefile or target
 # reported as such and a failure's last lines quoted; and the change under
 # review with its stat: the index against HEAD by default, the working tree
-# against HEAD with --worktree, or the commits and diff of a range. The gates
-# run on the working tree, and the brief says whether that tree equals the
-# index or the tip under review. The artifact is scanned before it is kept: a
+# against HEAD with --worktree, the commits and diff of a range, or none with
+# --plan, for a plan reviewed before any diff exists. The gates run on the
+# working tree, and the brief says whether that tree equals the index, the tip
+# under review, or HEAD. The artifact is scanned before it is kept: a
 # credential-shaped value anywhere in it, a sensitive path in the diff, or a
 # size, binary, or encoding limit of the scanner deletes it and fails. The
 # output must be a new file under the repository or under /tmp or /var/tmp,
@@ -26,7 +27,7 @@
 set -euo pipefail
 
 usage() {
-  printf 'usage: review-brief --intent FILE --out FILE [--staged | --worktree | --range BASE..TIP] [--gate TARGET]... [--no-gates]\n' >&2
+  printf 'usage: review-brief --intent FILE --out FILE [--staged | --worktree | --range BASE..TIP | --plan] [--gate TARGET]... [--no-gates]\n' >&2
   exit 64
 }
 fail() {
@@ -43,6 +44,7 @@ while (($#)); do
     --staged) mode=staged; shift ;;
     --worktree) mode=worktree; shift ;;
     --range) [[ $# -ge 2 ]] || usage; mode=range; range=$2; shift 2 ;;
+    --plan) mode=plan; shift ;;
     --gate) [[ $# -ge 2 ]] || usage; gates+=("$2"); shift 2 ;;
     --no-gates) no_gates=1; shift ;;
     *) usage ;;
@@ -116,6 +118,11 @@ case $mode in
     stat=$(git diff --stat "$base" "$tip")
     diff=$(git diff --no-ext-diff --no-color "$base" "$tip")
     ;;
+  plan)
+    title='none, plan review'
+    stat=""
+    diff=""
+    ;;
 esac
 
 # The gates, run rather than reported. They run on the working tree, so the
@@ -126,6 +133,10 @@ case $mode in
     else tree_note='the working tree, which differs from the index: the results cover a superset of the change'; fi
     ;;
   worktree) tree_note='the working tree, the change under review' ;;
+  plan)
+    if git diff --quiet && git diff --cached --quiet; then tree_note='the working tree, which equals HEAD'
+    else tree_note='the working tree, which carries changes beyond HEAD'; fi
+    ;;
   range)
     if [[ $(git rev-parse "$tip^{commit}") == "$(git rev-parse HEAD)" ]] && git diff --quiet && git diff --cached --quiet; then
       tree_note="the working tree, which equals the tip $tip"
@@ -168,11 +179,15 @@ trap 'rm -f -- "$draft"' EXIT
   if [[ -n $status ]]; then printf -- '- status:\n%s\n%s\n%s\n' "$fence" "$status" "$fence"; else printf -- '- status: clean\n'; fi
   printf '\n## Gates\n\n%s\n' "$gate_report"
   printf '\n## Change: %s\n\n' "$title"
-  [[ -z $log ]] || printf 'Commits:\n%s\n%s\n%s\n\n' "$fence" "$log" "$fence"
-  printf 'Stat:\n%s\n%s\n%s\n\n%sdiff\n%s\n%s\n' "$fence" "$stat" "$fence" "$fence" "$diff" "$fence"
+  if [[ $mode == plan ]]; then
+    printf 'The plan is the intent above; no diff exists yet.\n'
+  else
+    [[ -z $log ]] || printf 'Commits:\n%s\n%s\n%s\n\n' "$fence" "$log" "$fence"
+    printf 'Stat:\n%s\n%s\n%s\n\n%sdiff\n%s\n%s\n' "$fence" "$stat" "$fence" "$fence" "$diff" "$fence"
+  fi
 } >"$draft"
 "$scanner" reply <"$draft" >/dev/null || fail 'the payload scanner rejected the brief (its diagnostic precedes this line); nothing was kept' 2
-printf '%s\n' "$diff" | "$scanner" diff >/dev/null || fail 'the payload scanner rejected the diff (its diagnostic precedes this line); nothing was kept' 2
+[[ $mode == plan ]] || printf '%s\n' "$diff" | "$scanner" diff >/dev/null || fail 'the payload scanner rejected the diff (its diagnostic precedes this line); nothing was kept' 2
 mv -- "$draft" "$out"
 trap - EXIT
 size=$(wc -c <"$out")
