@@ -30,6 +30,7 @@ Unresolved decisions, deferred work, active limitations, and the dated evidence 
   - Report `claude --version`, `codex --version`, and `stat -c '%a %h' ~/.codex/config.toml`, then remove this item.
 - Rename the skills with an `eyr` prefix so they cannot collide with built-in or plugin commands; the form is undecided, H preferring the joined `eyrcommit` over `eyr-commit`. The rename touches the skill directories in the `agents` package and their Claude Code and OpenCode symlinks, the OpenCode command wrappers, the Codex template read grants, the `tests/prepare-stow.sh` fixture, and every cross-reference; deploy with `make clean`, `make restow`, and `make verify`, then remove the emptied skill directories under `$HOME`.
 - Give omasecboot a `check` target that runs `test`, so the gate contract covers it; wait until H's current work there is done.
+- Move the remaining shared executables to the neutral home the way the gate moved: `spar-payload-scan` and the two bridges live in the Claude Code and Codex packages but serve every tool, so they belong in the `agents` package; decide with that whether executables stay in `~/.local/bin`, which is on PATH, or `~/.agents/bin` joins PATH through the sibling shells.
 - Run `/fewer-permission-prompts` against accumulated host transcripts and promote only durable read-only rules; keep `gh api` excluded.
 - Run fresh primary external-read canaries for Claude Code and Codex when each tool is next started.
 - Revisit native cross-model review when a managed tool offers a read-only cross-vendor path under subscription authentication.
@@ -38,6 +39,7 @@ Unresolved decisions, deferred work, active limitations, and the dated evidence 
 ## Revalidation Triggers
 
 - When a Claude Code release reads `AGENTS.md` or `~/.agents/skills` natively (announced by Anthropic in late August 2026 as "more hackable", without a date): run `/context` and `/skills` for a guidance file loaded twice or duplicate skill entries, then remove the root `CLAUDE.md` import shim or the `claude-code/.claude/skills` symlinks accordingly.
+- In the first Codex session and the first OpenCode session on each host after the commit gate landed: ask the tool to run a plain `git commit` and expect the denial. The fixture test proves the hook command, payload, and plugin call, not the vendor's own dispatch of them; record the result here and remove this item.
 - Routine client releases need no ledger update; revalidate when a dependent interface, permission rule, temp root, matcher, model catalog, or observed behavior changes. Evidence uses `claude --version` and `mise ls --current` so stateful wrappers are not invoked.
 - Re-run `make check` after changing a bridge, the scanner, a permission profile, or their runtime dependencies; re-run one live review per bridge after changing reviewer flags or when `claude -p` or `codex exec` behavior changes.
 - Re-run the Codex root-deny, workspace, network, plugin-isolation, and resumed-session checks after changing its permission profile or runtime boundaries.

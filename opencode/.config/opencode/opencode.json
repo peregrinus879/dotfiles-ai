@@ -3,9 +3,13 @@
   "share": "disabled",
   "autoupdate": false,
   "model": "openai/gpt-5.6-sol-fast",
-  "enabled_providers": ["openai"],
+  "enabled_providers": [
+    "openai"
+  ],
   "skills": {
-    "paths": ["~/.claude/skills/omarchy"]
+    "paths": [
+      "~/.claude/skills/omarchy"
+    ]
   },
   "permission": {
     "bash": {
@@ -101,7 +105,8 @@
       ".env": "deny",
       ".env.*": "deny",
       ".git/**": "deny",
-      "secrets/**": "deny"
+      "secrets/**": "deny",
+      "**/.agents/hooks/**": "deny"
     },
     "external_directory": {
       "*": "ask",
@@ -135,7 +140,8 @@
       "**/.local/share/opencode/**": "deny",
       "**/.mozilla/**": "deny",
       "**/.ssh/**": "deny",
-      "**/secrets/**": "deny"
+      "**/secrets/**": "deny",
+      "~/.agents/hooks/**": "deny"
     },
     "read": {
       "*": "allow",

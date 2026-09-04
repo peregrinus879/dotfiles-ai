@@ -49,12 +49,13 @@ Each path inside a package mirrors its path under `~`; Stow links every leaf fil
 eyragents/
 ├── agents/.agents/                       # tool-neutral source package, deployed to ~/.agents
 │   ├── shared-guidance.md                # canonical cross-tool policy
-│   └── skills/{commit,publish,spar}/SKILL.md   # canonical skills; Codex reads them here
+│   ├── skills/{commit,publish,spar}/SKILL.md   # canonical skills; Codex reads them here
+│   └── ../.local/bin/{commit-candidate,commit-apply,publish-bind,publish-verify}   # the procedure behind the skills
 ├── claude-code/                          # Claude Code package
 │   ├── .claude/
 │   │   ├── rules/shared-guidance.md      # symlink to the shared guidance
 │   │   ├── skills/{commit,publish,spar}/SKILL.md   # symlinks to the canonical skills
-│   │   ├── settings.json                 # permissions and auto-mode rules
+│   │   ├── settings.json                 # permissions, auto-mode rules, and the commit-gate hook
 │   │   └── statusline.sh
 │   └── .local/bin/{spar-claude,spar-payload-scan}   # Claude reviewer bridge and payload scanner
 ├── codex/                                # Codex package
@@ -64,8 +65,10 @@ eyragents/
 │   ├── opencode.json                     # permissions, model, and the shared guidance path
 │   ├── tui.json
 │   ├── commands/{commit,publish,spar}.md # slash commands that load the skills
+│   ├── plugins/commit-gate.js            # runs commit-gate before every bash tool call
 │   └── skills/{commit,publish,spar}/SKILL.md   # symlinks to the canonical skills
 ├── templates/codex/config.toml           # portable Codex profile, installed host-locally by make stow
+├── templates/hooks/commit-gate           # the commit gate, installed as a real file at ~/.agents/hooks by make stow
 ├── references.txt                        # reference clone the ledger's source checks read; the siblings' make refs keeps it
 ├── scripts/                              # link cleanup and Codex config reconciliation
 ├── tests/                                # configuration, bridge, statusline, and preparation checks
@@ -96,7 +99,7 @@ The `spar` workflow uses subscription-authenticated, read-only cross-vendor revi
 ### Prerequisites
 
 - Git and GNU Stow
-- jq and Python
+- jq, Python, and Node.js
 - ShellCheck
 - GNU coreutils and util-linux (`setsid`)
 - Claude Code, Codex, and OpenCode installed where the Codex sandbox can execute them: through [mise](https://mise.jdx.dev) on Omarchy (`~/.local/share/mise`), and through the official Arch packages plus the Claude Code installer under `~/.claude/bin` on WSL
@@ -128,7 +131,7 @@ make unstow    # remove package links
 
 Stow runs without directory folding, so `~/.claude`, `~/.config/opencode`, and the other managed parents stay real directories that tools may write into. Stow reports any conflicting regular file without changing it; reconcile it explicitly.
 
-`make stow` and `make restow` also install `~/.codex/config.toml` from `templates/codex/config.toml` as a host-local file. The template owns the model, review, feature, and permission settings; tables that Codex or the desktop app add (projects, plugins, MCP servers, desktop state) are preserved across reconciliations.
+`make stow` and `make restow` also install `templates/hooks/commit-gate` as a real file under `~/.agents/hooks`, outside every workspace because the hooks run it outside the Codex sandbox, and install `~/.codex/config.toml` from `templates/codex/config.toml` as a host-local file. The template owns the model, review, feature, and permission settings; tables that Codex or the desktop app add (projects, plugins, MCP servers, desktop state) are preserved across reconciliations.
 
 When moving clones, run `make unstow` in the old clone and `make stow` in the new clone. If the old clone is unavailable, `make stow` from the new clone removes the dangling links first.
 
@@ -148,8 +151,8 @@ OpenCode has no untrusted mode: `OPENCODE_DISABLE_PROJECT_CONFIG=1 OPENCODE_DISA
 
 ## Workflows
 
-- `commit` runs the repository's gates, stages the intended paths, presents the staged candidate with its tree id and gate report, and commits only after approval; when the request is done it hands off to `publish`.
-- `publish` reviews the commits between the destination's tracking ref and the reviewed commit, scans them, binds the push to both ends with a lease before a push, release, or pull request is presented as ready, and after the user's push confirms the destination and, where the repository defines `verify-published`, the published state.
+- `commit` runs the repository's gates, records the candidate with `commit-candidate`, presents it with its tree id and gate report, and commits it verbatim with `commit-apply` only after approval; `commit-gate`, a pre-tool hook in all three tools, denies every `git commit` a tool runs, so nothing but the recorded candidate can be committed. When the request is done it hands off to `publish`.
+- `publish` binds the push with `publish-bind`, which reviews the commits between the destination's tracking ref and the reviewed commit, scans them, and prints the command with a lease bound to both ends; after the user's push, `publish-verify` confirms the destination and, where the repository defines `verify-published`, the published state.
 - `spar` runs an optional read-only cross-model review of a plan, diff, or decision: `spar-<reviewer> review "<request>" <artifact>...` from the repository. Claude Code reviews with `spar-codex`, OpenCode with `spar-claude`, and a Codex session hands the request to the user because its profile cannot launch the bridge. Consult the maintenance ledger for active bridge availability.
 
 The skills read a target contract instead of per-repository rules. `lint` and `check` are the repository checks, safe anywhere and run by CI; `restow` and `verify` are the host verification, refusing on the wrong host or clone; `verify-published` runs after a push, waits for the deployment, and compares the published commit with the pushed one. Make targets and npm scripts of the same names are equivalent, and a repository declares a gate by defining it.

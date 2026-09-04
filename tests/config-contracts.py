@@ -231,4 +231,43 @@ for path in ("/tmp*", "/tmp/*", "/tmp/**"):
 require("agent" not in opencode, "OpenCode agent overrides bypass global policy")
 load_json("opencode/.config/opencode/tui.json")
 
+
+# Commit gate: every tool runs commit-gate before a shell command.
+claude = load_json("claude-code/.claude/settings.json")
+gate_hooks = [
+    hook["command"]
+    for entry in claude.get("hooks", {}).get("PreToolUse", [])
+    if entry.get("matcher") == "Bash"
+    for hook in entry.get("hooks", [])
+    if hook.get("type") == "command"
+]
+require(any(command.endswith(".agents/hooks/commit-gate") for command in gate_hooks), "Claude Code does not run the installed commit-gate before Bash")
+require(not any("\"if\"" in json.dumps(entry) for entry in claude.get("hooks", {}).get("PreToolUse", [])), "Claude Code narrows the gate hook with an if filter")
+require("Edit(~/.agents/hooks/**)" in claude["permissions"]["deny"], "Claude Code file tools may edit the installed commit gate")
+require(codex_template["features"].get("hooks") is True, "Codex hooks are not enabled, so commit-gate cannot run")
+codex_gate = [
+    hook["command"]
+    for entry in codex_template.get("hooks", {}).get("PreToolUse", [])
+    for hook in entry.get("hooks", [])
+    if hook.get("type") == "command"
+]
+require(any(command.endswith(".agents/hooks/commit-gate") for command in codex_gate), "Codex does not run the installed commit-gate before a tool call")
+require(edit_rules.get("**/.agents/hooks/**") == "deny", "OpenCode file tools may edit the installed commit gate")
+require(external_rules.get("~/.agents/hooks/**") == "deny", "OpenCode may reach the installed commit gate")
+require((ROOT / "opencode/.config/opencode/plugins/commit-gate.js").is_file(), "OpenCode commit-gate plugin is missing")
+for script in ("commit-candidate", "commit-apply", "publish-bind", "publish-verify"):
+    require(os.access(ROOT / "agents/.local/bin" / script, os.X_OK), f"gate script missing or not executable: {script}")
+require(os.access(ROOT / "templates/hooks/commit-gate", os.X_OK), "templates/hooks/commit-gate is missing or not executable")
+
+# Skills stay portable: the name matches the directory and only standard frontmatter fields appear.
+STANDARD_SKILL_FIELDS = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
+for skill_dir in sorted((ROOT / "agents/.agents/skills").iterdir()):
+    text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+    require(text.startswith("---\n"), f"skill has no frontmatter: {skill_dir.name}")
+    frontmatter = text.split("---\n", 2)[1]
+    fields = {line.split(":", 1)[0].strip(): line.split(":", 1)[1].strip() for line in frontmatter.splitlines() if ":" in line and not line.startswith(" ")}
+    require(fields.get("name") == skill_dir.name, f"skill name does not match its directory: {skill_dir.name}")
+    require(bool(fields.get("description")), f"skill lacks a description: {skill_dir.name}")
+    require(set(fields) <= STANDARD_SKILL_FIELDS, f"skill uses non-standard frontmatter fields: {skill_dir.name}: {set(fields) - STANDARD_SKILL_FIELDS}")
+
 print("ok: configuration authority boundaries")

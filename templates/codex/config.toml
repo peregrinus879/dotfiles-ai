@@ -14,8 +14,19 @@ Approve only actions necessary for H's requested work. For request_permissions, 
 
 [features]
 fast_mode = true
+hooks = true
 js_repl = false
 request_permissions_tool = true
+
+# The commit gate: every `git commit` must match the candidate commit-candidate
+# recorded. Hooks run outside the sandbox; project-local hooks load only in
+# trusted projects.
+[[hooks.PreToolUse]]
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "~/.agents/hooks/commit-gate"
+timeout = 30
 
 [agents]
 default_subagent_model = "gpt-5.6-sol"

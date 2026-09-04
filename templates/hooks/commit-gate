@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# commit-gate - PreToolUse hook: no tool ever creates a commit through Git.
+#
+# commit-apply is the only path to a commit; it commits the candidate
+# commit-candidate recorded and verifies the result, and the hook never sees
+# it as a Git command. Raw Git commands H wants run are H's own, through the
+# `!` prefix, outside the tools.
+#
+# The command text is scanned, not parsed, so it fails closed. Quotes,
+# backslash continuations, and escapes are normalized away first. Then every
+# `git` word, with any path prefix and any global options, followed on the
+# same line by a commit-producing subcommand (commit, merge or pull without
+# --ff-only, cherry-pick, rebase, revert, am, commit-tree, update-ref,
+# replace, filter-branch, stash beyond list and show, notes, fast-import), by
+# an alias whose definition contains one of them, by an inline `-c alias.`
+# definition, or by a subcommand that is not a literal word, anywhere in the
+# text including inside quotes, is denied, and so is any dashed executable
+# such as git-commit; every occurrence is checked, not just the first. What
+# the gate guarantees is that the intended branch advances only to the
+# recorded candidate; a script that hides a commit is outside its sight. A
+# false positive costs one rewritten command, or writing prose that mentions
+# such a command with the file tools instead of a shell heredoc; a miss would
+# cost the gate. The hook reads the JSON the tool sends on stdin (Claude Code
+# and Codex send the same shape; the OpenCode plugin mirrors it), prints the
+# hookSpecificOutput JSON on stdout, the reason on stderr, and exits 2 to
+# deny.
+#
+# `make stow` installs this file as a real copy under ~/.agents/hooks,
+# outside every workspace, and the hooks name that copy: a hook runs outside
+# the Codex sandbox, so its executable must not be writable from inside it.
+set -euo pipefail
+
+input=$(cat)
+command=$(jq -r '
+  if (.tool_input.command | type) == "array" then (.tool_input.command | join(" "))
+  else (.tool_input.command // .tool_input.cmd // "") end' <<<"$input" 2>/dev/null || true)
+[[ -n $command ]] || exit 0
+cwd=$(jq -r '.cwd // empty' <<<"$input" 2>/dev/null || true)
+cwd=${cwd:-$PWD}
+
+deny() {
+  jq -n --arg reason "$1" '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
+  printf 'commit-gate: %s\n' "$1" >&2
+  exit 2
+}
+
+# Normalize the shell-token tricks that split, quote, or continue a word:
+# quotes of every kind disappear, backslash-newline joins, and any escaped
+# character stands for itself. Variables and substitutions cannot be resolved
+# here, so a subcommand position that starts one is denied outright below.
+text=${command//\\$'\n'/ }
+text=$(printf '%s' "$text" | sed -E "s/\\$'/'/g; s/['\"]//g; s/\\\\(.)/\\1/g")
+
+producers='commit-tree|commit|merge|pull|cherry-pick|rebase|revert|am|update-ref|replace|filter-branch|stash|notes|fast-import'
+subcommands=$producers
+while read -r name value; do
+  if [[ $value =~ (^|[^[:alnum:]_-])($producers)([^[:alnum:]_-]|$) ]]; then
+    subcommands+="|${name#alias.}"
+  fi
+done < <(git -C "$cwd" config --get-regexp '^alias\.' 2>/dev/null || git config --get-regexp '^alias\.' 2>/dev/null || true)
+
+reason="commit-apply commits the recorded candidate, and raw Git commands are H's own through the ! prefix"
+boundary='(^|[^[:alnum:]_/.-])'
+prefix='([^[:space:]]*/)?'
+segment="[^;&|)"$'\n'"]*"
+
+# An inline alias definition can name any subcommand; no tool ever needs one.
+inline_alias="${boundary}${prefix}git${segment}[[:space:]]-c[[:space:]]*alias\\."
+if [[ $text =~ $inline_alias ]]; then
+  deny "an inline Git alias is never used by a tool: $reason"
+fi
+
+# The dashed executables behind every subcommand, such as git-commit on the exec path.
+dashed="${boundary}${prefix}git-(${producers})([^[:alnum:]_-]|$)"
+if [[ $text =~ $dashed ]]; then
+  deny "git-${BASH_REMATCH[3]} is never run by a tool: $reason"
+fi
+
+# A subcommand that is not a literal word (a variable, a substitution, a brace
+# expansion) cannot be checked, so it is denied. An option argument may span
+# several words, since quotes were stripped above; the match backtracks to the
+# subcommand.
+options="([ \t]+(-[Cc]|--git-dir|--work-tree|--namespace|--exec-path)[ \t]+[^[:space:]]+([ \t]+[^-[:space:]][^[:space:]]*)*|[ \t]+-[^[:space:]]+)*"
+opaque="${boundary}${prefix}git${options}[ \t]+[\$\`{]"
+if [[ $text =~ $opaque ]]; then
+  deny "a Git subcommand that is not a literal word is never run by a tool: $reason"
+fi
+
+pattern="${boundary}${prefix}git(${options})[ \t]+(${subcommands})([^[:alnum:]_-]|$)(${segment})"
+rest=$text
+while [[ $rest =~ $pattern ]]; do
+  match=${BASH_REMATCH[0]}
+  sub=${BASH_REMATCH[7]}
+  tail=${BASH_REMATCH[9]}
+  if [[ ($sub == merge || $sub == pull) && $tail =~ (^|[[:space:]])--ff-only([[:space:]]|$) ]] ||
+     [[ $sub == stash && $tail =~ ^[[:space:]]*(list|show)([[:space:]]|$) ]]; then
+    rest=${rest#*"$match"}
+    continue
+  fi
+  deny "git $sub is never run by a tool: $reason"
+done
+exit 0

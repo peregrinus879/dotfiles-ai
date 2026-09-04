@@ -76,6 +76,7 @@
       "Edit(~/.gnupg/**)",
       "Edit(~/.kube/**)",
       "Edit(~/.local/share/keyrings/**)",
+      "Edit(~/.agents/hooks/**)",
       "Edit(~/.local/share/opencode/auth.json)",
       "Edit(~/.mozilla/**)",
       "Edit(~/.netrc)",
@@ -140,10 +141,25 @@
       "git reset, git restore, git checkout on paths, git stash drop or clear, and git branch -D clear only on explicit instruction naming the target; a fresh candidate presented for approval is not such an instruction.",
       "Changing Git configuration at any scope, remotes, hooks, or attributes (git config writes, git remote set-url or add, core.hooksPath, credential.helper, core.pager, aliases) clears only on explicit instruction; reading configuration is not this rule.",
       "gh api requests other than GET, and gh auth, secret, variable, ssh-key, gpg-key, repo delete, repo create, workflow run, and run cancel or rerun clear only on explicit instruction.",
-      "Editing shell startup files, systemd user units, autostart entries, or mise configuration clears only on explicit instruction naming the file."
+      "Editing shell startup files, systemd user units, autostart entries, or mise configuration clears only on explicit instruction naming the file.",
+      "Changing the installed commit gate under ~/.agents/hooks, the tracked tool settings, hooks, plugins, or skills in the harness repository, or the Codex template clears only on H's explicit instruction naming the file; make stow and make restow deploying a reviewed candidate are not this rule."
     ],
     "allow": [
       "$defaults"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.agents/hooks/commit-gate",
+            "timeout": 30
+          }
+        ]
+      }
     ]
   },
   "env": {
