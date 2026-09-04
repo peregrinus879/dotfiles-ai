@@ -6,7 +6,7 @@ One policy, one workflow, three coding agents. EyrAgents is a personal harness t
 
 - **Shared guidance.** One markdown policy that every tool loads at session start: how to work, what needs approval, and what never happens without an explicit instruction. It lives once under `~/.agents`, and each tool reads it through its own mechanism.
 - **Two interventions per change.** The `commit` skill runs the repository's gates and asks for approval of one exact staged candidate; the `publish` skill reviews what a push would expose, hands over the push command, and verifies the result afterwards. Everything in between is automatic.
-- **Skills in the open format.** The workflows are [Agent Skills](https://agentskills.io) `SKILL.md` files, written once and linked into every tool's skill directory.
+- **Skills in the open format.** The workflows are [Agent Skills](https://agentskills.io) `SKILL.md` files, written once under `~/.agents`; Codex and OpenCode read them there, and Claude Code through symlinks until it reads the standard's home itself.
 - **A safety posture per tool.** Deterministic denies plus an auto-mode classifier for Claude Code, a root-denied sandbox for Codex, and guardrail rules for OpenCode, all aligned on one list of credential stores and Git internals.
 - **Cross-vendor review.** Read-only, offline reviewer bridges let Claude Code ask Codex, and OpenCode ask Claude, for a second opinion with no write, web, or network surface.
 - **Deployment you can verify.** `make stow` deploys, `make verify` proves that every link resolves and that the host Codex config carries the template's boundaries, and CI runs the repository checks on every push.
@@ -15,11 +15,11 @@ One policy, one workflow, three coding agents. EyrAgents is a personal harness t
 
 | Tool | More | What it reads from this repository |
 |---|---|---|
-| [Claude Code](https://code.claude.com/docs/en/overview) | [skills](https://code.claude.com/docs/en/skills), [memory and rules](https://code.claude.com/docs/en/memory) | `~/.claude/settings.json`, `~/.claude/rules/`, `~/.claude/skills/`, and the status line script |
+| [Claude Code](https://code.claude.com/docs/en/overview) | [github.com/anthropics/claude-code](https://github.com/anthropics/claude-code) | `~/.claude/settings.json`, `~/.claude/rules/`, `~/.claude/skills/`, and the status line script |
 | [Codex](https://learn.chatgpt.com/codex) | [github.com/openai/codex](https://github.com/openai/codex) | `~/.codex/AGENTS.md`, `~/.agents/skills/`, and a host-local `~/.codex/config.toml` installed from the tracked template |
-| [OpenCode](https://opencode.ai/docs) | [github.com/anomalyco/opencode](https://github.com/anomalyco/opencode) | `~/.config/opencode/opencode.json` with its `instructions` entry, `tui.json`, the slash commands, and `~/.config/opencode/skills/` |
+| [OpenCode](https://opencode.ai/docs) | [github.com/anomalyco/opencode](https://github.com/anomalyco/opencode) | `~/.config/opencode/opencode.json`, whose `instructions` and `skills.paths` entries point at `~/.agents`, plus `tui.json`, the slash commands, the plugin, and the reviewer agent |
 
-The tools themselves are installed outside this repository: through [mise](https://mise.jdx.dev) on Omarchy, and through the Arch packages plus the Claude Code installer on WSL.
+The tools themselves are installed outside this repository, through [mise](https://mise.jdx.dev) on both machines: Omarchy installs its own wrappers, and eyrwsl's `mise` package stows the same wrappers on WSL.
 
 ## Repo Family
 
@@ -55,18 +55,19 @@ eyragents/
 │   ├── .claude/
 │   │   ├── rules/shared-guidance.md      # symlink to the shared guidance
 │   │   ├── skills/{commit,publish,spar}/SKILL.md   # symlinks to the canonical skills
-│   │   ├── settings.json                 # permissions, auto-mode rules, and the commit-gate hook
+│   │   ├── agents/reviewer.md            # read-only same-vendor reviewer
+│   │   ├── settings.json                 # permissions, auto-mode rules, attribution, and the commit-gate hook
 │   │   └── statusline.sh
 │   └── .local/bin/{spar-claude,spar-payload-scan}   # Claude reviewer bridge and payload scanner
 ├── codex/                                # Codex package
 │   ├── .codex/AGENTS.md                  # symlink to the shared guidance
 │   └── .local/bin/spar-codex             # Codex reviewer bridge
 ├── opencode/.config/opencode/            # OpenCode package
-│   ├── opencode.json                     # permissions, model, and the shared guidance path
+│   ├── opencode.json                     # permissions, models, the shared guidance path, and the skills path
 │   ├── tui.json
+│   ├── agents/reviewer.md                # read-only reviewer subagent
 │   ├── commands/{commit,publish,spar}.md # slash commands that load the skills
-│   ├── plugins/commit-gate.js            # runs commit-gate before every bash tool call
-│   └── skills/{commit,publish,spar}/SKILL.md   # symlinks to the canonical skills
+│   └── plugins/commit-gate.js            # runs commit-gate before every bash tool call
 ├── templates/codex/config.toml           # portable Codex profile, installed host-locally by make stow
 ├── templates/hooks/commit-gate           # the commit gate, installed as a real file at ~/.agents/hooks by make stow
 ├── references.txt                        # reference clone the ledger's source checks read; the siblings' make refs keeps it
@@ -102,7 +103,7 @@ The `spar` workflow uses subscription-authenticated, read-only cross-vendor revi
 - jq, Python, and Node.js
 - ShellCheck
 - GNU coreutils and util-linux (`setsid`)
-- Claude Code, Codex, and OpenCode installed where the Codex sandbox can execute them: through [mise](https://mise.jdx.dev) on Omarchy (`~/.local/share/mise`), and through the official Arch packages plus the Claude Code installer under `~/.claude/bin` on WSL
+- Claude Code, Codex, and OpenCode installed through [mise](https://mise.jdx.dev) under `~/.local/share/mise`, where the Codex sandbox can execute them: Omarchy's own wrappers on the desktop, eyrwsl's `mise` package on WSL
 
 On Arch Linux:
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tomllib
 from pathlib import Path
 
@@ -229,6 +230,52 @@ for label, rules in (("read", read_rules), ("edit", edit_rules), ("external_dire
 for path in ("/tmp*", "/tmp/*", "/tmp/**"):
     require(external_rules.get(path) != "allow", f"OpenCode broad temporary-directory allow: {path}")
 require("agent" not in opencode, "OpenCode agent overrides bypass global policy")
+claude = load_json("claude-code/.claude/settings.json")
+def frontmatter(path):
+    """Parse the YAML subset the agent files use: top-level `key: value` and one nested block of `  key: value`."""
+    text = path.read_text(encoding="utf-8")
+    require(text.startswith("---\n"), f"agent file has no frontmatter: {path.name}")
+    fields, nested, current = {}, {}, None
+    for line in text.split("---\n", 2)[1].splitlines():
+        if line.startswith("  ") and current:
+            key, _, value = line.strip().partition(":")
+            nested.setdefault(current, {})[key.strip()] = value.strip()
+        elif ":" in line:
+            key, _, value = line.partition(":")
+            current = key.strip()
+            fields[current] = value.strip()
+    return fields, nested
+
+
+claude_reviewer = ROOT / "claude-code/.claude/agents/reviewer.md"
+require(claude_reviewer.is_file(), "Claude Code reviewer agent is missing")
+fields, nested = frontmatter(claude_reviewer)
+require(fields.get("name") == "reviewer", "Claude reviewer agent name drifted")
+require(set(fields.get("tools", "").replace(",", " ").split()) == {"Read", "Grep", "Glob"}, "Claude reviewer agent is not exactly Read, Grep, Glob")
+require(fields.get("model") == "fable" and fields.get("effort") == "xhigh", "Claude reviewer agent is not the strongest model at xhigh")
+require(not ({"permissionMode", "hooks", "skills", "memory", "disallowedTools"} & set(fields)), "Claude reviewer agent carries authority-bearing fields")
+for agent_file in (ROOT / "claude-code/.claude/agents").glob("*.md"):
+    agent_fields, _ = frontmatter(agent_file)
+    require(set(agent_fields.get("tools", "x").replace(",", " ").split()) <= {"Read", "Grep", "Glob"}, f"Claude agent is not read-only: {agent_file.name}")
+    require(not ({"permissionMode", "hooks", "skills", "memory", "disallowedTools"} & set(agent_fields)), f"Claude agent carries authority-bearing fields: {agent_file.name}")
+
+opencode_reviewer = ROOT / "opencode/.config/opencode/agents/reviewer.md"
+require(opencode_reviewer.is_file(), "OpenCode reviewer agent is missing")
+fields, nested = frontmatter(opencode_reviewer)
+require(fields.get("mode") == "subagent", "OpenCode reviewer agent is not a subagent")
+require(fields.get("model") == opencode["model"], "OpenCode reviewer agent does not run the configured primary model")
+reviewer_model = fields["model"].split("/", 1)[1]
+require(opencode["provider"]["openai"]["models"][reviewer_model]["options"]["reasoningEffort"] == "xhigh", "OpenCode reviewer model is not configured at xhigh")
+require(nested.get("permission") == {"edit": "deny", "bash": "deny", "webfetch": "deny", "websearch": "deny", "task": "deny"}, "OpenCode reviewer agent does not deny exactly edit, bash, webfetch, websearch, task")
+for agent_file in (ROOT / "opencode/.config/opencode/agents").glob("*.md"):
+    _, agent_nested = frontmatter(agent_file)
+    permissions = agent_nested.get("permission", {})
+    require(permissions and all(value == "deny" for value in permissions.values()), f"OpenCode agent loosens or omits permissions: {agent_file.name}")
+require(not (ROOT / "codex/.codex/agents").exists(), "a Codex agent role exists without a verified read-only authority profile")
+require(claude.get("attribution", {}).get("sessionUrl") is False, "Claude Code would add a session URL trailer to commits")
+require(codex_template.get("personality") == "none", "Codex personality filler is not disabled")
+require(re.fullmatch(r"openai/[a-z0-9][a-z0-9.-]*", opencode.get("small_model", "")), "OpenCode small_model is not a concrete OpenAI model id")
+require(opencode.get("skills", {}).get("paths") == ["~/.agents/skills"], "OpenCode skill paths are not exactly the neutral source")
 load_json("opencode/.config/opencode/tui.json")
 
 

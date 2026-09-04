@@ -18,7 +18,7 @@ make_clone() {
   local repo=$1
   mkdir -p "$repo/agents/.agents/skills/commit" "$repo/claude-code/.claude/rules" \
     "$repo/claude-code/.claude/skills/commit" "$repo/claude-code/.local/bin" "$repo/codex/.codex" \
-    "$repo/codex/.local/bin" "$repo/opencode/.config/opencode/skills/commit" \
+    "$repo/codex/.local/bin" "$repo/opencode/.config/opencode" \
     "$repo/scripts" "$repo/templates/codex"
   printf 'tracked\n' >"$repo/claude-code/.claude/settings.json"
   printf 'guidance\n' >"$repo/agents/.agents/shared-guidance.md"
@@ -30,7 +30,6 @@ make_clone() {
   ln -s ../../agents/.agents/shared-guidance.md "$repo/codex/.codex/AGENTS.md"
   printf 'tracked\n' >"$repo/codex/.local/bin/spar-codex"
   printf '{}\n' >"$repo/opencode/.config/opencode/opencode.json"
-  ln -s ../../../../../agents/.agents/skills/commit/SKILL.md "$repo/opencode/.config/opencode/skills/commit/SKILL.md"
   cp -- "$ROOT/scripts/prepare-stow.sh" "$repo/scripts/prepare-stow.sh"
   cp -- "$ROOT/scripts/reconcile-codex-config.py" "$repo/scripts/reconcile-codex-config.py"
   cp -- "$ROOT/templates/codex/config.toml" "$repo/templates/codex/config.toml"
@@ -81,7 +80,7 @@ case_no_folding() {
   ln -s ../../eyragents/opencode/.config/opencode "$home/.config/opencode"
   prepare "$home" "$repo"
   deploy "$home" "$repo" >/dev/null 2>&1 || fail "restow could not replace folded links"
-  for path in .claude .claude/rules .claude/skills/commit .codex .agents/skills/commit .local/bin .config/opencode .config/opencode/skills/commit; do
+  for path in .claude .claude/rules .claude/skills/commit .codex .agents/skills/commit .local/bin .config/opencode; do
     [[ -d $home/$path && ! -L $home/$path ]] || fail "$path is not a real directory after no-folding stow"
   done
   [[ $(readlink -f -- "$home/.agents/shared-guidance.md") == "$repo/agents/.agents/shared-guidance.md" ]] ||
