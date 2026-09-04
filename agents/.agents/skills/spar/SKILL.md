@@ -9,7 +9,7 @@ The session's model is the implementer; a different vendor's model is a read-onl
 
 ## When
 
-Spar is optional. Use it where outside review can materially change the outcome: a plan with real design choices, a build before publication, a decision with independent options, or a bounded diff with known risk. One concise review with at most one follow-up is the default shape; choose blind or briefed context by what protects useful independence. Fixed rounds and fan-outs never substitute for judgment.
+Spar is recommended before a plan is presented for approval and after implementation before the packet, and used at the model's discretion otherwise, where outside review can materially change the outcome: a plan with real design choices, a build before publication, a decision with independent options, or a bounded diff with known risk. It is never mandatory; the `auditor` agent runs the same loop inside the tool when a second vendor is unavailable or unnecessary. One concise review with at most one follow-up is the default shape; choose blind or briefed context by what protects useful independence. Fixed rounds and fan-outs never substitute for judgment.
 
 ## Disclosure
 

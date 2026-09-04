@@ -24,7 +24,7 @@ Co-Authored-By: <official display name of the active model> <provider no-reply a
 1. Classify untracked files (`git ls-files --others --exclude-standard`) as intended new files or session scratch. Propose a disposition for scratch; never delete an untracked file without H's approval.
 2. Update documentation whose commands, paths, workflows, or listings changed, keeping each fact in its canonical owner. Create no documentation file unasked.
 3. Run the repository's gates, fixing and rerunning until each passes: the repository checks, `make lint` and `make check` when the Makefile defines them, else `npm run check` when the package defines it; then the host verification, `make restow` and `make verify` when defined, else `npm run verify`. A target that refuses because this is not its host or its deployed clone is skipped with that reason. The contract covers H's repositories; elsewhere run the checks the project documents.
-4. When the intended paths include any that the repository's `AGENTS.md` names as review-required, run one `spar` review of the diff before the packet and carry its verdict into the packet.
+4. Review is recommended before the packet, through the `spar` skill across vendors or the `auditor` agent inside the tool, where outside review can change the outcome; the repository's `AGENTS.md` may name the paths where it earns its cost. It is never mandatory. Carry any verdict into the packet.
 
 ## Candidate
 
@@ -36,14 +36,20 @@ Any change to the staged content, message, audience, or scratch disposition afte
 
 ## Review cheat sheet
 
-Repeat this in every packet until H asks to retire it. Review from a separate terminal pane at the repository root:
+Repeat this table in every packet until H asks to retire it. Review from a separate terminal pane at the repository root, starting with `nvim .`:
 
-1. `nvim .`, then `<Space>gd`: open tracked staged and unstaged hunks.
-2. `<M-w>`: cycle the input, hunk list, and preview panes. `<C-n>`/`<C-p>` or arrow keys: move between hunks; the highlight updates the preview.
-3. `<M-p>`: toggle the preview. `<M-m>`: maximize or restore the active picker pane.
-4. `<Enter>`: open the selected file and close the picker. `<Space>sR`: resume after opening a file. `<Esc>`: close without opening.
-5. `<Space>gs`: open Git Status for intended untracked files. Highlight each file to inspect its preview; use `<Enter>` only when it must be opened, then `<Space>sR` to resume.
-6. Avoid `<Tab>`, which stages, and `<C-r>`, which restores, in both Git pickers.
+| Keys | Action |
+|---|---|
+| `<Space>gd` | open tracked staged and unstaged hunks |
+| `<Space>gs` | open Git Status for intended untracked files |
+| `<M-w>` | cycle the input, hunk list, and preview panes |
+| `<C-n>` `<C-p>` or arrows | move between hunks; the preview follows |
+| `<M-p>` | toggle the preview |
+| `<M-m>` | maximize or restore the active pane |
+| `<Enter>` | open the selected file and close the picker |
+| `<Space>sR` | resume the picker after opening a file |
+| `<Esc>` | close without opening |
+| avoid `<Tab>` and `<C-r>` | they stage and restore |
 
 Terminal fallback: `git diff --cached --stat`, `git diff --cached`, and `git diff --cached -- path/to/file`.
 

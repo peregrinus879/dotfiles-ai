@@ -12,6 +12,21 @@
       "~/.agents/skills"
     ]
   },
+  "agent": {
+    "auditor": {
+      "description": "Read-only audit of a plan, diff, or decision from a fresh context; the spar loop without the second vendor. Never edits.",
+      "mode": "subagent",
+      "model": "openai/gpt-5.6-sol-fast",
+      "prompt": "{file:~/.agents/agents/auditor.md}",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny",
+        "webfetch": "deny",
+        "websearch": "deny",
+        "task": "deny"
+      }
+    }
+  },
   "permission": {
     "bash": {
       "*": "allow",

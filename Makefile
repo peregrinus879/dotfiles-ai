@@ -23,7 +23,7 @@ help:
 	@echo "  migrate-codex-config  Reconcile ~/.codex/config.toml with the template, keeping host tables"
 	@echo "  lint           ShellCheck, Python, and plugin syntax checks over managed scripts"
 	@echo "  test           Fast tests: configuration boundaries, bridges, statusline, preparation, commit gate"
-	@echo "  check          Repository checks: package symlinks resolve, owned JSON and TOML parse, then test (runs in CI)"
+	@echo "  check          Repository checks: package and project symlinks resolve, owned JSON and TOML parse, then test (runs in CI)"
 	@echo "  verify-deploy  Check every package file resolves to its deployed target"
 	@echo "  verify         lint, check, and verify-deploy"
 	@echo "  clean          Remove dangling links that point into this repository's packages"
@@ -87,8 +87,8 @@ check:
 	@fail=0; \
 	while IFS= read -r -d '' link; do \
 	  echo "FAIL: package symlink does not resolve: $$link"; fail=1; \
-	done < <(find $(PACKAGES) -type l -xtype l -print0); \
-	[[ $$fail -eq 0 ]] && echo "ok:   package symlinks resolve"; \
+	done < <(find $(PACKAGES) .agents .claude .opencode -type l -xtype l -print0); \
+	[[ $$fail -eq 0 ]] && echo "ok:   package and project symlinks resolve"; \
 	while IFS= read -r -d '' f; do \
 	  case $$f in \
 	    *.toml) python3 -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$$f" ;; \

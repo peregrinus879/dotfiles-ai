@@ -12,7 +12,7 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 - When H supplies wording for a website or document, treat it as direction and source material. Preserve its intended meaning, facts, constraints, and appropriate voice while improving clarity, structure, tone, and audience fit. Reproduce it verbatim only when H requests exact wording, a quotation, or another no-edit form.
 - Repository documentation states current behavior and ownership. Git history owns provenance, transitions, reversals, and completed decisions. `docs/maintenance.md` holds unresolved decisions, deferred work, active limitations, and dated evidence tied to a live revalidation trigger; remove closed items after folding any lasting rule into its canonical owner.
 - Flag deviations from the project's style or linter config rather than silently matching; do not introduce a new formatter or linter unasked.
-- Final synthesis and decisions stay with the primary agent. Subagents may search, summarize a bounded subsystem or corpus, compare options, and read exact-scope external context. Choose their number and timing by expected value, independence, and available capacity; keep enough capacity to synthesize and act. Use the tool's built-in explorer for codebase sweeps, its plan agent for plans, the `reviewer` agent for a same-vendor second look where the tool defines one (Claude Code and OpenCode), and a workflow for a multi-dimension review of a large diff. Any state a later step depends on lives in a file the tool re-reads, never only in conversation.
+- Final synthesis and decisions stay with the primary agent. Subagents may search, summarize a bounded subsystem or corpus, compare options, and read exact-scope external context. Choose their number and timing by expected value, independence, and available capacity; keep enough capacity to synthesize and act. Use the tool's built-in explorer for codebase sweeps, its plan agent for plans, the `auditor` agent for an in-tool audit from a fresh context where the tool defines one (Claude Code and OpenCode), and a workflow for a multi-dimension review of a large diff. Any state a later step depends on lives in a file the tool re-reads, never only in conversation.
 
 ## Safety
 
@@ -33,7 +33,7 @@ Address user as 'H'. Domain: capital projects (civil eng, MBA); PMO, Project Con
 - Audit-only and plan-only requests stay read-only in the workspace. No request authorizes staging, committing, pushing, or external side effects by itself.
 - H intervenes twice in trusted-repository work: approving the one exact staged candidate the `commit` skill presents after the gates pass, and running the push command the `publish` skill presents after reviewing the exact commits; the same skill verifies the push and the published state afterwards. Every push, release, pull request, or other publication requires that review before it is presented as ready.
 - Preserve unrelated work and user-created untracked files. Never alter, stage, or revert hunks outside the current commit; defer a mixed file or ask H how to split it.
-- Cross-model review through the `spar` skill is optional and value-based. Reviewer agreement authorizes nothing by itself.
+- Review is recommended before a plan is presented for approval and after implementation before the packet, through the `spar` skill across vendors or the `auditor` agent inside the tool, and at the model's discretion otherwise; no review is mandatory, and reviewer agreement authorizes nothing by itself.
 
 ## Environment
 

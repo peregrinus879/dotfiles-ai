@@ -229,7 +229,6 @@ for label, rules in (("read", read_rules), ("edit", edit_rules), ("external_dire
     allows_precede_denies(rules, label)
 for path in ("/tmp*", "/tmp/*", "/tmp/**"):
     require(external_rules.get(path) != "allow", f"OpenCode broad temporary-directory allow: {path}")
-require("agent" not in opencode, "OpenCode agent overrides bypass global policy")
 claude = load_json("claude-code/.claude/settings.json")
 def frontmatter(path):
     """Parse the YAML subset the agent files use: top-level `key: value` and one nested block of `  key: value`."""
@@ -247,30 +246,34 @@ def frontmatter(path):
     return fields, nested
 
 
-claude_reviewer = ROOT / "claude-code/.claude/agents/reviewer.md"
-require(claude_reviewer.is_file(), "Claude Code reviewer agent is missing")
-fields, nested = frontmatter(claude_reviewer)
-require(fields.get("name") == "reviewer", "Claude reviewer agent name drifted")
-require(set(fields.get("tools", "").replace(",", " ").split()) == {"Read", "Grep", "Glob"}, "Claude reviewer agent is not exactly Read, Grep, Glob")
-require(fields.get("model") == "fable" and fields.get("effort") == "xhigh", "Claude reviewer agent is not the strongest model at xhigh")
-require(not ({"permissionMode", "hooks", "skills", "memory", "disallowedTools"} & set(fields)), "Claude reviewer agent carries authority-bearing fields")
+charter = (ROOT / "agents/.agents/agents/auditor.md").read_text(encoding="utf-8")
+require(charter.strip() and "VERDICT" in charter, "the shared auditor charter is missing or has no verdict line")
+claude_auditor = ROOT / "claude-code/.claude/agents/auditor.md"
+require(claude_auditor.is_file(), "Claude Code auditor agent is missing")
+fields, nested = frontmatter(claude_auditor)
+require(fields.get("name") == "auditor", "Claude auditor agent name drifted")
+require(set(fields.get("tools", "").replace(",", " ").split()) == {"Read", "Grep", "Glob"}, "Claude auditor agent is not exactly Read, Grep, Glob")
+require(fields.get("model") == "fable" and fields.get("effort") == "xhigh", "Claude auditor agent is not the strongest model at xhigh")
+CLAUDE_AGENT_FIELDS = {"name", "description", "tools", "model", "effort"}
+require(set(fields) <= CLAUDE_AGENT_FIELDS, f"Claude auditor agent carries fields outside the permitted set: {set(fields) - CLAUDE_AGENT_FIELDS}")
+require(claude_auditor.read_text(encoding="utf-8").split("---\n", 2)[2].strip() == charter.strip(), "Claude auditor body differs from the shared charter")
 for agent_file in (ROOT / "claude-code/.claude/agents").glob("*.md"):
     agent_fields, _ = frontmatter(agent_file)
     require(set(agent_fields.get("tools", "x").replace(",", " ").split()) <= {"Read", "Grep", "Glob"}, f"Claude agent is not read-only: {agent_file.name}")
-    require(not ({"permissionMode", "hooks", "skills", "memory", "disallowedTools"} & set(agent_fields)), f"Claude agent carries authority-bearing fields: {agent_file.name}")
+    require(set(agent_fields) <= CLAUDE_AGENT_FIELDS, f"Claude agent carries fields outside the permitted set: {agent_file.name}")
 
-opencode_reviewer = ROOT / "opencode/.config/opencode/agents/reviewer.md"
-require(opencode_reviewer.is_file(), "OpenCode reviewer agent is missing")
-fields, nested = frontmatter(opencode_reviewer)
-require(fields.get("mode") == "subagent", "OpenCode reviewer agent is not a subagent")
-require(fields.get("model") == opencode["model"], "OpenCode reviewer agent does not run the configured primary model")
-reviewer_model = fields["model"].split("/", 1)[1]
-require(opencode["provider"]["openai"]["models"][reviewer_model]["options"]["reasoningEffort"] == "xhigh", "OpenCode reviewer model is not configured at xhigh")
-require(nested.get("permission") == {"edit": "deny", "bash": "deny", "webfetch": "deny", "websearch": "deny", "task": "deny"}, "OpenCode reviewer agent does not deny exactly edit, bash, webfetch, websearch, task")
-for agent_file in (ROOT / "opencode/.config/opencode/agents").glob("*.md"):
-    _, agent_nested = frontmatter(agent_file)
-    permissions = agent_nested.get("permission", {})
-    require(permissions and all(value == "deny" for value in permissions.values()), f"OpenCode agent loosens or omits permissions: {agent_file.name}")
+opencode_agents = opencode.get("agent", {})
+auditor = opencode_agents.get("auditor", {})
+require(auditor.get("mode") == "subagent", "OpenCode auditor agent is not a subagent")
+require(auditor.get("model") == opencode["model"], "OpenCode auditor agent does not run the configured primary model")
+require(opencode["provider"]["openai"]["models"][opencode["model"].split("/", 1)[1]]["options"]["reasoningEffort"] == "xhigh", "OpenCode auditor model is not configured at xhigh")
+require(auditor.get("prompt") == "{file:~/.agents/agents/auditor.md}", "OpenCode auditor does not read the shared charter")
+require(auditor.get("permission") == {"edit": "deny", "bash": "deny", "webfetch": "deny", "websearch": "deny", "task": "deny"}, "OpenCode auditor does not deny exactly edit, bash, webfetch, websearch, task")
+for name, agent in opencode_agents.items():
+    permissions = agent.get("permission", {})
+    require(permissions and all(value == "deny" for value in permissions.values()), f"OpenCode agent loosens or omits permissions: {name}")
+    require("tools" not in agent, f"OpenCode agent uses the deprecated tools field: {name}")
+require(not (ROOT / "opencode/.config/opencode/agents").exists(), "OpenCode markdown agents exist beside the config agents")
 require(not (ROOT / "codex/.codex/agents").exists(), "a Codex agent role exists without a verified read-only authority profile")
 require(claude.get("attribution", {}).get("sessionUrl") is False, "Claude Code would add a session URL trailer to commits")
 require(codex_template.get("personality") == "none", "Codex personality filler is not disabled")
@@ -308,7 +311,7 @@ require(os.access(ROOT / "templates/hooks/commit-gate", os.X_OK), "templates/hoo
 
 # Skills stay portable: the name matches the directory and only standard frontmatter fields appear.
 STANDARD_SKILL_FIELDS = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
-for skill_dir in sorted((ROOT / "agents/.agents/skills").iterdir()):
+for skill_dir in sorted([*(ROOT / "agents/.agents/skills").iterdir(), *(ROOT / ".agents/skills").iterdir()]):
     text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
     require(text.startswith("---\n"), f"skill has no frontmatter: {skill_dir.name}")
     frontmatter = text.split("---\n", 2)[1]

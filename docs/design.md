@@ -16,7 +16,7 @@ The three tools enforce different things, and the configuration says so instead 
 
 ## Read-only cross-vendor review
 
-A second opinion is worth most when it comes from a different model family that reads the same files. The bridges give one read-only, offline, single-turn reviewer with no write, web, plugin, or subagent surface, launched from a scrubbed environment under a hard timeout. Every flag is hard-coded so a caller cannot weaken the reviewer, and a repository that must not reach the other vendor opts out with one Git setting the bridges honor. Boundary files, the permission configs and the bridges themselves, get this review before every commit.
+A second opinion is worth most when it comes from a different model family that reads the same files. The bridges give one read-only, offline, single-turn reviewer with no write, web, plugin, or subagent surface, launched from a scrubbed environment under a hard timeout. Every flag is hard-coded so a caller cannot weaken the reviewer, and a repository that must not reach the other vendor opts out with one Git setting the bridges honor. The same adversarial loop runs inside each tool as the read-only `auditor` agent, from a fresh context, with one shared charter. Review is recommended before a plan is approved and after implementation, and the permission files, the gate, and the bridges are where it earns its cost; nothing makes it mandatory, because a required review is a tax on trivial edits and teaches the agent to route around it.
 
 ## One neutral source
 
