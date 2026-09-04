@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# publish-clip - put the push command on the host clipboard and say which tool took it.
+#
+# Reads the command on stdin and tries, in order, wl-copy under a Wayland
+# session (Omarchy), clip.exe through Windows interop (WSL), then xclip or xsel
+# under X11. Prints `clipboard: <tool>` when one took the text, or
+# `clipboard: none`, and always exits 0: the packet repeats that line, so H
+# knows whether a paste yields the command or whatever the clipboard held
+# before, and the message carries the command either way.
+set -euo pipefail
+
+text=$(cat)
+if [[ -z $text ]]; then
+  printf 'clipboard: none (empty input)\n'
+  exit 0
+fi
+
+try() { # tool [args...]
+  local tool=$1
+  shift
+  command -v -- "$tool" >/dev/null 2>&1 || return 1
+  printf '%s' "$text" | timeout --kill-after=2 5 "$tool" "$@" >/dev/null 2>&1 || return 1
+  printf 'clipboard: %s\n' "$tool"
+}
+
+if [[ -n ${WAYLAND_DISPLAY:-} ]] && try wl-copy; then exit 0; fi
+if try clip.exe; then exit 0; fi
+if [[ -n ${DISPLAY:-} ]] && { try xclip -selection clipboard || try xsel --clipboard --input; }; then exit 0; fi
+printf 'clipboard: none\n'

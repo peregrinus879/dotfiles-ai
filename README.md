@@ -52,7 +52,7 @@ eyragents/
 │   ├── agents/auditor.md                 # the auditor's charter, shared by every tool's agent
 │   ├── skills/{commit,publish,spar}/SKILL.md   # canonical skills; Codex and OpenCode read them here
 │   ├── skills/commit/scripts/{commit-candidate,commit-apply}   # the procedure behind the commit skill
-│   ├── skills/publish/scripts/{publish-bind,publish-verify}   # the procedure behind the publish skill
+│   ├── skills/publish/scripts/{publish-bind,publish-verify,publish-clip}   # the procedure behind the publish skill
 │   └── skills/spar/scripts/{review-brief,spar-claude,spar-codex,spar-payload-scan}   # the review brief, reviewer bridges, and the payload scanner
 ├── claude-code/                          # Claude Code package
 │   ├── .claude/
