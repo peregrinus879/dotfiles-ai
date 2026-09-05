@@ -273,6 +273,8 @@ for tree in TEMP_READ_TREES:
     require(external_rules.get(f"{tree}/**") == "allow", f"OpenCode lacks the standing access under {tree}")
     require(f"Read(//{tree.lstrip('/')}/**)" in claude["permissions"]["allow"], f"Claude Code lacks the standing read allow on {tree}")
 require(external_rules.get("/tmp/claude-*/**") == "deny", "OpenCode reads Claude Code's session root under /tmp")
+require(external_rules.get("~/.agents/skills/**") == "allow", "OpenCode asks before its shell runs the skill scripts under ~/.agents/skills")
+require(external_rules.get("~/.agents/hooks/**") == "deny", "OpenCode reaches the installed commit gate under ~/.agents/hooks")
 require("Read(//tmp/opencode/**)" in claude["permissions"]["deny"], "Claude Code reads OpenCode's session root under /tmp")
 claude = load_json("claude-code/.claude/settings.json")
 def frontmatter(path):

@@ -181,6 +181,7 @@
       "/var/lib/pacman/**": "allow",
       "/tmp/**": "allow",
       "/var/tmp/**": "allow",
+      "~/.agents/skills/**": "allow",
       "/tmp/claude-*/**": "deny",
       "~/.aws/**": "deny",
       "~/.config/BraveSoftware/**": "deny",
