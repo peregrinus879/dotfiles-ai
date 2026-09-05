@@ -227,6 +227,9 @@ def check_codex(config: dict, label: str) -> None:
         require(name not in workspace, f"{label} literal workspace entry creates placeholder files: {name}")
     policy = config["auto_review"]["policy"]
     require("explicitly approves the exact candidate" in policy, f"{label} auto review no longer gates commits")
+    # No template carries the marker the reconcile puts on a kept host line, so a
+    # root the merge wrote with a host choice never reads as a template root.
+    require("kept by the reconcile" not in (ROOT / "templates/codex/config.toml").read_text(encoding="utf-8"), "Codex template carries the reconcile's kept marker")
     # No model pin: the catalog default is the moving target (AGENTS.md, Tool Configuration).
     require("model" not in config and "default_subagent_model" not in config.get("agents", {}), f"{label} pins a model instead of the catalog default")
 

@@ -14,7 +14,15 @@ records each hook's trusted hash under `hooks.state` after a session, so that
 subtable is preserved too and ignored when the owned tables are compared.
 One root key is host-owned when the template leaves it out: Codex persists the
 `/fast` choice as `service_tier`, so that line survives the merge and never
-counts as drift.
+counts as drift, unless the host root is still exactly the root of a template
+this repository once carried, read from Git history: the harness wrote that
+root, so a retired key in it is residue and goes like any other. A kept line
+carries a marker no template has, so a root the merge wrote never reads as a
+template's. The rule is textual: a root written from an uncommitted template,
+or edited since, keeps its host-owned key, which then needs the /fast toggle
+or a deletion by hand, and a root rewritten to exactly a committed template's
+text reads as residue. Outside a repository, or without git, nothing is
+residue, and the lookup runs only when the host carries a host-owned key.
 
 `merge` prints the reconciled config: the template text followed by the
 host-only tables. `check` exits 0 when HOST already carries the template's
@@ -29,6 +37,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -40,6 +49,9 @@ HOST_SUBTABLES = {"hooks": {"state"}}
 # Host-owned root keys when the template does not define them: Codex writes the
 # per-session /fast choice here, and it is H's own, not drift.
 HOST_ROOT_KEYS = {"service_tier"}
+# A kept host-owned line ends with this marker, which no template carries, so a
+# root the merge wrote with a host choice in it never matches a template root.
+KEPT_MARKER = "# host choice, kept by the reconcile"
 
 
 def components(key: str) -> list[str]:
@@ -116,9 +128,46 @@ def host_owned(key: str, value) -> bool:
     return key in HOST_ROOT_KEYS and isinstance(value, str)
 
 
+def exact(text: str) -> str:
+    """Root text as written, under one newline policy for the host file and a historical blob, up to its trailing newlines."""
+    return text.replace("\r\n", "\n").replace("\r", "\n").rstrip("\n")
+
+
+def template_history(template_path: str) -> set[str]:
+    """The root text of every past version of TEMPLATE in its repository, read in one batch; empty without git or a repository."""
+    path = Path(template_path).resolve()
+    try:
+        root = subprocess.run(["git", "-C", str(path.parent), "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=True).stdout.strip()
+        relative = path.relative_to(Path(root).resolve()).as_posix()
+        # Paths are relative to the directory git runs in, so run from the root.
+        git = ["git", "-C", root]
+        revisions = subprocess.run([*git, "log", "--format=%H", "--", relative], capture_output=True, text=True, check=True).stdout.split()
+        specs = "".join(f"{revision}:{relative}\n" for revision in revisions).encode()
+        batch = subprocess.run([*git, "cat-file", "--batch"], input=specs, capture_output=True, check=True).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+        return set()
+    roots = set()
+    position = 0
+    while position < len(batch):
+        end = batch.index(b"\n", position)
+        fields = batch[position:end].decode().split()
+        position = end + 1
+        if len(fields) == 3 and fields[1] == "blob":
+            size = int(fields[2])
+            roots.add(exact(split_sections(batch[position:position + size].decode("utf-8", "replace"))[0]))
+            position += size + 1
+        # "<revision>:<path> missing" names a version without the file.
+    return roots
+
+
+def template_residue(host_root: str, template_path: str) -> bool:
+    """True when the host root is exactly the root of a past template: the harness wrote it, so no key in it is a host choice."""
+    return exact(host_root) in template_history(template_path)
+
+
 def host_root_lines(host: dict, owned: set[str]) -> list[str]:
-    """The host-owned root keys the template does not define, re-emitted from their parsed values."""
-    return [f"{key} = {json.dumps(host[key])}\n" for key in sorted(HOST_ROOT_KEYS)
+    """The host-owned root keys the template does not define, re-emitted from their parsed values with the kept marker."""
+    return [f"{key} = {json.dumps(host[key])}  {KEPT_MARKER}\n" for key in sorted(HOST_ROOT_KEYS)
             if key in host and key not in owned and host_owned(key, host[key])]
 
 
@@ -130,8 +179,10 @@ def merge(template_path: str, host_path: str | None) -> str:
     if host_path is not None:
         host_text, host = load(host_path)
         owned = template_owned(template)
-        _, sections = split_sections(host_text)
+        host_root, sections = split_sections(host_text)
         kept = host_root_lines(host, owned)
+        if kept and template_residue(host_root, template_path):
+            kept = []
         if kept:
             output = output.rstrip("\n") + "\n" + "".join(kept) + "\n"
         host_sections = [text for parts, text in sections if parts[0] not in owned or host_subtable(parts)]
@@ -157,10 +208,13 @@ def check(template_path: str, host_path: str) -> int:
     # The template owns the root, so a root key it no longer defines, such as a
     # retired model pin, is drift on its own; merge drops it. What merge keeps is
     # exactly the header sections and the host-owned keys, so an inline table at
-    # the root is drift too.
-    _, sections = split_sections(host_text)
+    # the root is drift too, and so is a host-owned key in a root the harness wrote.
+    host_root, sections = split_sections(host_text)
     section_keys = {parts[0] for parts, _ in sections}
-    retired = [key for key, value in host.items() if key not in template and key not in section_keys and not host_owned(key, value)]
+    candidates = [key for key, value in host.items() if key not in template and host_owned(key, value)]
+    residue = bool(candidates) and template_residue(host_root, template_path)
+    retired = [key for key, value in host.items()
+               if key not in template and key not in section_keys and not (host_owned(key, value) and not residue)]
     if drifted:
         print(f"reconcile-codex-config: template-owned keys drifted: {', '.join(drifted)}", file=sys.stderr)
     if retired:

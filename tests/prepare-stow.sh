@@ -176,6 +176,35 @@ case_migration() {
   mkdir -p "$home/.codex"
   make_clone "$repo"
   config="$home/.codex/config.toml"
+  # The clone carries a Git history of the template: one past version that set
+  # the tier after the reasoning summary, where the real templates kept it, and
+  # one that appended it after the last root key, the shape a merge that keeps
+  # a host choice would produce without its marker. Residue detection reads
+  # this history.
+  local old="$TMP/migrate/old-template.toml" appended="$TMP/migrate/appended-template.toml" current="$TMP/migrate/current-template.toml"
+  cp -- "$repo/templates/codex/config.toml" "$current"
+  sed 's/^model_reasoning_summary = "auto"$/&\nservice_tier = "fast"/' "$current" >"$old"
+  git -C "$repo" init -q
+  cp -- "$old" "$repo/templates/codex/config.toml"
+  git -C "$repo" add -- templates/codex/config.toml
+  git -C "$repo" -c user.name=fixture -c user.email=fixture@example.com -c commit.gpgsign=false commit -q -m 'old template'
+  python3 - "$current" "$appended" <<'PY'
+import sys
+text = open(sys.argv[1], encoding="utf-8").read()
+root, rest = text.split("\n[", 1)
+open(sys.argv[2], "w", encoding="utf-8").write(root.rstrip("\n") + '\nservice_tier = "fast"\n\n[' + rest)
+PY
+  cp -- "$appended" "$repo/templates/codex/config.toml"
+  git -C "$repo" add -- templates/codex/config.toml
+  git -C "$repo" -c user.name=fixture -c user.email=fixture@example.com -c commit.gpgsign=false commit -q -m 'appended tier'
+  # A version with CRLF line endings, as a checkout on another platform might
+  # commit it: the comparison applies one newline policy to both sides.
+  local crlf="$TMP/migrate/crlf-template.toml"
+  sed 's/$/\r/' "$old" >"$crlf"
+  cp -- "$crlf" "$repo/templates/codex/config.toml"
+  git -C "$repo" add -- templates/codex/config.toml
+  git -C "$repo" -c user.name=fixture -c user.email=fixture@example.com -c commit.gpgsign=false commit -q -m 'crlf template'
+  cp -- "$current" "$repo/templates/codex/config.toml"
 
   migrate "$home" "$repo"
   [[ -f $config && ! -L $config && $(stat -c '%a' -- "$config") == 600 ]] || fail "seeded config is not an owner-only regular file"
@@ -251,6 +280,56 @@ print(tomllib.load(open(sys.argv[1], "rb")).get("retired_note", ""))' "$config")
   chmod 600 "$config"
   ! python3 "$repo/scripts/reconcile-codex-config.py" check "$repo/templates/codex/config.toml" "$config" 2>/dev/null ||
     fail "drift check accepted a root inline table the merge would drop"
+  # A host root still exactly the root of a template this repository once
+  # carried was written by the harness: the retired tier in it is residue and
+  # goes on its own, the host tables stay, and the result passes the drift
+  # check and survives a repeat unchanged.
+  { cat "$old"; printf '\n[projects."/srv/example"]\ntrust_level = "trusted"\n'; } >"$config"
+  chmod 600 "$config"
+  ! python3 "$repo/scripts/reconcile-codex-config.py" check "$repo/templates/codex/config.toml" "$config" 2>/dev/null ||
+    fail "drift check accepted a root the harness wrote with a retired tier"
+  migrate "$home" "$repo"
+  [[ -z $(python3 -c 'import sys, tomllib
+print(tomllib.load(open(sys.argv[1], "rb")).get("service_tier", ""))' "$config") ]] ||
+    fail "template residue survived: a retired tier the old template wrote was kept as a host choice"
+  [[ $(toml_value "$config" 'projects./srv/example.trust_level') == trusted ]] || fail "host project table was lost beside the residue"
+  python3 "$repo/scripts/reconcile-codex-config.py" check "$repo/templates/codex/config.toml" "$config" ||
+    fail "reconciled residue does not pass the drift check"
+  inode=$(stat -c '%i' -- "$config")
+  migrate "$home" "$repo"
+  [[ $(stat -c '%i' -- "$config") == "$inode" ]] || fail "repeat reconciliation rewrote the reconciled residue"
+  # A root Codex rewrote, here a tier set back to default, is no template's:
+  # the choice stays and nothing is rewritten.
+  sed 's/^service_tier = "fast"$/service_tier = "default"/' "$old" >"$config"
+  chmod 600 "$config"
+  migrate "$home" "$repo"
+  [[ $(toml_value "$config" service_tier) == default ]] || fail "a tier Codex rewrote was dropped as residue"
+  # A merge that keeps a host choice writes it with the marker, so the result
+  # never matches the appended-tier template in history: the next check passes
+  # and a repeat leaves it alone, which is what keeps a choice from vanishing on
+  # the second reconciliation.
+  sed 's/^model_reasoning_effort = "xhigh"$/model_reasoning_effort = "low"/' "$old" >"$config"
+  chmod 600 "$config"
+  migrate "$home" "$repo"
+  [[ $(toml_value "$config" service_tier) == fast && $(toml_value "$config" model_reasoning_effort) == xhigh ]] ||
+    fail "a host choice beside a drifted template value was lost"
+  [[ $(/usr/bin/grep -c 'kept by the reconcile' "$config") == 1 ]] || fail "the kept host line carries no marker"
+  python3 "$repo/scripts/reconcile-codex-config.py" check "$repo/templates/codex/config.toml" "$config" ||
+    fail "a merge that kept a host choice produced a root the drift check rejects"
+  inode=$(stat -c '%i' -- "$config")
+  migrate "$home" "$repo"
+  [[ $(stat -c '%i' -- "$config") == "$inode" && $(toml_value "$config" service_tier) == fast ]] ||
+    fail "a repeat reconciliation rewrote or dropped a kept host choice"
+  # The appended-tier template itself, installed verbatim, is residue too, and
+  # so is the CRLF version, whichever newline policy the host file carries.
+  for verbatim in "$appended" "$crlf"; do
+    cp -- "$verbatim" "$config"
+    chmod 600 "$config"
+    migrate "$home" "$repo"
+    [[ -z $(python3 -c 'import sys, tomllib
+print(tomllib.load(open(sys.argv[1], "rb")).get("service_tier", ""))' "$config") ]] ||
+      fail "a tier a past template wrote survived as a host choice: ${verbatim##*/}"
+  done
   rm -- "$config"
 
   ln -s "$repo/codex/.codex/config.toml" "$config"
