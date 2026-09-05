@@ -36,4 +36,4 @@ Durable decisions live in `AGENTS.md`, unresolved ones in the maintenance ledger
 
 ## Effort and models
 
-Each tool runs its strongest model at the highest persistent effort, because the cost of a wrong change to live configuration exceeds the cost of tokens. Lightweight tasks that tools delegate, such as titles and summaries, go to a smaller model where the tool offers that setting.
+Each tool runs its strongest model at the highest persistent effort, because the cost of a wrong change to live configuration exceeds the cost of tokens. Lightweight tasks that tools delegate, such as titles and summaries, go to a smaller model where the tool offers that setting. Where a tool offers a moving alias or a catalog default, the harness names it, so a new generation arrives without an edit, accepting that a vendor default tracks the vendor's choice rather than a named strongest model and recording where that choice is observed; where it offers only concrete ids, the pin carries its revalidation trigger in the ledger.

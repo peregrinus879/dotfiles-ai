@@ -227,6 +227,8 @@ def check_codex(config: dict, label: str) -> None:
         require(name not in workspace, f"{label} literal workspace entry creates placeholder files: {name}")
     policy = config["auto_review"]["policy"]
     require("explicitly approves the exact candidate" in policy, f"{label} auto review no longer gates commits")
+    # No model pin: the catalog default is the moving target (AGENTS.md, Tool Configuration).
+    require("model" not in config and "default_subagent_model" not in config.get("agents", {}), f"{label} pins a model instead of the catalog default")
 
 
 check_codex(codex_template, "Codex portable template")
@@ -340,6 +342,21 @@ require(codex_template.get("personality") == "none", "Codex personality filler i
 require(re.fullmatch(r"openai/[a-z0-9][a-z0-9.-]*", opencode.get("small_model", "")), "OpenCode small_model is not a concrete OpenAI model id")
 require(opencode.get("skills", {}).get("paths") == ["~/.agents/skills"], "OpenCode skill paths are not exactly the neutral source")
 load_json("opencode/.config/opencode/tui.json")
+
+# Models: a moving alias or catalog default where the tool offers one, a
+# concrete id only where it does not (AGENTS.md, Tool Configuration).
+require(claude.get("model") == "fable", "Claude Code pins a model instead of the fable alias")
+require(claude.get("env", {}).get("CLAUDE_CODE_EFFORT_LEVEL") == "xhigh", "Claude Code effort is not xhigh")
+spar_claude = (ROOT / "agents/.agents/skills/spar/scripts/spar-claude").read_text(encoding="utf-8")
+require('MODEL="fable"' in spar_claude and re.search(r'^\s*--model "\$MODEL"\s*$', spar_claude, re.M), "spar-claude does not review with the fable alias")
+require(re.search(r'ANTHROPIC_DEFAULT_FABLE_MODEL:\s*""', spar_claude) and spar_claude.count("ANTHROPIC_DEFAULT_") == 1, "spar-claude does not clear exactly the fable override")
+require("service_tier" not in codex_template and codex_template["features"].get("fast_mode") is True, "Codex template sets a service tier by default or drops the /fast toggle")
+require(codex_template.get("model_reasoning_effort") == "xhigh" and codex_template.get("agents", {}).get("default_subagent_reasoning_effort") == "xhigh", "Codex template effort is not xhigh")
+spar_codex = (ROOT / "agents/.agents/skills/spar/scripts/spar-codex").read_text(encoding="utf-8")
+require(not re.search(r"^\s*(-m\S*|--model\S*|-p\S*|--profile\S*)(\s|$)", spar_codex, re.M) and not re.search(r"""(^|\s)(-c|--config)(=|\s+)?["']?\s*(profiles\.[^=\s]+\.)?model\s*=""", spar_codex, re.M), "spar-codex pins a reviewer model instead of the catalog default")
+require('service_tier="default"' in spar_codex and 'service_tier="fast"' not in spar_codex and 'model_reasoning_effort="xhigh"' in spar_codex, "spar-codex does not review on the standard tier at xhigh")
+require(re.fullmatch(r"openai/gpt-[0-9][a-z0-9.-]*", opencode["model"]) and not opencode["model"].endswith("-fast"), "OpenCode model is not a concrete GPT id on the standard tier")
+require(not opencode["small_model"].endswith("-fast"), "OpenCode small model is on the Fast tier")
 
 
 # Commit gate: every tool runs commit-gate before a shell command.

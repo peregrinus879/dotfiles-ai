@@ -33,6 +33,7 @@ if [[ " $* " == *' auth status '* ]]; then
   exit
 fi
 printf '%s\n' "$*" >>"$SPAR_TEST_CALLS"
+printf '%s\0' "$@" >"$SPAR_TEST_CALLS.argv"
 printf '%s\n' "$PWD" >>"$SPAR_TEST_CALLS.pwd"
 env >"$SPAR_TEST_CALLS.env"
 cat >"$SPAR_TEST_CALLS.stdin"
@@ -60,6 +61,7 @@ if [[ ${1:-} == login && ${2:-} == status ]]; then
 fi
 [[ ${1:-} == exec ]] || exit 90
 printf '%s\n' "$*" >>"$SPAR_TEST_CALLS"
+printf '%s\0' "$@" >"$SPAR_TEST_CALLS.argv"
 printf '%s\n' "$PWD" >>"$SPAR_TEST_CALLS.pwd"
 env >"$SPAR_TEST_CALLS.env"
 cat >"$SPAR_TEST_CALLS.stdin"
@@ -341,7 +343,7 @@ run_bridge() { # bridge mode calls-file [bridge args...]
   local bridge=$1 mode=$2 calls=$3
   shift 3
   BRIDGE_RC=0
-  rm -f -- "$calls" "$calls.pwd" "$calls.stdin" "$calls.env"
+  rm -f -- "$calls" "$calls.pwd" "$calls.stdin" "$calls.env" "$calls.argv"
   configure_shims "$mode" "$calls" "${SPAR_TEST_REPLY:-}"
   PATH="$SHIMS:$PATH" /usr/bin/env -C "$repo" "$bridge" review "$@" >"$calls.out" 2>"$calls.err" || BRIDGE_RC=$?
 }
@@ -377,18 +379,44 @@ for bridge in "$CLAUDE_BRIDGE" "$CODEX_BRIDGE"; do
     fail "$name passed caller environment to the reviewer"
   grep -qE '^HOME=' "$calls.env" || fail "$name scrubbed HOME from the reviewer"
   args=$(<"$calls")
+  mapfile -d '' argv <"$calls.argv"
   if [[ $name == spar-claude ]]; then
     for flag in '--tools Read,Glob,Grep' '--permission-mode dontAsk' '--safe-mode' '--setting-sources=' \
-      '--strict-mcp-config' '--model opus' '--effort xhigh' '--output-format json' \
+      '--strict-mcp-config' '--model fable' '--effort xhigh' '--output-format json' 'ANTHROPIC_DEFAULT_FABLE_MODEL' \
       "Read(/$repo/**)" "Read(/$repo/.git/**)" 'Read(./**/.env)' 'Read(./**/*.pem)' "Read(/$HOME/.ssh/**)"; do
       [[ $args == *"$flag"* ]] || fail "$name isolation missing: $flag"
     done
+    # The model is the fable alias and the settings clear exactly its override,
+    # checked on the argument values, not on names in the joined text.
+    for ((i = 0; i < ${#argv[@]}; i++)); do
+      case ${argv[i]} in
+        --model) [[ ${argv[i + 1]:-} == fable ]] || fail "$name reviews with '${argv[i + 1]:-}' instead of the fable alias" ;;
+        --model=*) fail "$name passes the model as ${argv[i]}" ;;
+        --settings) jq -e '.env == {ANTHROPIC_DEFAULT_FABLE_MODEL: ""}' <<<"${argv[i + 1]:-}" >/dev/null 2>&1 ||
+          fail "$name settings do not clear exactly the fable override" ;;
+      esac
+    done
   else
     for flag in 'default_permissions="spar-reviewer"' 'approval_policy="never"' 'features.plugins=false' \
-      'features.multi_agent=false' 'web_search="disabled"' 'network={enabled=false}' '":root"="deny"' \
+      'features.multi_agent=false' 'web_search="disabled"' 'network={enabled=false}' '":root"="deny"' 'service_tier="default"' \
       "\"$repo\"=\"read\"" "\"$repo/.git\"=\"deny\"" '"**/.env"="deny"' '"**/*.pem"="deny"' \
       "trust_level=\"untrusted\"" 'project_doc_max_bytes=0' '--ignore-user-config' '--ignore-rules'; do
       [[ $args == *"$flag"* ]] || fail "$name isolation missing: $flag"
+    done
+    # No token selects a model, in any flag or configuration-override form:
+    # the catalog default is the reviewer.
+    for ((i = 0; i < ${#argv[@]}; i++)); do
+      override=""
+      case ${argv[i]} in
+        --model|--model=*|-m|-m?*|--profile|--profile=*|-p|-p?*) fail "$name pins a reviewer model instead of the catalog default: ${argv[i]}" ;;
+        -c|--config) override=${argv[i + 1]:-} ;;
+        -c?*) override=${argv[i]#-c} ;;
+        --config=*) override=${argv[i]#--config=} ;;
+      esac
+      key=${override%%=*}
+      key=${key//[[:space:]]/}
+      [[ -z $override || ( $key != model && $key != *.model ) ]] ||
+        fail "$name pins a reviewer model through a configuration override: ${argv[i]} $override"
     done
   fi
   [[ $args != *'/var/tmp/spar-'* ]] || fail "$name still references a handoff directory"

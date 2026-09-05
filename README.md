@@ -136,7 +136,7 @@ make canary    # run each tool once and assert the inventory, the gate, the read
 
 Stow runs without directory folding, so `~/.claude`, `~/.config/opencode`, and the other managed parents stay real directories that tools may write into. The one exception is each `~/.agents/skills/<name>`, linked whole by `make stow`, because Codex's skill loader follows directory links and skips file links. Stow reports any conflicting regular file without changing it; reconcile it explicitly.
 
-`make stow` and `make restow` also install `templates/hooks/commit-gate` as a real file under `~/.agents/hooks`, outside every workspace because the hooks run it outside the Codex sandbox, and install `~/.codex/config.toml` from `templates/codex/config.toml` as a host-local file. The template owns the model, review, feature, and permission settings; tables that Codex or the desktop app add (projects, plugins, MCP servers, desktop state) are preserved across reconciliations.
+`make stow` and `make restow` also install `templates/hooks/commit-gate` as a real file under `~/.agents/hooks`, outside every workspace because the hooks run it outside the Codex sandbox, and install `~/.codex/config.toml` from `templates/codex/config.toml` as a host-local file. The template owns the effort, review, feature, and permission settings; tables that Codex or the desktop app add (projects, plugins, MCP servers, desktop state) and the root `service_tier` a `/fast` choice writes are preserved across reconciliations.
 
 When moving clones, run `make unstow` in the old clone and `make stow` in the new clone. If the old clone is unavailable, `make stow` from the new clone removes the dangling links first.
 
@@ -182,7 +182,7 @@ The harness is personal, and forking it means replacing a few facts rather than 
 
 - The addressee. The guidance and skills speak to `H`; the commit skill's identity check expects a GitHub no-reply address.
 - The hosts. Omarchy and WSL are named in the guidance, the Makefile guards, and the ledger's host pass items; the `require-host` guards in the sibling repositories encode which machine runs which targets.
-- The models. Claude Code's `model` and effort, the Codex template's `model` and `service_tier`, and OpenCode's `model` and `small_model` are each one line.
+- The models. Claude Code's `model` alias and effort, the Codex template's effort, which pins no model or service tier, and OpenCode's `model` and `small_model` are each one line; `tests/config-contracts.py` holds those shapes, so a fork that pins differently relaxes its model block.
 - The packages. `PACKAGES` in the Makefile and the clean script name what Stow deploys; add a package for a new tool as a directory of symlinks to `agents/.agents`.
 - The credential list. It lives in three configurations, the bridges, and the scanner, and `tests/config-contracts.py` fails when they drift apart.
 

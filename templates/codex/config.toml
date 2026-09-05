@@ -1,7 +1,9 @@
-model = "gpt-5.6-sol"
+# No model pin: Codex uses its catalog default, the first picker-visible model,
+# so a new generation arrives with the catalog. No service tier either: the
+# Fast tier multiplies usage, so it is a per-session /fast choice, which
+# features.fast_mode keeps available, never a default.
 model_reasoning_effort = "xhigh"
 model_reasoning_summary = "auto"
-service_tier = "fast"
 personality = "none"
 web_search = "live"
 approval_policy = "on-request"
@@ -30,7 +32,6 @@ command = "~/.agents/hooks/commit-gate"
 timeout = 30
 
 [agents]
-default_subagent_model = "gpt-5.6-sol"
 default_subagent_reasoning_effort = "xhigh"
 
 [permissions.trusted-workspace]

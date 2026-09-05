@@ -12,18 +12,22 @@ not know) and is preserved in its original order, trimmed of surrounding blank
 lines. One host-written subtable lives under a template-owned table: Codex
 records each hook's trusted hash under `hooks.state` after a session, so that
 subtable is preserved too and ignored when the owned tables are compared.
+One root key is host-owned when the template leaves it out: Codex persists the
+`/fast` choice as `service_tier`, so that line survives the merge and never
+counts as drift.
 
 `merge` prints the reconciled config: the template text followed by the
 host-only tables. `check` exits 0 when HOST already carries the template's
-root keys and tables with the template's values, 1 when it has drifted, and 2
-when either file does not parse. Sections are split on top-level table headers
-line by line; a multi-line string that contains a line shaped like a header
-makes the reconciled output fail to parse, which `merge` reports instead of
-writing.
+root keys and tables with the template's values and no root key the template
+lacks, the host-owned key aside, 1 when it has drifted, and 2 when either file does not parse.
+Sections are split on top-level table headers line by line; a multi-line
+string that contains a line shaped like a header makes the reconciled output
+fail to parse, which `merge` reports instead of writing.
 """
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 import tomllib
@@ -33,6 +37,9 @@ HEADER = re.compile(r"^\s*\[\[?(?P<key>.*?)\]\]?\s*(?:#.*)?$")
 # Host-written subtables under template-owned tables: Codex stores each hook's
 # trusted hash under hooks.state, keyed by config path and hook position.
 HOST_SUBTABLES = {"hooks": {"state"}}
+# Host-owned root keys when the template does not define them: Codex writes the
+# per-session /fast choice here, and it is H's own, not drift.
+HOST_ROOT_KEYS = {"service_tier"}
 
 
 def components(key: str) -> list[str]:
@@ -104,17 +111,35 @@ def template_owned(template: dict) -> set[str]:
     return set(template)
 
 
+def host_owned(key: str, value) -> bool:
+    """True for a host-owned root key carrying the string value Codex writes."""
+    return key in HOST_ROOT_KEYS and isinstance(value, str)
+
+
+def host_root_lines(host: dict, owned: set[str]) -> list[str]:
+    """The host-owned root keys the template does not define, re-emitted from their parsed values."""
+    return [f"{key} = {json.dumps(host[key])}\n" for key in sorted(HOST_ROOT_KEYS)
+            if key in host and key not in owned and host_owned(key, host[key])]
+
+
 def merge(template_path: str, host_path: str | None) -> str:
     template_text, template = load(template_path)
-    output = template_text if template_text.endswith("\n") else template_text + "\n"
+    template_root, template_sections = split_sections(template_text)
+    output = template_root
+    host_sections: list[str] = []
     if host_path is not None:
-        host_text, _ = load(host_path)
+        host_text, host = load(host_path)
         owned = template_owned(template)
         _, sections = split_sections(host_text)
-        for parts, text in sections:
-            if parts[0] in owned and not host_subtable(parts):
-                continue
-            output += "\n" + text.strip("\n") + "\n"
+        kept = host_root_lines(host, owned)
+        if kept:
+            output = output.rstrip("\n") + "\n" + "".join(kept) + "\n"
+        host_sections = [text for parts, text in sections if parts[0] not in owned or host_subtable(parts)]
+    output += "".join(text for _, text in template_sections)
+    if not output.endswith("\n"):
+        output += "\n"
+    for text in host_sections:
+        output += "\n" + text.strip("\n") + "\n"
     try:
         result = tomllib.loads(output)
     except tomllib.TOMLDecodeError as error:
@@ -127,12 +152,20 @@ def merge(template_path: str, host_path: str | None) -> str:
 
 def check(template_path: str, host_path: str) -> int:
     _, template = load(template_path)
-    _, host = load(host_path)
+    host_text, host = load(host_path)
     drifted = [key for key, value in template.items() if owned_view(key, host.get(key)) != value]
+    # The template owns the root, so a root key it no longer defines, such as a
+    # retired model pin, is drift on its own; merge drops it. What merge keeps is
+    # exactly the header sections and the host-owned keys, so an inline table at
+    # the root is drift too.
+    _, sections = split_sections(host_text)
+    section_keys = {parts[0] for parts, _ in sections}
+    retired = [key for key, value in host.items() if key not in template and key not in section_keys and not host_owned(key, value)]
     if drifted:
         print(f"reconcile-codex-config: template-owned keys drifted: {', '.join(drifted)}", file=sys.stderr)
-        return 1
-    return 0
+    if retired:
+        print(f"reconcile-codex-config: root keys the template retired: {', '.join(retired)}", file=sys.stderr)
+    return 1 if drifted or retired else 0
 
 
 def main() -> None:

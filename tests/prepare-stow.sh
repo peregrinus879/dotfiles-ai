@@ -212,6 +212,45 @@ print(len(tomllib.load(open(sys.argv[1], "rb"))["hooks"]["PreToolUse"]))' "$conf
   inode=$(stat -c '%i' -- "$config")
   migrate "$home" "$repo"
   [[ $(stat -c '%i' -- "$config") == "$inode" ]] || fail "repeat reconciliation rewrote a matching config"
+  # A root key the template retired, such as an old model pin, is drift on its
+  # own, and the merge drops it while the host tables and the host-owned root
+  # key Codex writes for the /fast choice survive.
+  {
+    printf 'model = "gpt-5.6-sol"\nservice_tier = "fast"\n'
+    cat "$repo/templates/codex/config.toml"
+    printf '\n[projects."/srv/example"]\ntrust_level = "trusted"\n\n[[host_array]]\nname = "fixture"\n'
+  } >"$config"
+  chmod 600 "$config"
+  ! python3 "$repo/scripts/reconcile-codex-config.py" check "$repo/templates/codex/config.toml" "$config" 2>/dev/null ||
+    fail "drift check accepted a root key the template retired"
+  migrate "$home" "$repo"
+  [[ -z $(python3 -c 'import sys, tomllib
+print(tomllib.load(open(sys.argv[1], "rb")).get("model", ""))' "$config") ]] ||
+    fail "retired root model pin survived reconciliation"
+  [[ $(toml_value "$config" 'projects./srv/example.trust_level') == trusted ]] || fail "host project table was lost beside the retired key"
+  [[ $(toml_value "$config" host_array) == *fixture* ]] || fail "host array of tables was lost beside the retired key"
+  [[ $(toml_value "$config" service_tier) == fast ]] || fail "host-owned service tier choice was lost"
+  python3 "$repo/scripts/reconcile-codex-config.py" check "$repo/templates/codex/config.toml" "$config" ||
+    fail "drift check flags a host array of tables as a retired root key"
+  # The host-owned key is read as TOML, not as text: a tier line inside a
+  # multi-line string is not a setting, a quoted key is, and an inline table at
+  # the root is drift, since the merge keeps only header sections.
+  {
+    printf '"service_tier" = "fast"\nretired_note = """\nDo not use:\nservice_tier = "flex"\n"""\n'
+    cat "$repo/templates/codex/config.toml"
+  } >"$config"
+  chmod 600 "$config"
+  ! python3 "$repo/scripts/reconcile-codex-config.py" check "$repo/templates/codex/config.toml" "$config" 2>/dev/null ||
+    fail "drift check accepted a retired root string"
+  migrate "$home" "$repo"
+  [[ $(toml_value "$config" service_tier) == fast ]] || fail "quoted host-owned key was lost"
+  [[ $(/usr/bin/grep -c '^service_tier' "$config") == 1 && -z $(python3 -c 'import sys, tomllib
+print(tomllib.load(open(sys.argv[1], "rb")).get("retired_note", ""))' "$config") ]] ||
+    fail "a tier line inside a retired string became a setting"
+  { printf 'inline_state = { mode = "queue" }\n'; cat "$repo/templates/codex/config.toml"; } >"$config"
+  chmod 600 "$config"
+  ! python3 "$repo/scripts/reconcile-codex-config.py" check "$repo/templates/codex/config.toml" "$config" 2>/dev/null ||
+    fail "drift check accepted a root inline table the merge would drop"
   rm -- "$config"
 
   ln -s "$repo/codex/.codex/config.toml" "$config"
